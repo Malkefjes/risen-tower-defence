@@ -79,7 +79,7 @@ export class GameView {
     this.sun.shadow.radius = 3;
     this.scene.add(this.sun, this.sun.target);
     for (let i = 0; i < LAMP_LIGHTS; i++) {
-      const l = new THREE.PointLight(P.lamp, 0, 3.8, 2);
+      const l = new THREE.PointLight(P.lamp, 0, 2.6, 2);
       this.lampLights.push(l);
       this.scene.add(l);
     }
@@ -305,7 +305,7 @@ export class GameView {
         const l = this.models.create("lamp");
         l.position.set(x + 0.5, 0, y + 0.5); l.rotation.y = rot;
         group.add(l);
-        lamp = new THREE.Vector3(x + 0.5 + dx * 1.1, 0.7, y + 0.5 + dy * 1.1);
+        lamp = new THREE.Vector3(x + 0.5 + dx * 1.2, 0.45, y + 0.5 + dy * 1.2);
         break outer;
       }
     }
@@ -408,7 +408,7 @@ export class GameView {
       const p = lamps[i];
       if (!p) { l.intensity = 0; return; }
       l.position.copy(p);
-      l.intensity = 1.6 * (1 + Math.sin(this.time * 7 + i * 2.3) * 0.04 + Math.sin(this.time * 13 + i) * 0.03);
+      l.intensity = 0.55 * (1 + Math.sin(this.time * 7 + i * 2.3) * 0.04 + Math.sin(this.time * 13 + i) * 0.03);
     });
     this.mat.lamp.emissiveIntensity = 0.75 + Math.sin(this.time * 1.6) * 0.2;
   }

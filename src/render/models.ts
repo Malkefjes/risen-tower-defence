@@ -126,14 +126,17 @@ export function createGlows() {
   const mk = (color: string, opacity: number) =>
     new THREE.SpriteMaterial({ map: tex, color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false });
   return {
-    warm: mk("#ffb45a", 0.75),
-    window: mk("#ffa94d", 0.5),
+    warm: mk("#ffb45a", 0.55),
+    window: mk("#ffa94d", 0.35),
+    /** Soft pool of lamplight on the snow. Lies flat on the ground, so walls occlude it cleanly. */
+    pool: new THREE.MeshBasicMaterial({ map: tex, color: "#ff9a4a", transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }),
     cyan: mk("#4fdcca", 0.7),
     violet: mk("#8e5cff", 0.65),
     alien: mk("#9a6cff", 0.4),
   };
 }
 export type Glows = ReturnType<typeof createGlows>;
+const poolGeo = new THREE.PlaneGeometry(1, 1);
 
 export const glowSprite = (m: THREE.SpriteMaterial, s: number): THREE.Sprite => {
   const sp = new THREE.Sprite(m);
@@ -182,9 +185,14 @@ export function createDefaultModels(mat: Materials, glow: Glows): ModelLibrary {
     const g = new THREE.Group();
     const l = new THREE.Mesh(geo.lamp, mat.lamp);
     l.position.set(0, 0.36, 0.49);
-    const s = glowSprite(glow.warm, 1.1);
-    s.position.set(0, 0.38, 0.55);
-    g.add(l, s);
+    // Small halo held off the wall face so it never slices through the block.
+    const s = glowSprite(glow.warm, 0.42);
+    s.position.set(0, 0.36, 0.78);
+    const pool = new THREE.Mesh(poolGeo, glow.pool);
+    pool.rotation.x = -Math.PI / 2;
+    pool.scale.set(2.2, 1.7, 1);
+    pool.position.set(0, 0.012, 1.15);
+    g.add(l, s, pool);
     return g;
   });
   /** Lit window on a wall face (faces +z). */
@@ -192,8 +200,8 @@ export function createDefaultModels(mat: Materials, glow: Glows): ModelLibrary {
     const g = new THREE.Group();
     const w = new THREE.Mesh(geo.window, mat.window);
     w.position.set(0, 0.3, 0.485);
-    const s = glowSprite(glow.window, 0.6);
-    s.position.set(0, 0.3, 0.53);
+    const s = glowSprite(glow.window, 0.28);
+    s.position.set(0, 0.3, 0.72);
     g.add(w, s);
     return g;
   });

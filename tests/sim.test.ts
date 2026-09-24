@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Game, HAND_SIZE, OPENING_DRAFTS } from "../src/sim/game";
+import { Game, SUPPLY_PER_ROUND } from "../src/sim/game";
 import { computeField } from "../src/sim/pathfinding";
 import { pieceCells, shapeOffsets, SHAPE_IDS } from "../src/sim/pieces";
 import { World, type MapDef } from "../src/sim/world";
@@ -8,10 +8,9 @@ const open = (extra: Partial<MapDef> = {}): MapDef => ({
   name: "test", spawners: [[0, 0]], nexus: [[10, 0]], rocks: [], trees: [], ...extra,
 });
 
-/** Game that has finished its opening drafts, holding the given shapes. */
+/** A fresh game: planning phase, holding the first supply drop. */
 function planningGame(map: MapDef, seed = 1): Game {
   const g = new Game(map, { seed });
-  for (let i = 0; i < OPENING_DRAFTS; i++) g.pickDraft(0);
   expect(g.phase).toBe("planning");
   return g;
 }
@@ -72,40 +71,24 @@ describe("pathfinding", () => {
   });
 });
 
-describe("drafting", () => {
-  it("opens with three drafts before planning", () => {
+describe("supply", () => {
+  it("starts in planning with one supply drop in hand", () => {
     const g = new Game(open(), { seed: 3 });
-    for (let i = 0; i < OPENING_DRAFTS; i++) {
-      expect(g.phase).toBe("draft");
-      expect(g.draft!.options).toHaveLength(3);
-      expect(new Set(g.draft!.options).size).toBe(3);
-      g.pickDraft(i % 3);
-    }
     expect(g.phase).toBe("planning");
-    expect(g.hand).toHaveLength(3);
+    expect(g.hand).toHaveLength(SUPPLY_PER_ROUND);
+    expect(g.drainEvents().some(e => e.type === "supply")).toBe(true);
   });
 
-  it("with a full hand, picking requires a discard", () => {
+  it("delivers three more walls each round, and unused walls carry over", () => {
     const g = planningGame(open());
+    g.place(g.hand[0]!.uid, 0, [5, 5]);
+    expect(g.hand).toHaveLength(SUPPLY_PER_ROUND - 1);
     g.startWave();
-    while (g.phase === "wave") g.step();
-    expect(g.phase).toBe("draft");
-    expect(g.hand).toHaveLength(HAND_SIZE);
-    expect(g.pickDraft(0)).toBe(false);
-    const discard = g.hand[0]!;
-    const picked = g.draft!.options[0];
-    expect(g.pickDraft(0, discard.uid)).toBe(true);
-    expect(g.hand).toHaveLength(HAND_SIZE);
-    expect(g.hand.some(h => h.uid === discard.uid)).toBe(false);
-    expect(g.hand[g.hand.length - 1]!.shape).toBe(picked);
-  });
-
-  it("can skip a draft", () => {
-    const g = planningGame(open());
-    g.startWave();
-    while (g.phase === "wave") g.step();
-    g.skipDraft();
+    let guard = 0;
+    while (g.phase === "wave" && guard++ < 60 * 120) g.step();
     expect(g.phase).toBe("planning");
+    expect(g.round).toBe(2);
+    expect(g.hand).toHaveLength(SUPPLY_PER_ROUND * 2 - 1);
   });
 });
 
@@ -115,12 +98,12 @@ describe("placement", () => {
     const held = g.hand[0]!;
     const r = g.place(held.uid, 0, [5, 4]);
     expect(r.ok).toBe(true);
-    expect(g.hand).toHaveLength(2);
+    expect(g.hand).toHaveLength(SUPPLY_PER_ROUND - 1);
     expect(g.pieces).toHaveLength(1);
     expect(g.undo()).not.toBeNull();
     expect(g.pieces).toHaveLength(0);
-    expect(g.hand).toHaveLength(3);
-    expect(g.hand[2]!.shape).toBe(held.shape);
+    expect(g.hand).toHaveLength(SUPPLY_PER_ROUND);
+    expect(g.hand[SUPPLY_PER_ROUND - 1]!.shape).toBe(held.shape);
   });
 
   it("refuses overlapping terrain, nexus and rift", () => {
@@ -179,9 +162,10 @@ describe("placement", () => {
     const r = g.place(g.hand[0]!.uid, 1, [7, 0]);
     expect(r.ok).toBe(true);
     expect(g.field.at(0, 0)).toBeGreaterThan(before);
-    // Everyone still arrives.
+    // Everyone still arrives and the next round begins.
     let guard = 0;
     while (g.phase === "wave" && guard++ < 60 * 120) g.step();
-    expect(g.phase).toBe("draft");
+    expect(g.phase).toBe("planning");
+    expect(g.round).toBe(2);
   });
 });

@@ -32,30 +32,17 @@
 
       <div class="bottom">
         <div class="help" id="help">
-          <div><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> or click a piece to hold it</div>
+          <div><kbd>1</kbd>–<kbd>9</kbd> or click a wall to hold it</div>
           <div><kbd>R</kbd> / right-click rotate, click to place</div>
-          <div>Click your glowing pieces to pick them up, <kbd>Z</kbd> undo</div>
+          <div>Click your glowing walls to pick them up, <kbd>Z</kbd> undo</div>
           <div>Drag or <kbd>WASD</kbd> to pan, scroll to zoom</div>
         </div>
-        <div class="hand" id="hand" aria-label="Your pieces"></div>
+        <div class="hand" id="hand" aria-label="Your walls"></div>
         <div class="actions">
           <button id="waveBtn" class="primary">Start wave <kbd>Enter</kbd></button>
         </div>
       </div>
 
-      <div id="draft" class="overlay" hidden>
-        <div class="panel" role="dialog" aria-labelledby="draftTitle">
-          <p class="eyebrow" id="draftEyebrow">Supply drop</p>
-          <h2 id="draftTitle">Choose a piece</h2>
-          <p class="sub" id="draftSub"></p>
-          <div class="options" id="draftOptions"></div>
-          <div class="discard" id="discard" hidden>
-            <p class="sub">Your hand is full. Choose a piece to give up:</p>
-            <div class="options small" id="discardOptions"></div>
-          </div>
-          <div class="row"><button id="skipBtn" class="ghost">Skip this drop</button></div>
-        </div>
-      </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

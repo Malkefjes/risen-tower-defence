@@ -11,8 +11,6 @@ const view = new GameView(document.getElementById("view")!, game);
 let controller!: Controller;
 const hud = new Hud(game, {
   selectHand: uid => controller.select(uid),
-  pickDraft: (i, discard) => { game.pickDraft(i, discard); },
-  skipDraft: () => game.skipDraft(),
   startWave: () => controller.startWave(),
 });
 controller = new Controller(game, view, hud);
@@ -53,6 +51,8 @@ function frame(now: number): void {
   const overlay = controller.frame(dt);
   hud.update(controller.selectedUid, controller.rot);
   syncTools();
+  const fresh = game.events.filter(e => e.type === "supply");
+  for (const e of fresh) if (e.type === "supply") hud.supplyArrived(e.pieces.map(p => p.uid));
   view.render(dt, simDt, overlay);
   requestAnimationFrame(frame);
 }

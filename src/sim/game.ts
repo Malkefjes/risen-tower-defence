@@ -4,12 +4,11 @@ import { Rng } from "./rng";
 import { cellKey, type Cell } from "./types";
 import { World, type MapDef } from "./world";
 
-export const HAND_SIZE = 3;
-export const OPENING_DRAFTS = 3;
-export const DRAFT_OPTIONS = 3;
+/** Random walls delivered at the start of every round. Unused walls carry over. */
+export const SUPPLY_PER_ROUND = 3;
 export const TICK = 1 / 60;
 
-export type Phase = "draft" | "planning" | "wave";
+export type Phase = "planning" | "wave";
 
 export interface HandPiece { uid: number; shape: ShapeId }
 
@@ -33,11 +32,6 @@ export interface Walker {
   speed: number;
 }
 
-export interface Draft {
-  options: ShapeId[];
-  opening: boolean;
-}
-
 export type BlockReason = "occupied" | "walker" | "cuts-off-rift" | "traps-walker";
 
 export type PlacementCheck =
@@ -48,7 +42,8 @@ export type GameEvent =
   | { type: "placed"; piece: PlacedPiece }
   | { type: "removed"; piece: PlacedPiece }
   | { type: "walker-arrived"; walker: Walker }
-  | { type: "phase"; phase: Phase };
+  | { type: "phase"; phase: Phase }
+  | { type: "supply"; pieces: HandPiece[] };
 
 export const REASON_TEXT: Record<BlockReason, string> = {
   "occupied": "Something is already there",
@@ -57,18 +52,18 @@ export const REASON_TEXT: Record<BlockReason, string> = {
   "traps-walker": "That would trap an enemy",
 };
 
-export interface GameOptions { seed?: number; waveSize?: (round: number) => number }
+export interface GameOptions { seed?: number; waveSize?: (round: number) => number; supply?: number }
 
 /** All game rules for the placement prototype (Phase 1, step 1). No graphics. */
 export class Game {
   readonly world: World;
   readonly rng: Rng;
-  phase: Phase = "draft";
+  phase: Phase = "planning";
   /** Rounds completed; the first wave is round 1. */
   round = 1;
   hand: HandPiece[] = [];
-  draft: Draft | null = null;
-  openingDraftsLeft = OPENING_DRAFTS;
+  /** Walls delivered per round (a tuning knob). */
+  supplyPerRound: number;
   pieces: PlacedPiece[] = [];
   walkers: Walker[] = [];
   field: FlowField;
@@ -85,48 +80,19 @@ export class Game {
     this.world = new World(map);
     this.rng = new Rng(opts.seed ?? Date.now());
     this.waveSize = opts.waveSize ?? (r => 6 + r * 2);
+    this.supplyPerRound = opts.supply ?? SUPPLY_PER_ROUND;
     this.field = computeField(this.world);
-    this.openDraft(true);
+    this.supply();
   }
 
-  // ---------------------------------------------------------------- drafting
+  // ---------------------------------------------------------------- supply
 
-  private openDraft(opening: boolean): void {
-    this.draft = { options: this.rng.pickDistinct(SHAPE_IDS, DRAFT_OPTIONS), opening };
-    this.setPhase("draft");
-  }
-
-  get handFull(): boolean { return this.hand.length >= HAND_SIZE; }
-
-  /**
-   * Take draft option `index`. With a full hand, `discardUid` names the held
-   * piece to give up. Returns false if the pick can't happen yet.
-   */
-  pickDraft(index: number, discardUid?: number): boolean {
-    const d = this.draft;
-    if (this.phase !== "draft" || !d) return false;
-    const shape = d.options[index];
-    if (!shape) return false;
-    if (this.handFull) {
-      const i = this.hand.findIndex(h => h.uid === discardUid);
-      if (i < 0) return false;
-      this.hand.splice(i, 1);
-    }
-    this.hand.push({ uid: this.nextId++, shape });
-    this.afterDraft();
-    return true;
-  }
-
-  skipDraft(): void {
-    if (this.phase !== "draft") return;
-    this.afterDraft();
-  }
-
-  private afterDraft(): void {
-    const opening = this.draft?.opening ?? false;
-    this.draft = null;
-    if (opening && --this.openingDraftsLeft > 0) { this.openDraft(true); return; }
-    this.setPhase("planning");
+  /** Deliver this round's random walls straight into the hand. */
+  private supply(): void {
+    const pieces: HandPiece[] = [];
+    for (let i = 0; i < this.supplyPerRound; i++) pieces.push({ uid: this.nextId++, shape: SHAPE_IDS[this.rng.int(SHAPE_IDS.length)]! });
+    this.hand.push(...pieces);
+    this.events.push({ type: "supply", pieces });
   }
 
   // ---------------------------------------------------------------- placement
@@ -169,7 +135,7 @@ export class Game {
   }
 
   canPickUp(piece: PlacedPiece | undefined): piece is PlacedPiece {
-    return !!piece && !piece.locked && this.phase === "planning" && !this.handFull;
+    return !!piece && !piece.locked && this.phase === "planning";
   }
 
   /** Return an unlocked piece to the hand. Returns the new hand entry. */
@@ -226,7 +192,8 @@ export class Game {
     this.moveWalkers(dt);
     if (this.phase === "wave" && this.waveLeft === 0 && this.walkers.length === 0) {
       this.round++;
-      this.openDraft(false);
+      this.setPhase("planning");
+      this.supply();
     }
   }
 

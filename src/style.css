@@ -50,6 +50,7 @@ button:focus-visible { outline: 2px solid var(--warm); outline-offset: 2px; }
   padding: 8px 14px; border-radius: 10px; font-weight: 600; opacity: 0; transition: opacity .18s, transform .18s; pointer-events: none;
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
+#toast.info { border-color: rgba(255,180,90,.55); color: var(--warm); }
 
 /* ---------- bottom: help, hand, actions ---------- */
 .bottom {
@@ -60,7 +61,7 @@ button:focus-visible { outline: 2px solid var(--warm); outline-offset: 2px; }
 .bottom > * { pointer-events: auto; }
 .help { display: grid; gap: 4px; font-size: 12px; color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; justify-self: start; backdrop-filter: blur(6px); }
 .help[hidden] { display: none; }
-.hand { display: flex; gap: 8px; }
+.hand { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; max-width: min(620px, 92vw); }
 .actions { justify-self: end; }
 .card {
   position: relative; width: 78px; height: 86px; border-radius: 12px; cursor: pointer;
@@ -71,7 +72,9 @@ button:focus-visible { outline: 2px solid var(--warm); outline-offset: 2px; }
 .card.sel { border-color: var(--orange); box-shadow: 0 0 0 1px var(--orange), 0 6px 18px rgba(255,122,47,.25); transform: translateY(-5px); }
 .card .key { position: absolute; top: 5px; left: 7px; font-size: 11px; font-weight: 700; color: var(--muted); }
 .card .name { position: absolute; bottom: 5px; font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: .08em; }
-.card.empty { cursor: default; opacity: .35; border-style: dashed; }
+.card.empty { cursor: default; opacity: .45; border-style: dashed; }
+.card.new { animation: pop .45s cubic-bezier(.2,1.6,.4,1) both; border-color: var(--warm); }
+@keyframes pop { from { transform: translateY(18px) scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
 .card.empty:hover { transform: none; }
 .card svg { width: 44px; height: 44px; margin-top: -6px; }
 .primary {
@@ -83,29 +86,10 @@ button:focus-visible { outline: 2px solid var(--warm); outline-offset: 2px; }
 .primary:disabled { background: var(--panel); color: var(--muted); box-shadow: none; cursor: default; border: 1px solid var(--line); }
 .primary[hidden] { display: none; }
 
-/* ---------- draft overlay ---------- */
-.overlay { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(20,18,40,.35); padding: 16px; }
-.overlay[hidden] { display: none; }
-.panel { background: var(--panel-solid); border: 1px solid var(--line); border-radius: 18px; padding: 22px 24px; max-width: 440px; width: 100%; box-shadow: 0 20px 60px rgba(10,8,30,.5); text-align: center; }
-.eyebrow { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--warm); }
-.panel h2 { margin: 4px 0 4px; font-size: 24px; }
-.sub { margin: 0 0 14px; color: var(--muted); }
-.options { display: flex; gap: 10px; justify-content: center; margin-bottom: 14px; }
-.options .card { width: 96px; height: 104px; background: rgba(255,255,255,.05); backdrop-filter: none; }
-.options .card svg { width: 54px; height: 54px; }
-.options.small .card { width: 72px; height: 78px; }
-.options.small .card svg { width: 38px; height: 38px; }
-.options .card.pending { border-color: var(--orange); box-shadow: 0 0 0 1px var(--orange); }
-.discard[hidden] { display: none; }
-.discard .card:hover { border-color: var(--bad); }
-.row { display: flex; justify-content: center; }
-.ghost { background: none; border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; color: var(--muted); cursor: pointer; font-weight: 600; }
-.ghost:hover { color: var(--text); }
-
 @media (max-width: 760px) {
   .bottom { grid-template-columns: 1fr; justify-items: center; }
   .help { display: none; }
   .actions { justify-self: center; }
   .tools { margin-left: 0; }
 }
-@media (prefers-reduced-motion: reduce) { .card, #toast { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .card, #toast { transition: none; } .card.new { animation: none; } }

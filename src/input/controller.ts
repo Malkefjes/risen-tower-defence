@@ -69,7 +69,7 @@ export class Controller {
     if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) { this.keys.add(k); if (k.startsWith("arrow")) e.preventDefault(); return; }
     if ((e.ctrlKey || e.metaKey) && k === "z") { e.preventDefault(); this.undo(); return; }
     switch (k) {
-      case "1": case "2": case "3": { const p = this.game.hand[Number(k) - 1]; if (p) this.select(p.uid); break; }
+      case "1": case "2": case "3": case "4": case "5": case "6": case "7": case "8": case "9": { const p = this.game.hand[Number(k) - 1]; if (p) this.select(p.uid); break; }
       case "r": this.rotate(); break;
       case "escape": this.select(null); break;
       case "z": this.undo(); break;
@@ -126,7 +126,6 @@ export class Controller {
     if (!piece) return;
     if (piece.locked) { this.hud.toast("That piece is locked in"); return; }
     if (this.game.phase !== "planning") return;
-    if (this.game.handFull) { this.hud.toast("Your hand is full"); return; }
     const entry = this.game.pickUp(piece.id);
     if (entry) { this.selectedUid = entry.uid; this.rot = piece.rot; this.updateHover(); }
   }
@@ -167,7 +166,7 @@ export class Controller {
       this.view.panScreen(r * s, u * s * 1.6);
       this.updateHover();
     }
-    // Drop a selection that no longer exists (e.g. discarded, or draft opened).
+    // Drop a selection that no longer exists.
     if (this.selectedUid !== null && (!this.game.hand.some(h => h.uid === this.selectedUid) || !this.game.canPlaceNow())) this.selectedUid = null;
 
     const check = this.currentCheck(dt);

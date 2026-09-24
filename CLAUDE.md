@@ -5,6 +5,7 @@ Read this first in every session. Sessions do not share memory; this file and th
 ## Collaboration
 
 - Erik is the designer and player; Claude writes the code. Erik's calls on design are final.
+- Erik dislikes popups that interrupt play: prefer non-blocking notices.
 - Take it slow on design: discuss fundamentals, reason through trade-offs, don't jump to building without agreement.
 - Design doc (source of truth): https://claude.ai/code/artifact/8a4e11d2-eea6-4144-9f29-23a844c9d1ec
 - **Standing guardrail:** every shop/economy system must feed back into maze decisions. Flag it whenever a feature risks the economy becoming the main game.
@@ -23,7 +24,7 @@ Read this first in every session. Sessions do not share memory; this file and th
 
 ## Code map
 
-- `src/sim/` game rules, no graphics: `world.ts` (map, walls, no-edge bounds), `pathfinding.ts` (flow field, 8-way, no corner cutting), `pieces.ts`, `game.ts` (drafts, hand, placement rules, waves, walkers), `maps.ts`.
+- `src/sim/` game rules, no graphics: `world.ts` (map, walls, no-edge bounds), `pathfinding.ts` (flow field, 8-way, no corner cutting), `pieces.ts`, `game.ts` (supply drops, hand, placement rules, waves, walkers), `maps.ts`.
 - `src/render/` three.js: `models.ts` (named model library, materials, evening palette), `view.ts` (scene, camera, sync with sim, effects).
 - `src/input/controller.ts` mouse/keyboard to actions; `src/ui/hud.ts` DOM overlay; `src/main.ts` fixed-step loop (60 ticks/s).
 - Rendering uses `THREE.ColorManagement.enabled = false` and legacy-like light intensities to match the mockups.
