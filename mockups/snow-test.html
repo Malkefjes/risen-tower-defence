@@ -42,7 +42,15 @@
   #gl { display: block; max-width: 100%; }
   #gl canvas { display: block; max-width: 100%; }
   #pix[hidden], #gl[hidden], .vignette[hidden] { display: none; }
-  .vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 62% 64% at 50% 50%, rgba(196,206,224,0) 62%, rgba(196,206,224,1) 100%); }
+  .vignette { --vig: 196,206,224; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 62% 64% at 50% 50%, rgba(var(--vig),0) 62%, rgba(var(--vig),1) 100%); }
+  .seg button:disabled { opacity: .4; cursor: not-allowed; }
+  .stage.dusk .hud { color: #eef1f8; }
+  .stage.dusk .row b { color: var(--warm); }
+  .stage.dusk .card { background: rgba(18,22,38,.78); border-color: rgba(255,255,255,.14); }
+  .stage.dusk .card.sel { border-color: var(--orange); }
+  .stage.dusk .card small, .stage.dusk .draftLabel { color: #b8bfd4; }
+  .stage.dusk .hpbar i.lost { background: rgba(255,255,255,.18); }
+  .stage.clean.dusk .hpbar { background: rgba(18,22,38,.6); }
 
   .hud { position: absolute; inset: 0; pointer-events: none; font-family: var(--pixel); font-size: 11px; letter-spacing: .05em; color: #2a3044; }
   .hud .tl { position: absolute; left: 10px; top: 8px; display: grid; gap: 4px; }
@@ -82,12 +90,17 @@
   <header>
     <div>
       <h1>RISEN <span>/</span> SNOW TEST</h1>
-      <p class="sub">The first world, frozen. Same scene and simulation in two art styles.</p>
+      <p class="sub">The first world, frozen. Same scene and simulation in two art styles, from day to night.</p>
     </div>
     <div class="controls">
       <div class="seg" role="group" aria-label="Art style">
         <button id="vPix" aria-pressed="false">Pixel</button>
         <button id="vGl" aria-pressed="true">Clean 3D</button>
+      </div>
+      <div class="seg" role="group" aria-label="Time of day">
+        <button id="tdDay" aria-pressed="false">Day</button>
+        <button id="tdEve" aria-pressed="true">Evening</button>
+        <button id="tdNight" aria-pressed="false">Night</button>
       </div>
       <button class="tog" id="tGrid" aria-pressed="false">Grid</button>
       <button class="tog" id="tPath" aria-pressed="true">Path</button>
@@ -126,6 +139,7 @@
       <ul>
         <li>Cold world, warm colony: blue-white snow, with orange prefab modules like a polar research station.</li>
         <li>Warm lamps on the walls and turret tips; the nexus crystal glows cyan.</li>
+        <li>Evening and night turn the colony into the light source: lamps pool warm light on the snow, windows glow, and the nexus lights the courtyard.</li>
         <li>Snowfall, snow-capped rocks and pines. Pines and rocks both block paths, like any terrain.</li>
         <li>Alien critters in violet stand out clearly against the snow.</li>
       </ul>
@@ -137,7 +151,7 @@
         <li>Ghost piece previews the new route in orange, then drops in.</li>
         <li>No map edge: the world fades into snow haze.</li>
       </ul>
-      <p class="meta" style="margin-top:10px">Keys: <kbd>1</kbd> <kbd>2</kbd> style, <kbd>G</kbd> grid, <kbd>P</kbd> path, <kbd>Space</kbd> pause</p>
+      <p class="meta" style="margin-top:10px">Keys: <kbd>1</kbd> <kbd>2</kbd> style, <kbd>G</kbd> grid, <kbd>P</kbd> path, <kbd>Space</kbd> pause, <kbd>D</kbd> <kbd>E</kbd> <kbd>N</kbd> day / evening / night</p>
     </section>
   </div>
 </div>
@@ -548,7 +562,7 @@
     const cam = new T3.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
     const camOff = new T3.Vector3(20, 16.33, 20);
 
-    scene.add(new T3.HemisphereLight('#eef3ff', '#8f99b8', 0.85));
+    const hemi = new T3.HemisphereLight('#eef3ff', '#8f99b8', 0.85); scene.add(hemi);
     const sun = new T3.DirectionalLight('#ffe7cf', 0.75);
     sun.position.set(target.x - 6, 14, target.z + 9); sun.target.position.copy(target);
     sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
@@ -566,6 +580,15 @@
       path: new T3.MeshBasicMaterial({ color: '#ff7a2f' }), faint: new T3.MeshBasicMaterial({ color: '#6b7593', transparent: true, opacity: .55 }),
       shot: new T3.MeshBasicMaterial({ color: '#ffb45a' }), shotBig: new T3.MeshBasicMaterial({ color: '#ff7a2f' }),
     };
+    mat.window = M('#ffd79a', { emissive: '#ffa94d', emissiveIntensity: 0.3 });
+    const gc = document.createElement('canvas'); gc.width = gc.height = 64;
+    { const g2 = gc.getContext('2d'), rg = g2.createRadialGradient(32, 32, 0, 32, 32, 32);
+      rg.addColorStop(0, 'rgba(255,255,255,1)'); rg.addColorStop(.22, 'rgba(255,255,255,.5)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
+      g2.fillStyle = rg; g2.fillRect(0, 0, 64, 64); }
+    const glowTex = new T3.CanvasTexture(gc), glowMats = [];
+    const glowMat = (color, base) => { const m = new T3.SpriteMaterial({ map: glowTex, color, transparent: true, blending: T3.AdditiveBlending, depthWrite: false }); m.userData.base = base; glowMats.push(m); return m; };
+    const glow = { warm: glowMat('#ffb45a', .75), tip: glowMat('#ffb45a', .55), cyan: glowMat('#4fdcca', .7), violet: glowMat('#8e5cff', .65), enemy: glowMat('#9a6cff', .4), window: glowMat('#ffa94d', .5) };
+    const sprite = (m, sc) => { const sp = new T3.Sprite(m); sp.scale.set(sc, sc, 1); return sp; };
     const shadowed = (m, cast = true, recv = true) => { m.castShadow = cast; m.receiveShadow = recv; return m; };
 
     function roundedBox(w, h, d, r) {
@@ -586,6 +609,7 @@
       tBase: new T3.CylinderGeometry(0.28, 0.33, 0.22, 8), tHead: roundedBox(0.34, 0.2, 0.36, 0.06), barrel: new T3.CylinderGeometry(0.045, 0.045, 0.42, 8), tip: new T3.SphereGeometry(0.06, 8, 6),
       body: new T3.SphereGeometry(0.21, 14, 10), eye: new T3.SphereGeometry(0.045, 8, 6),
       shot: new T3.SphereGeometry(0.06, 8, 6), shotBig: new T3.SphereGeometry(0.11, 8, 6), part: new T3.BoxGeometry(0.07, 0.07, 0.07),
+      window: new T3.BoxGeometry(0.22, 0.14, 0.03),
       dash: new T3.BoxGeometry(0.16, 0.02, 0.06), dot: new T3.BoxGeometry(0.05, 0.015, 0.05),
     };
 
@@ -621,6 +645,8 @@
     // rift
     const rift = new T3.Mesh(new T3.CircleGeometry(0.5, 24), mat.rift); rift.rotation.x = -Math.PI / 2; rift.position.set(SPAWN[0] + .5, 0.01, SPAWN[1] + .5); scene.add(rift);
     const riftRing = new T3.Mesh(new T3.TorusGeometry(0.5, 0.035, 6, 32), mat.riftRing); riftRing.rotation.x = Math.PI / 2; riftRing.position.copy(rift.position); scene.add(riftRing);
+    const riftLight = new T3.PointLight('#8e5cff', 0, 3.5, 1.5); riftLight.position.set(SPAWN[0] + .5, 0.6, SPAWN[1] + .5); scene.add(riftLight);
+    const riftGlow = sprite(glow.violet, 1.9); riftGlow.position.set(SPAWN[0] + .5, 0.15, SPAWN[1] + .5); scene.add(riftGlow);
 
     // nexus
     const nexus = new T3.Group(); nexus.position.set(NEXUS_C[0], 0, NEXUS_C[1]);
@@ -629,7 +655,8 @@
     const crystal = shadowed(new T3.Mesh(new T3.OctahedronGeometry(0.34, 0), mat.crystal), true, false); crystal.scale.y = 1.5;
     const nRing = new T3.Mesh(new T3.TorusGeometry(1.0, 0.025, 6, 40), new T3.MeshBasicMaterial({ color: '#2fbfae', transparent: true, opacity: .5 })); nRing.rotation.x = Math.PI / 2; nRing.position.y = 0.03;
     const nLight = new T3.PointLight('#7ff5e6', 1.1, 4.5); nLight.position.y = 1.2;
-    nexus.add(nb, nb2, crystal, nRing, nLight); scene.add(nexus);
+    const crystalGlow = sprite(glow.cyan, 2.3);
+    nexus.add(nb, nb2, crystal, nRing, nLight, crystalGlow); scene.add(nexus);
 
     // towers
     const towerObjs = towers.map(t => {
@@ -639,7 +666,8 @@
       const hm = shadowed(new T3.Mesh(geo.tHead, mat.steelL)); hm.position.y = -0.1;
       const br = shadowed(new T3.Mesh(geo.barrel, mat.steelL)); br.rotation.x = Math.PI / 2; br.position.set(0, 0.0, 0.28);
       const tipMat = mat.lamp.clone(); const tip = new T3.Mesh(geo.tip, tipMat); tip.position.set(0, 0, 0.5);
-      head.add(hm, br, tip); g.add(base, head); g.scale.setScalar(s);
+      const tg = sprite(glow.tip, 0.5); tg.position.copy(tip.position);
+      head.add(hm, br, tip, tg); g.add(base, head); g.scale.setScalar(s);
       g.position.set(t.x, 0.62, t.y); scene.add(g);
       return { g, head, tipMat };
     });
@@ -653,12 +681,27 @@
         const w = shadowed(new T3.Mesh(geo.wall, pi % 2 ? mat.wallB : mat.wallA)); w.position.set(x + .5, 0, y + .5);
         const c = shadowed(new T3.Mesh(geo.cap, mat.snow), false, true); c.position.set(x + .5, 0.55, y + .5);
         wallGroup.add(w, c);
-        if (pieces[pi].cells[0][0] === x && pieces[pi].cells[0][1] === y) {
-          const l = new T3.Mesh(geo.lamp, mat.lamp); l.position.set(x + .5, 0.36, y + .99); wallGroup.add(l);
+        const first = pieces[pi].cells[0][0] === x && pieces[pi].cells[0][1] === y;
+        if (first) {
+          const l = new T3.Mesh(geo.lamp, mat.lamp); l.position.set(x + .5, 0.36, y + .99);
+          const lg = sprite(glow.warm, 1.1); lg.position.set(x + .5, 0.38, y + 1.05);
+          wallGroup.add(l, lg);
+        } else if (hash(x, y, 11) < 0.55) {
+          const faceZ = !walls.has(K(x, y + 1)), faceX = !walls.has(K(x + 1, y));
+          if (faceZ || faceX) {
+            const wm = new T3.Mesh(geo.window, mat.window), wg = sprite(glow.window, 0.6);
+            if (faceZ) { wm.position.set(x + .5, 0.3, y + .985); wg.position.set(x + .5, 0.3, y + 1.03); }
+            else { wm.position.set(x + .985, 0.3, y + .5); wm.rotation.y = Math.PI / 2; wg.position.set(x + 1.03, 0.3, y + .5); }
+            wallGroup.add(wm, wg);
+          }
         }
       });
       builtVersion = wallsVersion;
     }
+    const lampLights = pieces.filter(p => !p.ghost).map(p => {
+      const [x, y] = p.cells[0], l = new T3.PointLight('#ffb45a', 0, 3.8, 1.5);
+      l.position.set(x + .5, 0.55, y + 1.35); scene.add(l); return l;
+    });
     const ghostGroup = new T3.Group(); scene.add(ghostGroup);
     if (ghost) for (const [x, y] of ghost.cells) { const m = new T3.Mesh(geo.wall, mat.ghost); m.position.set(x + .5, 0, y + .5); ghostGroup.add(m); }
 
@@ -689,6 +732,33 @@
     const snowPts = new T3.Points(fgeo, new T3.PointsMaterial({ color: '#ffffff', size: 3, sizeAttenuation: false, transparent: true, opacity: .9 }));
     scene.add(snowPts);
 
+    const PRESETS = {
+      day:   { bg: '#c4cee0', sky: '#eef3ff', gnd: '#8f99b8', hemi: .85, sunC: '#ffe7cf', sun: .75, sunP: [-6, 14, 9],  lamp: 0,   glow: .2, win: .25, crystal: .6,  nexL: 1.1, rift: 0 },
+      eve:   { bg: '#6c6b98', sky: '#b3acd9', gnd: '#4a4769', hemi: .6,  sunC: '#ff9a62', sun: .9,  sunP: [-15, 4.2, 4], lamp: 1.1, glow: .75, win: 1.0, crystal: .9, nexL: 1.9, rift: .9 },
+      night: { bg: '#141a2d', sky: '#2c3a64', gnd: '#0c1120', hemi: .5,  sunC: '#9fb4ff', sun: .3,  sunP: [-8, 16, -5], lamp: 1.9, glow: 1,  win: 1.5, crystal: 1.25, nexL: 2.8, rift: 1.5 },
+    };
+    const Lc = { bg: new T3.Color(), sky: new T3.Color(), gnd: new T3.Color(), sunC: new T3.Color(), sunP: new T3.Vector3() };
+    let L = null, tod = 'eve';
+    const tmpC = new T3.Color(), tmpV = new T3.Vector3();
+    function applyTime(dt) {
+      const P = PRESETS[tod];
+      const k = L ? 1 - Math.exp(-dt * 3) : 1;
+      if (!L) L = {};
+      for (const c of ['bg', 'sky', 'gnd', 'sunC']) Lc[c].lerp(tmpC.set(P[c]), k);
+      Lc.sunP.lerp(tmpV.set(...P.sunP), k);
+      for (const n of ['hemi', 'sun', 'lamp', 'glow', 'win', 'crystal', 'nexL', 'rift']) L[n] = L[n] === undefined ? P[n] : L[n] + (P[n] - L[n]) * k;
+      scene.background.copy(Lc.bg);
+      hemi.color.copy(Lc.sky); hemi.groundColor.copy(Lc.gnd); hemi.intensity = L.hemi;
+      sun.color.copy(Lc.sunC); sun.intensity = L.sun; sun.position.copy(target).add(Lc.sunP);
+      const flick = i => 1 + Math.sin(T * 7 + i * 2.3) * 0.04 + Math.sin(T * 13 + i) * 0.03;
+      lampLights.forEach((l, i) => l.intensity = L.lamp * flick(i));
+      glowMats.forEach(m => m.opacity = m.userData.base * L.glow);
+      mat.window.emissiveIntensity = L.win;
+      riftLight.intensity = L.rift * (0.75 + 0.25 * Math.sin(T * 4));
+      const rgb = `${Math.round(Lc.bg.r * 255)},${Math.round(Lc.bg.g * 255)},${Math.round(Lc.bg.b * 255)}`;
+      if (rgb !== applyTime.last) { applyTime.last = rgb; $('#vig').style.setProperty('--vig', rgb); $('.stageWrap').style.background = `rgb(${rgb})`; }
+    }
+    function setTime(t) { tod = t; }
     function resize() {
       const w = Math.min($('.stageWrap').clientWidth, 960), h = Math.round(w * 0.6);
       renderer.setSize(w, h);
@@ -696,15 +766,17 @@
       Object.assign(cam, { left: -fh * a, right: fh * a, top: fh, bottom: -fh }); cam.updateProjectionMatrix();
     }
 
-    function render(dt) {
+    function render(dt, realDt) {
       if (builtVersion !== wallsVersion) buildWalls();
+      applyTime(realDt);
       grid.visible = showGrid;
       const sh = shake > 0 ? 0.05 : 0;
       cam.position.copy(target).add(camOff).add(new T3.Vector3((Math.random() - .5) * sh, (Math.random() - .5) * sh, 0)); cam.lookAt(target);
 
       const pulse = (T * 1.4) % 1; riftRing.scale.setScalar(0.7 + pulse * 0.7); mat.riftRing.opacity = 1 - pulse;
       crystal.position.y = 1.15 + Math.sin(T * 2.2) * 0.08; crystal.rotation.y = T * 0.8;
-      mat.crystal.emissiveIntensity = nexusFlash > 0 ? 1.6 : 0.6; nLight.intensity = nexusFlash > 0 ? 2.2 : 1.1;
+      mat.crystal.emissiveIntensity = L.crystal * (nexusFlash > 0 ? 2.2 : 1); nLight.intensity = L.nexL * (nexusFlash > 0 ? 1.8 : 1);
+      crystalGlow.position.y = crystal.position.y; crystalGlow.scale.setScalar(2.3 * (nexusFlash > 0 ? 1.4 : 1));
       const r = (T * .8) % 1; nRing.scale.setScalar(0.8 + r * 0.6); nRing.material.opacity = 0.6 * (1 - r);
       mat.lamp.emissiveIntensity = 0.7 + Math.sin(T * 1.6) * 0.25;
 
@@ -730,11 +802,12 @@
           const b = shadowed(new T3.Mesh(geo.body, m), true, false); b.scale.set(1, 0.85, 1);
           const eyeM = new T3.MeshBasicMaterial({ color: '#fff6c8' });
           const e1 = new T3.Mesh(geo.eye, eyeM), e2 = new T3.Mesh(geo.eye, eyeM); e1.position.set(-0.08, 0.05, 0.17); e2.position.set(0.08, 0.05, 0.17);
-          g.add(b, e1, e2); scene.add(g); o = { g, m }; enemyObjs.set(e.id, o);
+          const eg = sprite(glow.enemy, 0.95);
+          g.add(b, e1, e2, eg); scene.add(g); o = { g, m }; enemyObjs.set(e.id, o);
         }
         o.g.position.set(e.x, 0.2 + Math.abs(Math.sin(e.bob)) * 0.1, e.y);
         o.g.rotation.y = Math.atan2(e.tx + .5 - e.x, e.ty + .5 - e.y);
-        o.m.emissiveIntensity = e.hit > 0 ? 0.9 : 0;
+        o.m.emissive.set(e.hit > 0 ? '#ffffff' : '#7a4ce6'); o.m.emissiveIntensity = e.hit > 0 ? 0.9 : L.glow * 0.4;
       }
       enemyObjs.forEach((o, id) => { if (!seen.has(id)) { scene.remove(o.g); enemyObjs.delete(id); } });
 
@@ -763,7 +836,7 @@
       }
       renderer.render(scene, cam);
     }
-    return { resize, render };
+    return { resize, render, setTime };
   }
 
   // =====================================================================
@@ -792,9 +865,20 @@
     $('#vPix').setAttribute('aria-pressed', m === 'pix'); $('#vGl').setAttribute('aria-pressed', m === 'gl');
     cvs.hidden = m !== 'pix'; $('#gl').hidden = m !== 'gl'; $('#vig').hidden = m !== 'gl';
     $('#stage').classList.toggle('clean', m === 'gl');
+    $('#stage').classList.toggle('dusk', m === 'gl' && curTod !== 'tdDay');
+    Object.keys(TOD).forEach(k => $('#' + k).disabled = m !== 'gl');
     $('#styleTitle').textContent = NOTES[m].title; $('#styleNotes').innerHTML = NOTES[m].html;
     fit();
   }
+  const TOD = { tdDay: 'day', tdEve: 'eve', tdNight: 'night' };
+  function setTod(id) {
+    if (!G) return;
+    Object.keys(TOD).forEach(k => $('#' + k).setAttribute('aria-pressed', k === id));
+    G.setTime(TOD[id]); $('#stage').classList.toggle('dusk', TOD[id] !== 'day' && mode === 'gl');
+    curTod = id;
+  }
+  let curTod = 'tdEve';
+  Object.keys(TOD).forEach(k => $('#' + k).addEventListener('click', () => setTod(k)));
   function fit() {
     if (mode === 'pix') { const s = fitPixel(); $('#meta').textContent = `Pixel: native ${NW}×${NH}, shown at ${s >= 1 ? s + '× integer scale' : 'reduced size'}.`; }
     else if (G) { G.resize(); $('#meta').textContent = 'Clean 3D: low-poly models, soft shadows, orthographic camera at the same angle as the pixel view.'; }
@@ -812,6 +896,7 @@
     else if (e.key === 'g' || e.key === 'G') $('#tGrid').click();
     else if (e.key === 'p' || e.key === 'P') $('#tPath').click();
     else if (e.key === ' ') { e.preventDefault(); $('#tPause').click(); }
+    else if (e.key === 'd' || e.key === 'D') setTod('tdDay'); else if (e.key === 'e' || e.key === 'E') setTod('tdEve'); else if (e.key === 'n' || e.key === 'N') setTod('tdNight');
   });
 
   G = init3D();
@@ -824,7 +909,7 @@
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     if (!paused) update(dt);
-    if (mode === 'pix') renderPixel(paused ? 0 : dt); else G.render(paused ? 0 : dt);
+    if (mode === 'pix') renderPixel(paused ? 0 : dt); else G.render(paused ? 0 : dt, dt);
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
