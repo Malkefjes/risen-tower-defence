@@ -5,7 +5,7 @@ Read this first in every session. Sessions do not share memory; this file and `d
 ## Status
 
 - **Done:** Phase 1 step 1. Snowy evening map (Frostfall), supply drops of 3 random walls per round, wall bar, placement with live path preview, undo/pick-up, waves of walkers (no combat), camera pan/zoom. Wall lamps/windows and the on-screen help card were removed at Erik's request.
-- **Next:** Phase 1 step 2: towers, credits, enemy HP, player HP, tuning panel. See "Step 2 plan" in `docs/DESIGN.md`. Settle its open questions with Erik before building.
+- **Next:** Phase 1 step 2: towers, credits, enemy HP, player HP, tuning panel. See "Step 2 plan" in `docs/DESIGN.md` (agreed). Waiting on Erik's pick of turret look from `mockups/turrets/` (published at https://claude.ai/artifact/SfHrBAezmbHYPbQb3rvonE; rebuild with `node scripts/mockup.mjs turrets`) and on sell refund rules.
 - **Run locally:** double-click `start-dev.cmd` (Windows) or `npm install && npm run dev`, then http://localhost:5173.
 
 ## Collaboration

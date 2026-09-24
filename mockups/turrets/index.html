@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Frostfall Turrets</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&display=swap" />
+  </head>
+  <body>
+    <div id="app">
+      <div id="view"></div>
+      <div class="vignette"></div>
+      <div id="labels"></div>
+
+      <header class="top">
+        <div class="brand">RISEN <span>Turret mockup</span></div>
+        <p class="sub">Three takes on the first tower. Each one is shown as a 1×1 on a single wall and a 2×2 spanning two wall pieces.</p>
+      </header>
+
+      <div class="bottom">
+        <div class="picker" role="group" aria-label="Focus a design">
+          <button id="fAll" class="chip" aria-pressed="true">All three</button>
+          <button id="fA" class="chip" aria-pressed="false"><b>A</b> Sentry</button>
+          <button id="fB" class="chip" aria-pressed="false"><b>B</b> Twin</button>
+          <button id="fC" class="chip" aria-pressed="false"><b>C</b> Lance</button>
+        </div>
+        <p id="note" class="note">Aliens walk past so you can see each turret track and fire. Click a design to zoom in.</p>
+      </div>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

@@ -116,13 +116,15 @@ Goal: prove that shaping a path with Tetris walls feels good, and find how scarc
 - Controls: R or right-click rotates; scroll zooms; drag or WASD pans; 1–9 selects walls; Z undoes; Enter starts the wave.
 - Undo in the planning phase takes a whole piece back into the wall bar.
 
-**Step 2 plan (to confirm with Erik before building):**
+**Step 2 plan (agreed with Erik):**
 
-- One tower type in 1×1 and 2×2, placed on walls, targeting the enemy closest to the nexus.
-- Credits: flat income per round; towers cost credits. No shop yet.
-- Enemies get HP and scale per wave. Leaks cost player HP; run ends at 0.
-- Tuning panel with sliders: walls per round, income, enemy HP and speed, tower damage and range.
-- Open questions to settle first: how towers are acquired before the shop exists (e.g. a fixed build menu), and whether a 2×2 tower may span walls from different pieces (leaning yes).
+- One tower type in 1×1 and 2×2, bought from a fixed build menu next to the wall bar (stand-in until the Phase 3 shop). Its look is being picked from `mockups/turrets/`.
+- Towers sit on walls, and a 2×2 may span walls from different pieces. A wall carrying a tower can't be picked up.
+- Towers can be sold, so a build can change when a better tower comes along. Refund rules still to settle.
+- Targeting: the enemy with the most progress (closest to the nexus). Targeting options come later.
+- Credits: flat income per round only, no kill bounty. Towers cost credits.
+- Enemies get HP and scale per wave. Player starts at 20 HP; each leak costs 1 (scaled by enemy strength once enemy types exist). At 0 a non-blocking "Run over" notice offers a restart.
+- Tuning panel (hidden, toggled by a key) with sliders: walls per round, income, enemy HP and growth, enemy speed, tower damage, range, fire rate and cost.
 
 Out of scope for Phase 1: other terrain, multiple spawners, more tower or enemy types, shop, traits, star-ups, final art, sound.
 
@@ -146,14 +148,16 @@ Success: placing pieces is satisfying and readable, a walls-per-round range feel
 | Run structure | Roguelite runs with an HP bar |
 | Progression in a run | Star-ups and traits |
 | Map size | Start small and grow |
-| Tower sizes | Multiple footprints on wall blocks |
+| Tower sizes | Multiple footprints on wall blocks; a footprint may span several wall pieces |
+| Tower selling | Towers can be sold to change the build |
+| Targeting | Most progress (closest to nexus) by default; options later |
 | Setting | Sci-fi colony; first world is snowy |
 
 ## Open questions
 
-- Can a tower's footprint span several wall pieces? (leaning yes)
+- Tower selling: refund amount, and whether selling is allowed mid-wave.
 - Star-ups: keep the same footprint, or grow?
-- Economy numbers: income, interest, tower and reroll costs.
+- Economy numbers: income, interest, tower and reroll costs. Income is flat per round for now.
 - Wall supply rate: how many pieces per round? The key tuning knob, found through play.
 - Trait design: which traits, and how spatial should they be?
 - Meta-structure: runs across planets, unlocks between runs?
