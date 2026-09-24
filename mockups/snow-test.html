@@ -1,0 +1,832 @@
+<title>Risen Snow Test</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&family=Barlow:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #10131c;
+    --panel: #171b27;
+    --line: #272d3f;
+    --text: #dde2ec;
+    --muted: #8d95ad;
+    --cyan: #6ff0e0;
+    --warm: #ffb45a;
+    --orange: #ff7a2f;
+    --violet: #8e5cff;
+    --haze: #c4cee0;
+    --pixel: "Silkscreen", ui-monospace, monospace;
+    --body: "Barlow", system-ui, sans-serif;
+  }
+  html, body { height: 100%; }
+  body { background: var(--bg); color: var(--text); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 40px; display: grid; gap: 16px; }
+
+  header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+  h1 { margin: 0; font-family: var(--pixel); font-weight: 400; font-size: 22px; letter-spacing: .04em; }
+  h1 span { color: var(--warm); }
+  .sub { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+  .seg button, .tog { font-family: var(--pixel); font-size: 12px; letter-spacing: .04em; color: var(--muted); background: var(--panel); border: 0; padding: 8px 12px; cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-pressed="true"] { color: #1a1206; background: var(--warm); }
+  .tog { border: 1px solid var(--line); border-radius: 4px; }
+  .tog[aria-pressed="true"] { color: var(--text); border-color: #3d4663; background: #1e2334; }
+  button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+  .stageWrap { display: flex; justify-content: center; background: var(--haze); border-radius: 4px; overflow: hidden; }
+  .stage { position: relative; max-width: 100%; }
+  #pix { display: block; image-rendering: pixelated; image-rendering: crisp-edges; max-width: 100%; }
+  #gl { display: block; max-width: 100%; }
+  #gl canvas { display: block; max-width: 100%; }
+  #pix[hidden], #gl[hidden], .vignette[hidden] { display: none; }
+  .vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 62% 64% at 50% 50%, rgba(196,206,224,0) 62%, rgba(196,206,224,1) 100%); }
+
+  .hud { position: absolute; inset: 0; pointer-events: none; font-family: var(--pixel); font-size: 11px; letter-spacing: .05em; color: #2a3044; }
+  .hud .tl { position: absolute; left: 10px; top: 8px; display: grid; gap: 4px; }
+  .hpbar { display: flex; gap: 2px; }
+  .hpbar i { width: 6px; height: 8px; background: #2fbfae; display: block; }
+  .hpbar i.lost { background: rgba(42,48,68,.25); }
+  .row { display: flex; gap: 14px; }
+  .row b { color: #c8581d; font-weight: 400; }
+  .hud .bc { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); display: flex; gap: 6px; align-items: flex-end; }
+  .card { background: rgba(244,247,251,.9); border: 1px solid rgba(42,48,68,.2); padding: 6px 8px 4px; display: grid; justify-items: center; gap: 4px; }
+  .card.sel { border-color: var(--orange); }
+  .card small { font-size: 9px; color: #6a728a; }
+  .mini { display: grid; grid-template-columns: repeat(3, 7px); grid-auto-rows: 7px; gap: 1px; }
+  .mini i.on { background: #d9694d; }
+  .draftLabel { font-size: 9px; color: #4a5268; align-self: center; margin-right: 4px; }
+  /* clean mode HUD */
+  .stage.clean .hud { font-family: var(--body); font-weight: 700; font-size: 13px; letter-spacing: .02em; }
+  .stage.clean .hpbar { background: rgba(255,255,255,.7); border-radius: 99px; padding: 3px; gap: 0; width: 150px; }
+  .stage.clean .hpbar i { height: 8px; width: auto; flex: 1; }
+  .stage.clean .hpbar i:first-child { border-radius: 99px 0 0 99px; }
+  .stage.clean .hpbar i:last-child { border-radius: 0 99px 99px 0; }
+  .stage.clean .card { border-radius: 10px; box-shadow: 0 2px 8px rgba(40,50,80,.15); }
+  .stage.clean .mini i.on { border-radius: 2px; }
+  .stage.clean .draftLabel, .stage.clean .card small { font-size: 11px; }
+  @media (max-width: 560px) { .hud .bc { display: none; } }
+
+  .notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .notes section { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 14px 16px; }
+  .notes h2 { margin: 0 0 8px; font-family: var(--pixel); font-weight: 400; font-size: 13px; letter-spacing: .05em; color: var(--warm); }
+  .notes ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+  .notes p { margin: 0 0 8px; max-width: 65ch; }
+  kbd { font-family: var(--pixel); font-size: 10px; border: 1px solid var(--line); padding: 1px 4px; border-radius: 3px; color: var(--muted); }
+  .meta { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; margin: 0; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>RISEN <span>/</span> SNOW TEST</h1>
+      <p class="sub">The first world, frozen. Same scene and simulation in two art styles.</p>
+    </div>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Art style">
+        <button id="vPix" aria-pressed="false">Pixel</button>
+        <button id="vGl" aria-pressed="true">Clean 3D</button>
+      </div>
+      <button class="tog" id="tGrid" aria-pressed="false">Grid</button>
+      <button class="tog" id="tPath" aria-pressed="true">Path</button>
+      <button class="tog" id="tPause" aria-pressed="false">Pause</button>
+    </div>
+  </header>
+
+  <div class="stageWrap">
+    <div class="stage clean" id="stage">
+      <canvas id="pix" hidden aria-label="Pixel art mockup"></canvas>
+      <div id="gl" aria-label="Clean 3D mockup"></div>
+      <div class="vignette" id="vig"></div>
+      <div class="hud" aria-hidden="true">
+        <div class="tl">
+          <div class="hpbar" id="hp"></div>
+          <div class="row"><span>WAVE 3</span><span>CREDITS <b>14</b></span></div>
+        </div>
+        <div class="bc">
+          <span class="draftLabel">DRAFT</span>
+          <div class="card"><div class="mini" data-p="L"></div><small>L</small></div>
+          <div class="card sel"><div class="mini" data-p="T"></div><small>T</small></div>
+          <div class="card"><div class="mini" data-p="S"></div><small>S</small></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="meta" id="meta"></p>
+
+  <div class="notes">
+    <section>
+      <h2 id="styleTitle">CLEAN 3D</h2>
+      <div id="styleNotes"></div>
+    </section>
+    <section>
+      <h2>COZY ON A HOSTILE PLANET</h2>
+      <ul>
+        <li>Cold world, warm colony: blue-white snow, with orange prefab modules like a polar research station.</li>
+        <li>Warm lamps on the walls and turret tips; the nexus crystal glows cyan.</li>
+        <li>Snowfall, snow-capped rocks and pines. Pines and rocks both block paths, like any terrain.</li>
+        <li>Alien critters in violet stand out clearly against the snow.</li>
+      </ul>
+    </section>
+    <section>
+      <h2>SAME AS BEFORE</h2>
+      <ul>
+        <li>Fastest route, 8 directions, no corner cutting.</li>
+        <li>Ghost piece previews the new route in orange, then drops in.</li>
+        <li>No map edge: the world fades into snow haze.</li>
+      </ul>
+      <p class="meta" style="margin-top:10px">Keys: <kbd>1</kbd> <kbd>2</kbd> style, <kbd>G</kbd> grid, <kbd>P</kbd> path, <kbd>Space</kbd> pause</p>
+    </section>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+
+  // =====================================================================
+  // SIMULATION (shared by both art styles)
+  // =====================================================================
+  const X0 = -8, Y0 = -8, X1 = 26, Y1 = 20, GW = X1 - X0, GH = Y1 - Y0;
+  const K = (x, y) => x + ',' + y;
+  const inW = (x, y) => x >= X0 && x < X1 && y >= Y0 && y < Y1;
+  const idx = (x, y) => (y - Y0) * GW + (x - X0);
+  const hash = (x, y, s = 0) => { let h = (x * 374761393 + y * 668265263 + s * 982451653) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+
+  const rocks = new Map();
+  [[5,8,14],[6,8,11],[6,9,16],[8,0,12],[9,0,15],[3,5,13],[16,11,12],[2,10,11],[18,3,12]]
+    .forEach(([x,y,h]) => rocks.set(K(x,y), h));
+  const trees = new Map();
+  [[0,6],[-1,7],[2,8],[16,0],[17,1],[18,8],[19,9],[4,11],[10,11],[-2,1],[20,5],[12,-2],[13,-1],[7,-2],[15,13],[-3,4],[1,-2],[21,10],[8,13],[-1,11]]
+    .forEach(([x,y]) => trees.set(K(x,y), 0.85 + hash(x, y, 5) * 0.35));
+
+  const pieces = [
+    { cells: [[9,3],[9,4],[9,5],[9,6]] },
+    { cells: [[9,7],[9,8],[10,8],[11,8]] },
+    { cells: [[10,3],[11,3],[12,3],[13,3]] },
+    { cells: [[14,3],[14,4],[14,5],[15,5]] },
+    { cells: [[12,8],[13,8],[14,8],[13,9]] },
+    { cells: [[6,4],[7,4],[6,5],[7,5]] },
+  ];
+  const walls = new Map();
+  let wallsVersion = 0;
+  const rebuildWalls = () => { walls.clear(); pieces.forEach((p, i) => p.cells.forEach(([x,y]) => walls.set(K(x,y), i))); wallsVersion++; };
+  rebuildWalls();
+
+  const nexusCells = [[11,5],[12,5],[11,6],[12,6]];
+  const nexusSet = new Set(nexusCells.map(([x,y]) => K(x,y)));
+  const NEXUS_C = [12, 6];
+  const SPAWN = [1, 2];
+
+  const towers = [
+    { x: 9.5, y: 4.5, big: false, foot: [[9,4]] },
+    { x: 11.5, y: 3.5, big: false, foot: [[11,3]] },
+    { x: 14.5, y: 4.5, big: false, foot: [[14,4]] },
+    { x: 10.5, y: 8.5, big: false, foot: [[10,8]] },
+    { x: 13.5, y: 8.5, big: false, foot: [[13,8]] },
+    { x: 7, y: 5, big: true, foot: [[6,4],[7,4],[6,5],[7,5]] },
+  ].map(t => Object.assign(t, { range: t.big ? 4.2 : 3.1, rate: t.big ? 1.5 : 0.75, dmg: t.big ? 4 : 1, cd: Math.random(), aim: [1, 0], flash: 0 }));
+
+  const DIRS = [[1,0,1],[-1,0,1],[0,1,1],[0,-1,1],[1,1,Math.SQRT2],[1,-1,Math.SQRT2],[-1,1,Math.SQRT2],[-1,-1,Math.SQRT2]];
+  const blocked = (x, y, extra) => { const k = K(x,y); return !inW(x,y) || walls.has(k) || rocks.has(k) || trees.has(k) || (extra ? extra.has(k) : false); };
+  const canStep = (x, y, dx, dy, extra) => {
+    if (blocked(x+dx, y+dy, extra)) return false;
+    if (dx && dy && (blocked(x+dx, y, extra) || blocked(x, y+dy, extra))) return false;
+    return true;
+  };
+  function field(extra) {
+    const d = new Float64Array(GW * GH).fill(Infinity), heap = [];
+    const push = (v, i) => { heap.push([v, i]); let c = heap.length - 1; while (c) { const p = (c - 1) >> 1; if (heap[p][0] <= heap[c][0]) break; [heap[p], heap[c]] = [heap[c], heap[p]]; c = p; } };
+    const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let c = 0; for (;;) { const l = 2*c+1, r = l+1; let m = c; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === c) break; [heap[m], heap[c]] = [heap[c], heap[m]]; c = m; } } return top; };
+    for (const [x,y] of nexusCells) { d[idx(x,y)] = 0; push(0, idx(x,y)); }
+    while (heap.length) {
+      const [v, i] = pop(); if (v > d[i]) continue;
+      const x = (i % GW) + X0, y = Math.floor(i / GW) + Y0;
+      for (const [dx, dy, c] of DIRS) {
+        if (!canStep(x, y, dx, dy, extra)) continue;
+        const j = idx(x+dx, y+dy), nv = v + c;
+        if (nv < d[j]) { d[j] = nv; push(nv, j); }
+      }
+    }
+    return d;
+  }
+  function nextStep(d, x, y, extra) {
+    let best = null, bv = Infinity;
+    for (const [dx, dy, c] of DIRS) {
+      if (!canStep(x, y, dx, dy, extra)) continue;
+      const v = c + d[idx(x+dx, y+dy)];
+      if (v < bv - 1e-9) { bv = v; best = [x+dx, y+dy]; }
+    }
+    return best;
+  }
+  function tracePath(d, extra) {
+    const pts = []; let [x, y] = SPAWN;
+    if (!isFinite(d[idx(x,y)])) return pts;
+    pts.push([x+.5, y+.5]);
+    for (let n = 0; n < 600 && !nexusSet.has(K(x,y)); n++) { const s = nextStep(d, x, y, extra); if (!s) break; [x, y] = s; pts.push([x+.5, y+.5]); }
+    return pts;
+  }
+  let cur = field();
+
+  const SHAPES = { T:[[0,0],[1,0],[2,0],[1,1]], L:[[0,0],[0,1],[0,2],[1,2]], J:[[1,0],[1,1],[1,2],[0,2]], S:[[1,0],[2,0],[0,1],[1,1]], Z:[[0,0],[1,0],[1,1],[2,1]], I:[[0,0],[1,0],[2,0],[3,0]] };
+  const rot = cells => { const r = cells.map(([x,y]) => [-y, x]); const mx = Math.min(...r.map(c => c[0])), my = Math.min(...r.map(c => c[1])); return r.map(([x,y]) => [x-mx, y-my]); };
+  const freeCell = (x, y) => !blocked(x,y) && !nexusSet.has(K(x,y)) && !(x === SPAWN[0] && y === SPAWN[1]);
+  let ghost = null;
+  (function pickGhost() {
+    let best = null, bestV = cur[idx(...SPAWN)] + 0.5;
+    for (const name in SHAPES) {
+      let s = SHAPES[name];
+      for (let r = 0; r < 4; r++, s = rot(s)) {
+        for (let oy = -1; oy <= 12; oy++) for (let ox = 7; ox <= 19; ox++) {
+          const cells = s.map(([x,y]) => [x+ox, y+oy]);
+          if (!cells.every(([x,y]) => freeCell(x,y))) continue;
+          if (!cells.some(([x,y]) => [[1,0],[-1,0],[0,1],[0,-1]].some(([a,b]) => walls.has(K(x+a,y+b))))) continue;
+          const v = field(new Set(cells.map(([x,y]) => K(x,y))))[idx(...SPAWN)];
+          if (isFinite(v) && v > bestV) { bestV = v; best = cells; }
+        }
+      }
+    }
+    if (best) ghost = { cells: best, set: new Set(best.map(([x,y]) => K(x,y))) };
+  })();
+  let ghostField = ghost ? field(ghost.set) : cur;
+  let gState = 'hover', gT = 0, placedIndex = -1, gBlocked = false;
+
+  const enemies = [], shots = [], parts = [];
+  let spawnT = 0, nexusFlash = 0, shake = 0, T = 0, nextId = 1;
+  function spawnEnemy() {
+    const [x, y] = SPAWN;
+    enemies.push({ id: nextId++, x: x+.5, y: y+.5, cx: x, cy: y, tx: x, ty: y, hp: 7, max: 7, hit: 0, bob: Math.random()*6, spd: 1.35 + Math.random()*0.25 });
+  }
+  const eDist = e => cur[idx(e.tx, e.ty)] + Math.hypot(e.tx+.5 - e.x, e.ty+.5 - e.y);
+  function burst(x, y, elev, color, n) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, s = 0.6 + Math.random() * 1.6;
+      parts.push({ id: nextId++, x, y, e: elev, vx: Math.cos(a)*s, vy: Math.sin(a)*s, ve: 6 + Math.random()*14, life: 0.35 + Math.random()*0.3, color });
+    }
+  }
+  function tryPlaceGhost() {
+    for (const e of enemies) if (ghost.set.has(K(e.cx,e.cy)) || ghost.set.has(K(e.tx,e.ty))) return false;
+    if (!isFinite(ghostField[idx(...SPAWN)])) return false;
+    for (const e of enemies) if (!isFinite(ghostField[idx(e.tx,e.ty)])) return false;
+    pieces.push({ cells: ghost.cells, ghost: true }); placedIndex = pieces.length - 1;
+    rebuildWalls(); cur = field(); shake = 0.16;
+    for (const [x,y] of ghost.cells) burst(x+.5, y+.5, 0, '#ffffff', 6);
+    return true;
+  }
+  function liftGhost() { pieces.splice(placedIndex, 1); placedIndex = -1; rebuildWalls(); cur = field(); ghostField = field(ghost.set); }
+  const remove = (arr, f) => { for (let i = arr.length - 1; i >= 0; i--) if (f(arr[i])) arr.splice(i, 1); };
+
+  function update(dt) {
+    T += dt;
+    if (ghost) {
+      gT += dt;
+      if (gState === 'hover' && gT > 2.6) { gState = 'drop'; gT = 0; }
+      else if (gState === 'drop' && gT > 0.14) { gBlocked = !tryPlaceGhost(); if (gBlocked) { gState = 'hover'; gT = 1.8; } else { gState = 'placed'; gT = 0; } }
+      else if (gState === 'placed' && gT > 3.4) { liftGhost(); gState = 'hover'; gT = 0; }
+    }
+    spawnT -= dt;
+    if (spawnT <= 0) { spawnEnemy(); spawnT = 1.25; }
+    for (const e of enemies) {
+      e.hit = Math.max(0, e.hit - dt); e.bob += dt * 9;
+      let step = e.spd * dt;
+      while (step > 0) {
+        const gx = e.tx + .5, gy = e.ty + .5, dx = gx - e.x, dy = gy - e.y, L = Math.hypot(dx, dy);
+        if (L <= step) {
+          e.x = gx; e.y = gy; step -= L; e.cx = e.tx; e.cy = e.ty;
+          if (nexusSet.has(K(e.cx, e.cy))) { e.dead = true; e.leak = true; break; }
+          const n = nextStep(cur, e.cx, e.cy); if (!n) break;
+          [e.tx, e.ty] = n;
+        } else { e.x += dx / L * step; e.y += dy / L * step; step = 0; }
+      }
+    }
+    for (const e of enemies) if (e.leak && !e.gone) { e.gone = true; nexusFlash = 0.45; burst(e.x, e.y, 4, '#8e5cff', 8); }
+    for (const t of towers) {
+      t.cd -= dt; t.flash = Math.max(0, t.flash - dt);
+      let target = null, bd = Infinity;
+      for (const e of enemies) { if (e.dead || Math.hypot(e.x - t.x, e.y - t.y) > t.range) continue; const d = eDist(e); if (d < bd) { bd = d; target = e; } }
+      if (target) {
+        const ax = target.x - t.x, ay = target.y - t.y, L = Math.hypot(ax, ay) || 1;
+        t.aim = [t.aim[0] + (ax/L - t.aim[0]) * Math.min(1, dt*12), t.aim[1] + (ay/L - t.aim[1]) * Math.min(1, dt*12)];
+        if (t.cd <= 0) { t.cd = t.rate; t.flash = 0.07; shots.push({ id: nextId++, x: t.x, y: t.y, e: t.big ? 24 : 19, from: t.big ? 24 : 19, target, dmg: t.dmg, big: t.big, d0: L, trail: [] }); }
+      }
+    }
+    for (const s of shots) {
+      const tg = s.target, dx = tg.x - s.x, dy = tg.y - s.y, L = Math.hypot(dx, dy), v = (s.big ? 9 : 13) * dt;
+      s.trail.push([s.x, s.y, s.e]); if (s.trail.length > 3) s.trail.shift();
+      if (L <= v || tg.dead) {
+        s.done = true;
+        if (!tg.dead) {
+          const hitList = s.big ? enemies.filter(e => !e.dead && Math.hypot(e.x - tg.x, e.y - tg.y) < 0.9) : [tg];
+          for (const e of hitList) { e.hp -= s.dmg; e.hit = 0.09; if (e.hp <= 0 && !e.dead) { e.dead = true; burst(e.x, e.y, 4, '#8e5cff', 10); } }
+          if (s.big) burst(tg.x, tg.y, 3, '#ffb45a', 6);
+        }
+      } else { s.x += dx / L * v; s.y += dy / L * v; s.e = 5 + (s.from - 5) * Math.min(1, L / Math.max(0.5, s.d0)); }
+    }
+    for (const p of parts) { p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.e = Math.max(0, p.e + p.ve * dt); p.ve -= 60 * dt; }
+    remove(enemies, e => e.dead); remove(shots, s => s.done); remove(parts, p => p.life <= 0);
+    nexusFlash = Math.max(0, nexusFlash - dt); shake = Math.max(0, shake - dt);
+  }
+
+  let mode = 'gl', showGrid = false, showPath = true, paused = false;
+
+  // =====================================================================
+  // PIXEL RENDERER
+  // =====================================================================
+  const NW = 480, NH = 288, WALL_H = 10;
+  const cvs = $('#pix'); cvs.width = NW; cvs.height = NH;
+  let ctx = cvs.getContext('2d'); ctx.imageSmoothingEnabled = false;
+  const groundCache = {};
+  const PAL = {
+    wallA: { top:'#d9694d', left:'#b5503a', right:'#8c3e30', hi:'#f0936f' },
+    wallB: { top:'#cf5f45', left:'#aa4935', right:'#83382b', hi:'#e98966' },
+    rock:  { top:'#7d849a', left:'#666d83', right:'#50566a', hi:'#9aa1b6' },
+    snow:  { top:'#f4f7fb', left:'#dfe6f0', right:'#cfd8e6', hi:'#ffffff' },
+    tBase: { top:'#4a5264', left:'#3a4152', right:'#2c3240', hi:'#667087' },
+    tHead: { top:'#7a8398', left:'#5b6478', right:'#454d5f', hi:'#9aa3b8' },
+    nBase: { top:'#4a5264', left:'#3a4152', right:'#2c3240', hi:'#667087' },
+    nCore: { top:'#9ff5ea', left:'#4fdcca', right:'#2eae9e', hi:'#e6fffa' },
+    nCoreHot: { top:'#ffffff', left:'#c8fcf4', right:'#8ff0e2', hi:'#ffffff' },
+    enemy: { top:'#9a6cff', left:'#7a4ce6', right:'#5a34b8', hi:'#c2a6ff' },
+    enemyHit: { top:'#ffffff', left:'#efe6ff', right:'#dccdff', hi:'#ffffff' },
+    ghost: { top:'rgba(47,191,174,.45)', left:'rgba(47,191,174,.28)', right:'rgba(47,191,174,.2)', hi:'#2fbfae' },
+    ghostBad: { top:'rgba(220,60,90,.42)', left:'rgba(220,60,90,.24)', right:'rgba(220,60,90,.16)', hi:'#dc3c5a' },
+  };
+  const GROUND = ['#dde5f0', '#d8e0ec', '#e2e9f3'], SPECK = ['#c9d3e4', '#f6f8fc'], GRID = '#c3cde0';
+  const even = v => Math.max(2, Math.round(v / 2) * 2);
+  let OX = 0, OY = 0;
+  const CX = 208, CY = 30;
+  const toS = (wx, wy) => [OX + (wx - wy) * 16, OY + (wx + wy) * 8];
+  const keyOf = (wx, wy) => wx + wy;
+  function diamondFill(cx, ty, W) { for (let r = 0; r < W; r++) { const hw = r < W / 2 ? 2 * (r + 1) : 2 * (W - r); ctx.fillRect(cx - hw, ty + r, 2 * hw, 1); } }
+  function diamondOutline(cx, ty, W, color) { ctx.fillStyle = color; for (let r = 0; r < W; r++) { const hw = r < W / 2 ? 2 * (r + 1) : 2 * (W - r); ctx.fillRect(cx - hw, ty + r, 2, 1); ctx.fillRect(cx + hw - 2, ty + r, 2, 1); } }
+  function isoBox(cx, ty, W, h, c) {
+    if (h > 0) for (let k = 1; k <= W; k++) {
+      const top = ty + W - Math.ceil(k / 2) + 1;
+      ctx.fillStyle = c.left; ctx.fillRect(cx - k, top, 1, h);
+      ctx.fillStyle = c.right; ctx.fillRect(cx + k - 1, top, 1, h);
+    }
+    for (let r = 0; r < W; r++) {
+      const hw = r < W / 2 ? 2 * (r + 1) : 2 * (W - r);
+      ctx.fillStyle = c.top; ctx.fillRect(cx - hw, ty + r, 2 * hw, 1);
+      if (r < W / 2) { ctx.fillStyle = c.hi; ctx.fillRect(cx - hw, ty + r, 2, 1); ctx.fillRect(cx + hw - 2, ty + r, 2, 1); }
+    }
+  }
+  function box(wx, wy, s, h, elev, c) { const W = even(s * 16), [sx, sy] = toS(wx, wy); isoBox(Math.round(sx), Math.round(sy - W / 2 - h - elev), W, h, c); }
+  function topC(wx, wy, elev) { const [sx, sy] = toS(wx, wy); return [Math.round(sx), Math.round(sy - elev)]; }
+  const sdir = (dx, dy) => [(dx - dy) * 16, (dx + dy) * 8];
+  function ring(wx, wy, W, color) { const [sx, sy] = toS(wx, wy); diamondOutline(Math.round(sx), Math.round(sy - W / 2), W, color); }
+  function groundCell(x, y) {
+    const [sx, sy] = toS(x, y), cx = Math.round(sx), ty = Math.round(sy);
+    const col = GROUND[Math.floor(hash(x, y) * 3)];
+    for (let r = 0; r < 16; r++) {
+      const hw = r < 8 ? 2 * (r + 1) : 2 * (16 - r);
+      ctx.fillStyle = col; ctx.fillRect(cx - hw, ty + r, 2 * hw, 1);
+      if (showGrid && r < 8) { ctx.fillStyle = GRID; ctx.fillRect(cx - hw, ty + r, 2, 1); ctx.fillRect(cx + hw - 2, ty + r, 2, 1); }
+    }
+    for (let i = 0; i < 3; i++) {
+      const dx = Math.round((hash(x, y, i + 1) - .5) * 18), dy = Math.round((hash(x, y, i + 9) - .5) * 7);
+      if (Math.abs(dx) / 2 + Math.abs(dy) > 5) continue;
+      ctx.fillStyle = SPECK[i % 2]; ctx.fillRect(cx + dx, ty + 8 + dy, i === 0 ? 2 : 1, 1);
+    }
+  }
+  function pixTree(wx, wy, s) {
+    const [cx, by] = topC(wx, wy, 0);
+    ctx.fillStyle = 'rgba(90,100,140,.3)'; diamondFill(cx, by - 3, 6);
+    ctx.fillStyle = '#6b4b3a'; ctx.fillRect(cx - 1, by - 5, 3, 5);
+    const tiers = [[14, 9, 3], [11, 8, 9], [8, 7, 14]].map(([w, h, o]) => [Math.round(w * s), Math.round(h * s), Math.round(o * s)]);
+    for (const [w, h, o] of tiers) {
+      const base = by - 3 - o;
+      for (let r = 0; r < h; r++) {
+        const hw = Math.max(1, Math.round((w / 2) * (r + 1) / h));
+        const y = base - h + r + 1;
+        ctx.fillStyle = '#2f5d5a'; ctx.fillRect(cx - hw, y, hw, 1);
+        ctx.fillStyle = '#244a48'; ctx.fillRect(cx, y, hw, 1);
+        if (r < 2 || r === h - 1 && false) { ctx.fillStyle = '#f4f7fb'; ctx.fillRect(cx - hw, y, hw * 2, 1); }
+      }
+      ctx.fillStyle = '#f4f7fb'; ctx.fillRect(cx - Math.round(w / 2), base, 2, 1); ctx.fillRect(cx + Math.round(w / 2) - 3, base - 1, 2, 1);
+    }
+  }
+  function drawPath(pts, style) {
+    if (pts.length < 2) return;
+    let acc = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const [ax, ay] = toS(...pts[i - 1]), [bx, by] = toS(...pts[i]);
+      const L = Math.hypot(bx - ax, by - ay), n = Math.ceil(L);
+      for (let j = 0; j < n; j++) {
+        const a = acc + j, x = Math.round(ax + (bx - ax) * j / n), y = Math.round(ay + (by - ay) * j / n);
+        if (style === 'preview') { if (((a - T * 22) % 10 + 10) % 10 < 5) { ctx.fillStyle = '#ff7a2f'; ctx.fillRect(x, y, 2, 1); } }
+        else if (Math.floor(a) % 4 === 0) { ctx.fillStyle = 'rgba(60,70,100,.4)'; ctx.fillRect(x, y, 1, 1); }
+      }
+      acc += L;
+    }
+  }
+  const flakes = Array.from({ length: 170 }, () => ({ x: Math.random() * NW, y: Math.random() * NH, v: 8 + Math.random() * 14, d: Math.random() * 6, big: Math.random() < .2 }));
+
+  function renderPixel(dt) {
+    const sh = shake > 0;
+    OX = CX + (sh ? Math.round(Math.random() * 2 - 1) : 0);
+    OY = CY + (sh ? Math.round(Math.random() * 2 - 1) : 0);
+    const gk = 'g' + showGrid;
+    if (!groundCache[gk]) {
+      const c = document.createElement('canvas'); c.width = NW; c.height = NH;
+      const main = ctx, sx = OX, sy = OY; ctx = c.getContext('2d'); OX = CX; OY = CY;
+      ctx.fillStyle = '#c4cee0'; ctx.fillRect(0, 0, NW, NH);
+      for (let y = -22; y < 34; y++) for (let x = -22; x < 40; x++) groundCell(x, y);
+      groundCache[gk] = c; ctx = main; OX = sx; OY = sy;
+    }
+    ctx.drawImage(groundCache[gk], OX - CX, OY - CY);
+
+    const pulse = (T * 1.4) % 1;
+    ring(SPAWN[0] + .5, SPAWN[1] + .5, 10, '#b9a6e8');
+    ctx.fillStyle = '#2a2140'; { const [sx, sy] = toS(SPAWN[0] + .5, SPAWN[1] + .5); diamondFill(Math.round(sx), Math.round(sy - 4), 8); }
+    ring(SPAWN[0] + .5, SPAWN[1] + .5, even(8 + pulse * 10), pulse < .7 ? '#8e5cff' : '#c7b3f5');
+
+    const hovering = ghost && (gState === 'hover' || gState === 'drop');
+    if (showPath) {
+      if (hovering) { drawPath(tracePath(cur), 'faint'); drawPath(tracePath(ghostField, ghost.set), 'preview'); }
+      else drawPath(tracePath(cur), 'preview');
+    }
+
+    const list = [];
+    walls.forEach((pi, k) => {
+      const [x, y] = k.split(',').map(Number);
+      list.push({ k: keyOf(x + .5, y + .5), f: () => {
+        box(x + .5, y + .5, 1, WALL_H, 0, pi % 2 ? PAL.wallB : PAL.wallA);
+        box(x + .5, y + .5, 0.72, 1, WALL_H, PAL.snow);
+        if (pieces[pi].cells[0][0] === x && pieces[pi].cells[0][1] === y) {
+          const [cx, cy] = topC(x + .5, y + .5, 4);
+          const on = Math.sin(T * 1.6 + pi) > -0.6;
+          ctx.fillStyle = on ? '#ffd27a' : '#b98a4a'; ctx.fillRect(cx - 9, cy - 1, 2, 2);
+          if (on) { ctx.fillStyle = 'rgba(255,190,110,.35)'; ctx.fillRect(cx - 10, cy - 2, 4, 4); }
+        }
+      }});
+    });
+    rocks.forEach((h, k) => {
+      const [x, y] = k.split(',').map(Number);
+      list.push({ k: keyOf(x + .5, y + .5), f: () => {
+        box(x + .5, y + .5, 0.9, h, 0, PAL.rock);
+        box(x + .5, y + .5, 0.6, 1, h, PAL.snow);
+        box(x + .3 + hash(x, y, 3) * .4, y + .8, 0.35, 4, 0, PAL.rock);
+      }});
+    });
+    trees.forEach((s, k) => { const [x, y] = k.split(',').map(Number); list.push({ k: keyOf(x + .5, y + .5), f: () => pixTree(x + .5, y + .5, s) }); });
+    list.push({ k: Math.max(...nexusCells.map(([x, y]) => keyOf(x + .5, y + .5))) + .02, f: () => {
+      const [nx, ny] = NEXUS_C;
+      box(nx, ny, 1.75, 6, 0, PAL.nBase); box(nx, ny, 1.1, 3, 6, PAL.nBase);
+      const bob = Math.round(Math.sin(T * 2.2) * 1.5), hot = nexusFlash > 0 && Math.floor(nexusFlash * 20) % 2 === 0;
+      box(nx, ny, 0.5, 18, 9 + bob, hot ? PAL.nCoreHot : PAL.nCore);
+      const r = (T * .8) % 1; ring(nx, ny, even(20 + r * 14), r < .6 ? 'rgba(47,191,174,.6)' : 'rgba(47,191,174,.2)');
+    }});
+    for (const t of towers) list.push({ k: Math.max(...t.foot.map(([x, y]) => keyOf(x + .5, y + .5))) + .02, f: () => pixTower(t) });
+    for (const e of enemies) list.push({ k: keyOf(e.x, e.y) + .01, f: () => {
+      const bob = Math.round(Math.abs(Math.sin(e.bob)) * 2);
+      const [sx, sy] = toS(e.x, e.y); ctx.fillStyle = 'rgba(90,100,140,.35)'; diamondFill(Math.round(sx), Math.round(sy - 2), 4);
+      box(e.x, e.y, 0.4, 5, 1 + bob, e.hit > 0 ? PAL.enemyHit : PAL.enemy);
+      const [cx, cy] = topC(e.x, e.y, 1 + bob + 5);
+      const [dx, dy] = sdir(e.tx + .5 - e.x, e.ty + .5 - e.y); const L = Math.hypot(dx, dy) || 1;
+      ctx.fillStyle = '#fff6c8'; ctx.fillRect(Math.round(cx + dx / L * 2), Math.round(cy + dy / L), 1, 1);
+      if (e.hp < e.max) { ctx.fillStyle = 'rgba(42,48,68,.5)'; ctx.fillRect(cx - 4, cy - 6, 8, 1); ctx.fillStyle = '#8e5cff'; ctx.fillRect(cx - 4, cy - 6, Math.max(1, Math.round(8 * e.hp / e.max)), 1); }
+    }});
+    if (hovering) {
+      const lift = gState === 'drop' ? Math.round(6 * (1 - gT / 0.14) ** 2) : 6 + Math.round(Math.sin(T * 4) * 1.5);
+      for (const [x, y] of ghost.cells) list.push({ k: keyOf(x + .5, y + .5) + .01, f: () => box(x + .5, y + .5, 1, WALL_H, lift, gBlocked ? PAL.ghostBad : PAL.ghost) });
+    }
+    list.sort((a, b) => a.k - b.k).forEach(o => o.f());
+
+    for (const s of shots) {
+      for (const [x, y, e] of s.trail) { const [cx, cy] = topC(x, y, e); ctx.fillStyle = 'rgba(255,160,70,.5)'; ctx.fillRect(cx, cy, 1, 1); }
+      const [cx, cy] = topC(s.x, s.y, s.e); ctx.fillStyle = s.big ? '#ff7a2f' : '#ffb45a'; ctx.fillRect(cx, cy, s.big ? 3 : 2, s.big ? 2 : 1);
+    }
+    for (const p of parts) { const [cx, cy] = topC(p.x, p.y, p.e); ctx.fillStyle = p.color; ctx.fillRect(cx, cy, 1, 1); }
+
+    for (const f of flakes) {
+      if (!paused) { f.y += f.v * dt; f.x += Math.sin(T * 1.3 + f.d) * 6 * dt; if (f.y > NH) { f.y = -2; f.x = Math.random() * NW; } }
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.round(f.x), Math.round(f.y), f.big ? 2 : 1, f.big ? 2 : 1);
+    }
+    const g = ctx.createRadialGradient(NW / 2, NH / 2, NH * 0.38, NW / 2, NH / 2, NW * 0.52);
+    g.addColorStop(0, 'rgba(196,206,224,0)'); g.addColorStop(1, 'rgba(196,206,224,1)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, NW, NH);
+  }
+  function pixTower(t) {
+    const baseS = t.big ? 1.4 : 0.6, baseH = t.big ? 7 : 5, headS = t.big ? 0.8 : 0.38, headH = t.big ? 6 : 4;
+    box(t.x, t.y, baseS, baseH, WALL_H, PAL.tBase);
+    const headElev = WALL_H + baseH;
+    const [dx0, dy0] = sdir(t.aim[0], t.aim[1]); const L = Math.hypot(dx0, dy0) || 1, dx = dx0 / L, dy = dy0 / L;
+    const [hx, hy] = topC(t.x, t.y, headElev + headH - 1);
+    const len = t.big ? 11 : 7, th = t.big ? 2 : 1;
+    const barrel = () => {
+      ctx.fillStyle = '#c9d0dc';
+      for (let i = 0; i <= len; i++) ctx.fillRect(Math.round(hx + dx * i), Math.round(hy + dy * i), th, th);
+      ctx.fillStyle = t.flash > 0 ? '#ffffff' : '#ffb45a';
+      ctx.fillRect(Math.round(hx + dx * len), Math.round(hy + dy * len), th + 1, th + 1);
+    };
+    if (dy < 0) barrel();
+    box(t.x, t.y, headS, headH, headElev, PAL.tHead);
+    if (dy >= 0) barrel();
+  }
+
+  // =====================================================================
+  // CLEAN 3D RENDERER (three.js, low-poly, soft light)
+  // =====================================================================
+  let G = null;
+  function init3D() {
+    if (!window.THREE) return null;
+    const T3 = THREE;
+    let renderer;
+    try { renderer = new T3.WebGLRenderer({ antialias: true }); } catch (e) { return null; }
+    renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
+    renderer.shadowMap.enabled = true; renderer.shadowMap.type = T3.PCFSoftShadowMap;
+    renderer.outputEncoding = T3.sRGBEncoding;
+    $('#gl').appendChild(renderer.domElement);
+
+    const scene = new T3.Scene();
+    scene.background = new T3.Color('#c4cee0');
+    const target = new T3.Vector3(9.3, 0, 6.2);
+    const cam = new T3.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
+    const camOff = new T3.Vector3(20, 16.33, 20);
+
+    scene.add(new T3.HemisphereLight('#eef3ff', '#8f99b8', 0.85));
+    const sun = new T3.DirectionalLight('#ffe7cf', 0.75);
+    sun.position.set(target.x - 6, 14, target.z + 9); sun.target.position.copy(target);
+    sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+    Object.assign(sun.shadow.camera, { left: -18, right: 18, top: 18, bottom: -18, near: 1, far: 60 });
+    sun.shadow.bias = -0.0006; sun.shadow.radius = 3;
+    scene.add(sun, sun.target);
+
+    const M = (color, o = {}) => new T3.MeshStandardMaterial(Object.assign({ color, roughness: 0.85, metalness: 0.0, flatShading: true }, o));
+    const mat = {
+      snow: M('#f1f4fa', { roughness: 1 }), wallA: M('#d9573a'), wallB: M('#cc4f34'), steel: M('#4f586b', { roughness: .6 }), steelL: M('#798399', { roughness: .6 }),
+      rock: M('#5d6379'), trunk: M('#6b4b3a'), pine: M('#2f5d5a'), pine2: M('#2a5451'),
+      lamp: M('#ffcf85', { emissive: '#ffb45a', emissiveIntensity: 0.9 }), crystal: M('#8ff5e8', { emissive: '#4fdcca', emissiveIntensity: 0.6, roughness: .3 }),
+      rift: M('#2a2140', { roughness: 1 }), riftRing: M('#8e5cff', { emissive: '#8e5cff', emissiveIntensity: 0.6, transparent: true }),
+      ghost: M('#2fbfae', { transparent: true, opacity: 0.45, depthWrite: false, emissive: '#2fbfae', emissiveIntensity: .3 }),
+      path: new T3.MeshBasicMaterial({ color: '#ff7a2f' }), faint: new T3.MeshBasicMaterial({ color: '#6b7593', transparent: true, opacity: .55 }),
+      shot: new T3.MeshBasicMaterial({ color: '#ffb45a' }), shotBig: new T3.MeshBasicMaterial({ color: '#ff7a2f' }),
+    };
+    const shadowed = (m, cast = true, recv = true) => { m.castShadow = cast; m.receiveShadow = recv; return m; };
+
+    function roundedBox(w, h, d, r) {
+      const s = new T3.Shape(), x = -w / 2 + r, y = -d / 2 + r, W = w - 2 * r, D = d - 2 * r;
+      s.moveTo(x, y - r); s.lineTo(x + W, y - r); s.quadraticCurveTo(x + W + r, y - r, x + W + r, y);
+      s.lineTo(x + W + r, y + D); s.quadraticCurveTo(x + W + r, y + D + r, x + W, y + D + r);
+      s.lineTo(x, y + D + r); s.quadraticCurveTo(x - r, y + D + r, x - r, y + D);
+      s.lineTo(x - r, y); s.quadraticCurveTo(x - r, y - r, x, y - r);
+      const bev = Math.min(r * 0.6, h / 3);
+      const g = new T3.ExtrudeGeometry(s, { depth: Math.max(0.001, h - 2 * bev), bevelEnabled: true, bevelThickness: bev, bevelSize: bev * .8, bevelSegments: 2, curveSegments: 3 });
+      g.rotateX(-Math.PI / 2); g.translate(0, bev, 0); g.computeVertexNormals();
+      return g;
+    }
+    const geo = {
+      wall: roundedBox(0.96, 0.55, 0.96, 0.1), cap: roundedBox(0.78, 0.07, 0.78, 0.06), lamp: new T3.BoxGeometry(0.1, 0.1, 0.06),
+      rock: new T3.DodecahedronGeometry(0.45, 0), rockCap: new T3.DodecahedronGeometry(0.3, 0),
+      trunk: new T3.CylinderGeometry(0.07, 0.09, 0.3, 6), cone1: new T3.ConeGeometry(0.42, 0.55, 7), cone2: new T3.ConeGeometry(0.33, 0.46, 7), cone3: new T3.ConeGeometry(0.22, 0.4, 7), coneSnow: new T3.ConeGeometry(0.11, 0.16, 7),
+      tBase: new T3.CylinderGeometry(0.28, 0.33, 0.22, 8), tHead: roundedBox(0.34, 0.2, 0.36, 0.06), barrel: new T3.CylinderGeometry(0.045, 0.045, 0.42, 8), tip: new T3.SphereGeometry(0.06, 8, 6),
+      body: new T3.SphereGeometry(0.21, 14, 10), eye: new T3.SphereGeometry(0.045, 8, 6),
+      shot: new T3.SphereGeometry(0.06, 8, 6), shotBig: new T3.SphereGeometry(0.11, 8, 6), part: new T3.BoxGeometry(0.07, 0.07, 0.07),
+      dash: new T3.BoxGeometry(0.16, 0.02, 0.06), dot: new T3.BoxGeometry(0.05, 0.015, 0.05),
+    };
+
+    // ground
+    const ground = shadowed(new T3.Mesh(new T3.PlaneGeometry(90, 90), mat.snow), false, true);
+    ground.rotation.x = -Math.PI / 2; ground.position.set(target.x, 0, target.z); scene.add(ground);
+    for (let i = 0; i < 60; i++) {
+      const x = X0 + hash(i, 1, 7) * (X1 - X0), z = Y0 + hash(i, 2, 7) * (Y1 - Y0);
+      const k = K(Math.floor(x), Math.floor(z)); if (walls.has(k) || nexusSet.has(k)) continue;
+      const m = shadowed(new T3.Mesh(new T3.SphereGeometry(0.3 + hash(i, 3, 7) * .3, 8, 5), mat.snow), false, true);
+      m.scale.y = 0.18; m.position.set(x, 0, z); scene.add(m);
+    }
+    const grid = new T3.GridHelper(60, 60, '#b8c3d8', '#b8c3d8'); grid.position.set(10, 0.004, 6); grid.material.transparent = true; grid.material.opacity = .7; grid.visible = false; scene.add(grid);
+
+    // rocks and trees
+    rocks.forEach((h, k) => {
+      const [x, y] = k.split(',').map(Number), g = new T3.Group();
+      const r = shadowed(new T3.Mesh(geo.rock, mat.rock)); r.scale.set(1.05, h / 13 * 1.1, 1.05); r.position.y = 0.3 * h / 13; r.rotation.y = hash(x, y) * 6;
+      const c = shadowed(new T3.Mesh(geo.rockCap, mat.snow)); c.scale.set(1.1, 0.35, 1.1); c.position.y = 0.3 * h / 13 + 0.4 * h / 13; c.rotation.y = hash(x, y, 2) * 6;
+      const r2 = shadowed(new T3.Mesh(geo.rock, mat.rock)); r2.scale.setScalar(0.4); r2.position.set(0.3, 0.12, 0.3);
+      g.add(r, c, r2); g.position.set(x + .5, 0, y + .5); scene.add(g);
+    });
+    trees.forEach((s, k) => {
+      const [x, y] = k.split(',').map(Number), g = new T3.Group();
+      const tr = shadowed(new T3.Mesh(geo.trunk, mat.trunk)); tr.position.y = 0.15;
+      const c1 = shadowed(new T3.Mesh(geo.cone1, mat.pine)); c1.position.y = 0.52;
+      const c2 = shadowed(new T3.Mesh(geo.cone2, mat.pine2)); c2.position.y = 0.82;
+      const c3 = shadowed(new T3.Mesh(geo.cone3, mat.pine)); c3.position.y = 1.08;
+      const sn = shadowed(new T3.Mesh(geo.coneSnow, mat.snow)); sn.position.y = 1.24;
+      g.add(tr, c1, c2, c3, sn); g.scale.setScalar(s); g.rotation.y = hash(x, y, 9) * 6; g.position.set(x + .5, 0, y + .5); scene.add(g);
+    });
+
+    // rift
+    const rift = new T3.Mesh(new T3.CircleGeometry(0.5, 24), mat.rift); rift.rotation.x = -Math.PI / 2; rift.position.set(SPAWN[0] + .5, 0.01, SPAWN[1] + .5); scene.add(rift);
+    const riftRing = new T3.Mesh(new T3.TorusGeometry(0.5, 0.035, 6, 32), mat.riftRing); riftRing.rotation.x = Math.PI / 2; riftRing.position.copy(rift.position); scene.add(riftRing);
+
+    // nexus
+    const nexus = new T3.Group(); nexus.position.set(NEXUS_C[0], 0, NEXUS_C[1]);
+    const nb = shadowed(new T3.Mesh(new T3.CylinderGeometry(0.95, 1.05, 0.26, 6), mat.steel)); nb.position.y = 0.13;
+    const nb2 = shadowed(new T3.Mesh(new T3.CylinderGeometry(0.58, 0.7, 0.2, 6), mat.steelL)); nb2.position.y = 0.36;
+    const crystal = shadowed(new T3.Mesh(new T3.OctahedronGeometry(0.34, 0), mat.crystal), true, false); crystal.scale.y = 1.5;
+    const nRing = new T3.Mesh(new T3.TorusGeometry(1.0, 0.025, 6, 40), new T3.MeshBasicMaterial({ color: '#2fbfae', transparent: true, opacity: .5 })); nRing.rotation.x = Math.PI / 2; nRing.position.y = 0.03;
+    const nLight = new T3.PointLight('#7ff5e6', 1.1, 4.5); nLight.position.y = 1.2;
+    nexus.add(nb, nb2, crystal, nRing, nLight); scene.add(nexus);
+
+    // towers
+    const towerObjs = towers.map(t => {
+      const g = new T3.Group(), s = t.big ? 2.0 : 1;
+      const base = shadowed(new T3.Mesh(geo.tBase, mat.steel)); base.position.y = 0.11;
+      const head = new T3.Group(); head.position.y = 0.3;
+      const hm = shadowed(new T3.Mesh(geo.tHead, mat.steelL)); hm.position.y = -0.1;
+      const br = shadowed(new T3.Mesh(geo.barrel, mat.steelL)); br.rotation.x = Math.PI / 2; br.position.set(0, 0.0, 0.28);
+      const tipMat = mat.lamp.clone(); const tip = new T3.Mesh(geo.tip, tipMat); tip.position.set(0, 0, 0.5);
+      head.add(hm, br, tip); g.add(base, head); g.scale.setScalar(s);
+      g.position.set(t.x, 0.62, t.y); scene.add(g);
+      return { g, head, tipMat };
+    });
+
+    // walls (rebuilt when pieces change)
+    const wallGroup = new T3.Group(); scene.add(wallGroup); let builtVersion = -1;
+    function buildWalls() {
+      while (wallGroup.children.length) wallGroup.remove(wallGroup.children[0]);
+      walls.forEach((pi, k) => {
+        const [x, y] = k.split(',').map(Number);
+        const w = shadowed(new T3.Mesh(geo.wall, pi % 2 ? mat.wallB : mat.wallA)); w.position.set(x + .5, 0, y + .5);
+        const c = shadowed(new T3.Mesh(geo.cap, mat.snow), false, true); c.position.set(x + .5, 0.55, y + .5);
+        wallGroup.add(w, c);
+        if (pieces[pi].cells[0][0] === x && pieces[pi].cells[0][1] === y) {
+          const l = new T3.Mesh(geo.lamp, mat.lamp); l.position.set(x + .5, 0.36, y + .99); wallGroup.add(l);
+        }
+      });
+      builtVersion = wallsVersion;
+    }
+    const ghostGroup = new T3.Group(); scene.add(ghostGroup);
+    if (ghost) for (const [x, y] of ghost.cells) { const m = new T3.Mesh(geo.wall, mat.ghost); m.position.set(x + .5, 0, y + .5); ghostGroup.add(m); }
+
+    // dynamic pools
+    const enemyObjs = new Map(), shotObjs = new Map(), partObjs = new Map();
+    const partMats = {};
+    const dashes = new T3.InstancedMesh(geo.dash, mat.path, 600), dots = new T3.InstancedMesh(geo.dot, mat.faint, 400);
+    scene.add(dashes, dots);
+    const tmp = new T3.Object3D();
+    function layPath(inst, pts, spacing, offset, max) {
+      let n = 0, carry = offset;
+      for (let i = 1; i < pts.length && n < max; i++) {
+        const [ax, az] = pts[i - 1], [bx, bz] = pts[i], dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz);
+        for (let s = carry; s < L; s += spacing) {
+          if (n >= max) break;
+          tmp.position.set(ax + dx * s / L, 0.03, az + dz * s / L); tmp.rotation.set(0, -Math.atan2(dz, dx), 0); tmp.updateMatrix();
+          inst.setMatrixAt(n++, tmp.matrix);
+        }
+        carry = ((carry - L) % spacing + spacing) % spacing;
+      }
+      return n;
+    }
+
+    // snowfall
+    const FL = 1400, fpos = new Float32Array(FL * 3), fspd = new Float32Array(FL);
+    for (let i = 0; i < FL; i++) { fpos[i*3] = target.x + (Math.random() - .5) * 34; fpos[i*3+1] = Math.random() * 12; fpos[i*3+2] = target.z + (Math.random() - .5) * 34; fspd[i] = 0.5 + Math.random() * 0.7; }
+    const fgeo = new T3.BufferGeometry(); fgeo.setAttribute('position', new T3.BufferAttribute(fpos, 3));
+    const snowPts = new T3.Points(fgeo, new T3.PointsMaterial({ color: '#ffffff', size: 3, sizeAttenuation: false, transparent: true, opacity: .9 }));
+    scene.add(snowPts);
+
+    function resize() {
+      const w = Math.min($('.stageWrap').clientWidth, 960), h = Math.round(w * 0.6);
+      renderer.setSize(w, h);
+      const fh = 5.4, a = w / h;
+      Object.assign(cam, { left: -fh * a, right: fh * a, top: fh, bottom: -fh }); cam.updateProjectionMatrix();
+    }
+
+    function render(dt) {
+      if (builtVersion !== wallsVersion) buildWalls();
+      grid.visible = showGrid;
+      const sh = shake > 0 ? 0.05 : 0;
+      cam.position.copy(target).add(camOff).add(new T3.Vector3((Math.random() - .5) * sh, (Math.random() - .5) * sh, 0)); cam.lookAt(target);
+
+      const pulse = (T * 1.4) % 1; riftRing.scale.setScalar(0.7 + pulse * 0.7); mat.riftRing.opacity = 1 - pulse;
+      crystal.position.y = 1.15 + Math.sin(T * 2.2) * 0.08; crystal.rotation.y = T * 0.8;
+      mat.crystal.emissiveIntensity = nexusFlash > 0 ? 1.6 : 0.6; nLight.intensity = nexusFlash > 0 ? 2.2 : 1.1;
+      const r = (T * .8) % 1; nRing.scale.setScalar(0.8 + r * 0.6); nRing.material.opacity = 0.6 * (1 - r);
+      mat.lamp.emissiveIntensity = 0.7 + Math.sin(T * 1.6) * 0.25;
+
+      towers.forEach((t, i) => { const o = towerObjs[i]; o.head.rotation.y = Math.atan2(t.aim[0], t.aim[1]); o.tipMat.emissiveIntensity = t.flash > 0 ? 3 : 0.9; });
+
+      const hovering = ghost && (gState === 'hover' || gState === 'drop');
+      ghostGroup.visible = hovering;
+      if (hovering) { const lift = gState === 'drop' ? 0.35 * (1 - gT / 0.14) ** 2 : 0.35 + Math.sin(T * 4) * 0.06; ghostGroup.position.y = lift; }
+
+      if (showPath) {
+        const off = (T * 0.9) % 0.3;
+        if (hovering) { dashes.count = layPath(dashes, tracePath(ghostField, ghost.set), 0.3, 0.3 - off, 600); dots.count = layPath(dots, tracePath(cur), 0.25, 0, 400); }
+        else { dashes.count = layPath(dashes, tracePath(cur), 0.3, 0.3 - off, 600); dots.count = 0; }
+        dashes.instanceMatrix.needsUpdate = true; dots.instanceMatrix.needsUpdate = true;
+      } else { dashes.count = 0; dots.count = 0; }
+
+      const seen = new Set();
+      for (const e of enemies) {
+        seen.add(e.id);
+        let o = enemyObjs.get(e.id);
+        if (!o) {
+          const g = new T3.Group(), m = M('#8e5cff', { flatShading: false, roughness: .6, emissive: '#ffffff', emissiveIntensity: 0 });
+          const b = shadowed(new T3.Mesh(geo.body, m), true, false); b.scale.set(1, 0.85, 1);
+          const eyeM = new T3.MeshBasicMaterial({ color: '#fff6c8' });
+          const e1 = new T3.Mesh(geo.eye, eyeM), e2 = new T3.Mesh(geo.eye, eyeM); e1.position.set(-0.08, 0.05, 0.17); e2.position.set(0.08, 0.05, 0.17);
+          g.add(b, e1, e2); scene.add(g); o = { g, m }; enemyObjs.set(e.id, o);
+        }
+        o.g.position.set(e.x, 0.2 + Math.abs(Math.sin(e.bob)) * 0.1, e.y);
+        o.g.rotation.y = Math.atan2(e.tx + .5 - e.x, e.ty + .5 - e.y);
+        o.m.emissiveIntensity = e.hit > 0 ? 0.9 : 0;
+      }
+      enemyObjs.forEach((o, id) => { if (!seen.has(id)) { scene.remove(o.g); enemyObjs.delete(id); } });
+
+      seen.clear();
+      for (const s of shots) {
+        seen.add(s.id);
+        let o = shotObjs.get(s.id); if (!o) { o = new T3.Mesh(s.big ? geo.shotBig : geo.shot, s.big ? mat.shotBig : mat.shot); scene.add(o); shotObjs.set(s.id, o); }
+        o.position.set(s.x, s.e / 22, s.y);
+      }
+      shotObjs.forEach((o, id) => { if (!seen.has(id)) { scene.remove(o); shotObjs.delete(id); } });
+      seen.clear();
+      for (const p of parts) {
+        seen.add(p.id);
+        let o = partObjs.get(p.id);
+        if (!o) { partMats[p.color] = partMats[p.color] || new T3.MeshBasicMaterial({ color: p.color }); o = new T3.Mesh(geo.part, partMats[p.color]); scene.add(o); partObjs.set(p.id, o); }
+        o.position.set(p.x, p.e / 22, p.y); o.rotation.set(T * 5, T * 3, 0);
+      }
+      partObjs.forEach((o, id) => { if (!seen.has(id)) { scene.remove(o); partObjs.delete(id); } });
+
+      if (!paused) {
+        for (let i = 0; i < FL; i++) {
+          fpos[i*3+1] -= fspd[i] * dt; fpos[i*3] += Math.sin(T + i) * 0.12 * dt;
+          if (fpos[i*3+1] < 0) fpos[i*3+1] = 12;
+        }
+        fgeo.attributes.position.needsUpdate = true;
+      }
+      renderer.render(scene, cam);
+    }
+    return { resize, render };
+  }
+
+  // =====================================================================
+  // UI, scaling, loop
+  // =====================================================================
+  const hpEl = $('#hp');
+  for (let i = 0; i < 20; i++) { const b = document.createElement('i'); if (i >= 17) b.className = 'lost'; hpEl.appendChild(b); }
+  const MINI = { L: [[0,0],[0,1],[0,2],[1,2]], T: [[0,0],[1,0],[2,0],[1,1]], S: [[1,0],[2,0],[0,1],[1,1]] };
+  document.querySelectorAll('.mini').forEach(m => {
+    const cells = MINI[m.dataset.p];
+    for (let y = 0; y < 3; y++) for (let x = 0; x < 3; x++) { const i = document.createElement('i'); if (cells.some(([a, b]) => a === x && b === y)) i.className = 'on'; m.appendChild(i); }
+  });
+
+  const NOTES = {
+    pix: { title: 'PIXEL', html: '<p>32×16 iso tiles at 480×288, scaled up by whole numbers.</p><ul><li>Charming, retro, and you can draw every sprite yourself in Aseprite or similar</li><li>Detail is limited by the tile size</li><li>Cheap to render; stays in 2D</li></ul>' },
+    gl: { title: 'CLEAN 3D', html: '<p>Low-poly 3D with soft light and shadows, seen through a fixed iso-style camera.</p><ul><li>Smooth, calm and cozy; lighting does much of the mood</li><li>Art is made as simple 3D models (Blockbench is friendly for this) instead of pixel sprites</li><li>More engine work up front: three.js, lighting, shadows</li></ul>' },
+  };
+  function fitPixel() {
+    const w = $('.stageWrap').clientWidth, s = Math.floor(w / NW);
+    if (s >= 1) { cvs.style.width = NW * s + 'px'; cvs.style.height = NH * s + 'px'; } else { cvs.style.width = '100%'; cvs.style.height = 'auto'; }
+    return s;
+  }
+  function setMode(m) {
+    if (m === 'gl' && !G) m = 'pix';
+    mode = m;
+    $('#vPix').setAttribute('aria-pressed', m === 'pix'); $('#vGl').setAttribute('aria-pressed', m === 'gl');
+    cvs.hidden = m !== 'pix'; $('#gl').hidden = m !== 'gl'; $('#vig').hidden = m !== 'gl';
+    $('#stage').classList.toggle('clean', m === 'gl');
+    $('#styleTitle').textContent = NOTES[m].title; $('#styleNotes').innerHTML = NOTES[m].html;
+    fit();
+  }
+  function fit() {
+    if (mode === 'pix') { const s = fitPixel(); $('#meta').textContent = `Pixel: native ${NW}×${NH}, shown at ${s >= 1 ? s + '× integer scale' : 'reduced size'}.`; }
+    else if (G) { G.resize(); $('#meta').textContent = 'Clean 3D: low-poly models, soft shadows, orthographic camera at the same angle as the pixel view.'; }
+  }
+  addEventListener('resize', fit);
+
+  const toggle = (id, get, set) => { const b = $(id); b.addEventListener('click', () => { set(!get()); b.setAttribute('aria-pressed', get()); }); };
+  $('#vPix').addEventListener('click', () => setMode('pix'));
+  $('#vGl').addEventListener('click', () => setMode('gl'));
+  toggle('#tGrid', () => showGrid, v => showGrid = v);
+  toggle('#tPath', () => showPath, v => showPath = v);
+  toggle('#tPause', () => paused, v => paused = v);
+  addEventListener('keydown', e => {
+    if (e.key === '1') setMode('pix'); else if (e.key === '2') setMode('gl');
+    else if (e.key === 'g' || e.key === 'G') $('#tGrid').click();
+    else if (e.key === 'p' || e.key === 'P') $('#tPath').click();
+    else if (e.key === ' ') { e.preventDefault(); $('#tPause').click(); }
+  });
+
+  G = init3D();
+  if (!G) { $('#vGl').disabled = true; $('#vGl').title = 'WebGL is not available in this browser'; }
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { paused = true; $('#tPause').setAttribute('aria-pressed', 'true'); }
+  for (let i = 0; i < 360; i++) update(1 / 60);
+  setMode(G ? 'gl' : 'pix');
+
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (!paused) update(dt);
+    if (mode === 'pix') renderPixel(paused ? 0 : dt); else G.render(paused ? 0 : dt);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
