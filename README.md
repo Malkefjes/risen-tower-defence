@@ -5,7 +5,7 @@ A browser tower defense game about mazing. Enemies take the fastest path to your
 A personal project, built for fun.
 
 - **Design doc:** [Maze Defense — Design Doc](https://claude.ai/code/artifact/8a4e11d2-eea6-4144-9f29-23a844c9d1ec) (the source of truth for design decisions)
-- **Stack:** TypeScript, Vite, Canvas 2D, Vitest
+- **Stack:** TypeScript, Vite, three.js, Vitest
 
 ## Running locally
 

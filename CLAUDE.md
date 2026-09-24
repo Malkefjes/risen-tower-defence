@@ -11,7 +11,7 @@ Read this first in every session. Sessions do not share memory; this file and th
 
 ## Code conventions
 
-- TypeScript strict, Canvas 2D rendering, no framework.
+- TypeScript strict, three.js for rendering, no UI framework.
 - Keep game rules (grid, pathfinding, placement, combat) as pure logic, separate from rendering and input, so it can be unit tested.
 - Tests live in `tests/`, run with `npm test`. Pathfinding and placement rules must have tests.
 - Before committing: `npm run typecheck && npm test`.
@@ -23,11 +23,12 @@ Read this first in every session. Sessions do not share memory; this file and th
 
 ## Locked decisions (see design doc for the full list)
 
-- Isometric pixel art, 32x16 px tiles, fixed camera (pan/zoom OK, no rotation).
-- Render at low native resolution, integer upscale, image smoothing off.
-- Game logic never touches graphics; everything draws as a named sprite so Erik's pixel art can replace placeholders.
+- Art style: clean low-poly 3D with three.js, soft light and shadows. Replaces the earlier pixel-art decision.
+- Camera: orthographic, fixed iso-style angle (about 30 deg elevation, 45 deg rotation). Pan/zoom OK.
+- First world is snowy and cozy: cold world, warm colony (orange prefab walls, warm lamps, cyan nexus, violet aliens). Day, evening and night lighting presets.
+- Game logic never touches graphics; the renderer builds everything from named models so Erik's own models (e.g. Blockbench) can replace placeholders.
 - 8-direction movement, no corner cutting. Enemies take the fastest path. No map edge.
-- Visual reference: mockups/look-test.html (published at https://claude.ai/artifact/NmEasb2A8bABcbzsxoyBK5).
+- Visual reference: mockups/snow-test.html, Clean 3D view (published at https://claude.ai/artifact/4Y1EHcKtCrum2szcH6Diqd). mockups/look-test.html is the older pixel exploration.
 
 ## Pushing
 
