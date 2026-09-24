@@ -1,7 +1,8 @@
 import * as THREE from "three";
-import type { Game, PlacedPiece } from "../sim/game";
+import type { Game, GameEvent, PlacedPiece, Shot } from "../sim/game";
+import type { Tower, TowerKind } from "../sim/towers";
 import type { Cell } from "../sim/types";
-import { createDefaultModels, createGlows, createMaterials, EVENING, hash, type Materials, type ModelLibrary } from "./models";
+import { createDefaultModels, createGlows, createMaterials, EVENING, hash, WALL_HEIGHT, type Glows, type Materials, type ModelLibrary, type TurretRig } from "./models";
 
 // Author colors as plain hex and light the way the mockups did.
 THREE.ColorManagement.enabled = false;
@@ -17,7 +18,18 @@ export interface Overlay {
   hoverPieceId: number | null;
   showPath: boolean;
   showGrid: boolean;
+  /** Tower being placed: footprint, validity and reach. */
+  towerGhost: { kind: TowerKind; cells: Cell[]; valid: boolean; cx: number; cy: number; range: number } | null;
+  /** Reach of the selected tower. */
+  selectedTower: { cx: number; cy: number; range: number } | null;
 }
+
+/** Height of a wall's snow cap, where towers stand. */
+const TOP = WALL_HEIGHT + 0.07;
+
+interface TowerView { obj: THREE.Object3D; rig: TurretRig; recoil: number[]; gun: number; spin: number; drop: number }
+interface Bolt { mesh: THREE.Mesh; from: THREE.Vector3; to: THREE.Vector3; walkerId: number; t: number; dur: number }
+interface Flash { sprite: THREE.Sprite; life: number; max: number; size: number }
 
 const CAM_OFFSET = new THREE.Vector3(20, 16.33, 20); // ~30° elevation, 45° around: classic iso
 const ZOOM_MIN = 3.2, ZOOM_MAX = 11;
@@ -36,6 +48,20 @@ export class GameView {
   private sun: THREE.DirectionalLight;
   private pieces = new Map<number, PieceView>();
   private walkers = new Map<number, THREE.Object3D>();
+  private towers = new Map<number, TowerView>();
+  private bolts: Bolt[] = [];
+  private flashes: Flash[] = [];
+  private bars = new Map<number, THREE.Group>();
+  private glows: Glows;
+  private boltGeo = new THREE.SphereGeometry(0.045, 8, 6);
+  private boltMat = new THREE.MeshBasicMaterial({ color: "#ffd08a" });
+  private barGeo = new THREE.PlaneGeometry(0.5, 0.07);
+  private barFillGeo = new THREE.PlaneGeometry(0.5, 0.07).translate(0.25, 0, 0);
+  private barBgMat = new THREE.MeshBasicMaterial({ color: "#241f3d" });
+  private barFillMat = new THREE.MeshBasicMaterial({ color: "#ff8a5c" });
+  private towerGhosts: Record<TowerKind, THREE.Object3D>;
+  private rangeRing: THREE.Mesh;
+  private rangeDisc: THREE.Mesh;
   private animated: THREE.Object3D[] = [];
   private nexus: THREE.Object3D;
   private ghostCells: THREE.Mesh[] = [];
@@ -64,6 +90,7 @@ export class GameView {
 
     this.mat = createMaterials();
     const glows = createGlows();
+    this.glows = glows;
     this.models = createDefaultModels(this.mat, glows);
 
     const P = EVENING;
@@ -78,6 +105,21 @@ export class GameView {
     this.scene.add(this.sun, this.sun.target);
 
     this.buildTerrain();
+
+    const ghost = (kind: TowerKind) => {
+      const o = this.models.create(kind);
+      o.traverse(c => { if ((c as THREE.Mesh).isMesh) { const m = c as THREE.Mesh; m.castShadow = false; m.material = this.mat.ghostOk; } });
+      o.visible = false;
+      this.scene.add(o);
+      return o;
+    };
+    this.towerGhosts = { twin: ghost("twin"), gatling: ghost("gatling") };
+    this.rangeRing = new THREE.Mesh(new THREE.RingGeometry(0.97, 1, 72).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.6, depthWrite: false }));
+    this.rangeDisc = new THREE.Mesh(new THREE.CircleGeometry(1, 72).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.1, depthWrite: false }));
+    this.rangeRing.visible = this.rangeDisc.visible = false;
+    this.scene.add(this.rangeRing, this.rangeDisc);
     this.nexus = this.buildNexusAndRifts();
 
     const dashGeo = new THREE.BoxGeometry(0.16, 0.02, 0.06), dotGeo = new THREE.BoxGeometry(0.05, 0.015, 0.05);
@@ -241,16 +283,26 @@ export class GameView {
 
   // ------------------------------------------------------------------ frame
 
-  render(frameDt: number, simDt: number, o: Overlay): void {
+  render(frameDt: number, simDt: number, o: Overlay, events: readonly GameEvent[]): void {
     this.time += frameDt;
     const t = this.time;
-    for (const ev of this.game.drainEvents()) {
+    // Sync first so shots from this frame find their towers and targets.
+    this.syncPieces(o.hoverPieceId);
+    this.syncTowers();
+    for (const ev of events) {
       if (ev.type === "placed") this.onPlaced(ev.piece);
       else if (ev.type === "walker-arrived") (this.nexus.userData.flash as () => void)();
+      else if (ev.type === "tower-built") { const v = this.towers.get(ev.tower.id); if (v) v.drop = 0.12; }
+      else if (ev.type === "shot") this.onShot(ev.shot);
+      else if (ev.type === "hit") { const w = this.walkers.get(ev.walker.id); if (w) w.userData.flash = 0.09; }
+      else if (ev.type === "killed") this.onKilled(ev.walker.x, ev.walker.y);
+      else if (ev.type === "reset") this.clearFx();
     }
-    this.syncPieces(o.hoverPieceId);
     this.syncWalkers(simDt);
+    this.aimTowers(simDt);
+    this.updateBolts(simDt);
     this.updateGhost(o);
+    this.updateTowerGhost(o);
     this.updatePath(o);
 
     this.cursor.visible = !!o.hoverCell && !o.ghost;
@@ -312,6 +364,12 @@ export class GameView {
       let o = this.walkers.get(w.id);
       if (!o) { o = this.models.create("walker"); this.scene.add(o); this.walkers.set(w.id, o); o.userData.bob = Math.random() * 6; }
       o.userData.bob += simDt * 9;
+      o.userData.flash = Math.max(0, ((o.userData.flash as number) ?? 0) - simDt);
+      const wm = o.userData.material as THREE.MeshStandardMaterial;
+      const hot = (o.userData.flash as number) > 0;
+      wm.emissive.set(hot ? "#ffffff" : "#7a4ce6");
+      wm.emissiveIntensity = hot ? 0.9 : 0.3;
+      this.syncBar(w.id, w.x, w.y, w.hp / w.maxHp);
       o.position.set(w.x, 0.2 + Math.abs(Math.sin(o.userData.bob as number)) * 0.1, w.y);
       const dx = w.tx + 0.5 - w.x, dz = w.ty + 0.5 - w.y;
       if (dx * dx + dz * dz > 1e-6) {
@@ -322,6 +380,147 @@ export class GameView {
       }
     }
     for (const [id, o] of this.walkers) if (!alive.has(id)) { this.scene.remove(o); this.walkers.delete(id); }
+    for (const [id, b] of this.bars) if (!alive.has(id)) { this.scene.remove(b); this.bars.delete(id); }
+  }
+
+  /** Small HP bar over a damaged walker, facing the camera. */
+  private syncBar(id: number, x: number, y: number, frac: number): void {
+    let b = this.bars.get(id);
+    if (!b) {
+      b = new THREE.Group();
+      const bg = new THREE.Mesh(this.barGeo, this.barBgMat);
+      const fill = new THREE.Mesh(this.barFillGeo, this.barFillMat);
+      fill.position.set(-0.25, 0, 0.001);
+      fill.name = "fill";
+      b.add(bg, fill);
+      b.renderOrder = 5;
+      this.scene.add(b);
+      this.bars.set(id, b);
+    }
+    b.visible = frac < 0.999;
+    b.position.set(x, 0.72, y);
+    b.quaternion.copy(this.camera.quaternion);
+    b.getObjectByName("fill")!.scale.x = Math.max(0.001, frac);
+  }
+
+  // ------------------------------------------------------------------ towers
+
+  private syncTowers(): void {
+    const alive = new Set<number>();
+    for (const t of this.game.towers) {
+      alive.add(t.id);
+      if (this.towers.has(t.id)) continue;
+      const obj = this.models.create(t.kind);
+      obj.position.set(t.cx, TOP, t.cy);
+      obj.rotation.y = Math.PI * 0.75;
+      this.scene.add(obj);
+      const rig = obj.userData.rig as TurretRig;
+      this.towers.set(t.id, { obj, rig, recoil: rig.guns.map(() => 0), gun: 0, spin: 0, drop: 0 });
+    }
+    for (const [id, v] of this.towers) if (!alive.has(id)) { this.scene.remove(v.obj); this.towers.delete(id); }
+  }
+
+  /** Turn each turret toward its target; ease recoil and barrel spin. */
+  private aimTowers(dt: number): void {
+    const byId = new Map<number, Tower>(this.game.towers.map(t => [t.id, t]));
+    for (const [id, v] of this.towers) {
+      const t = byId.get(id);
+      const target = t?.targetId != null ? this.walkers.get(t.targetId) : undefined;
+      if (t && target) {
+        // The rig's yaw is local to the tower root, which may itself be turned.
+        const want = Math.atan2(target.position.x - t.cx, target.position.z - t.cy) - v.obj.rotation.y;
+        let d = want - v.rig.yaw.rotation.y;
+        d = Math.atan2(Math.sin(d), Math.cos(d));
+        v.rig.yaw.rotation.y += d * Math.min(1, dt * 12);
+      }
+      v.rig.guns.forEach((g, i) => {
+        v.recoil[i] = Math.max(0, v.recoil[i]! - dt * 7);
+        g.obj.position.z = g.rest - v.rig.kick * v.recoil[i]! ** 2;
+      });
+      v.spin = Math.max(0, v.spin - dt * 1.5);
+      if (v.rig.spinner) v.rig.spinner.rotation.z += dt * 28 * v.spin;
+    }
+  }
+
+  private onShot(s: Shot): void {
+    const v = this.towers.get(s.towerId);
+    const target = this.walkers.get(s.targetId);
+    if (!v) return;
+    const i = v.gun++ % v.rig.guns.length;
+    const g = v.rig.guns[i]!;
+    v.recoil[i] = 1;
+    v.spin = 1;
+    v.obj.updateMatrixWorld(true);
+    const from = v.rig.yaw.localToWorld(g.muzzle.clone());
+    this.addFlash(from, this.glows.muzzle, v.rig.spinner ? 0.45 : 0.32, 0.07);
+    const mesh = new THREE.Mesh(this.boltGeo, this.boltMat);
+    mesh.position.copy(from);
+    this.scene.add(mesh);
+    const to = target ? target.position.clone().setY(0.25) : from.clone();
+    this.bolts.push({ mesh, from, to, walkerId: s.targetId, t: 0, dur: Math.max(0.02, s.dur) });
+  }
+
+  private updateBolts(dt: number): void {
+    for (const b of this.bolts) {
+      b.t += dt;
+      const w = this.walkers.get(b.walkerId);
+      if (w) b.to.set(w.position.x, 0.25, w.position.z);
+      b.mesh.position.lerpVectors(b.from, b.to, Math.min(1, b.t / b.dur));
+    }
+    this.bolts = this.bolts.filter(b => { if (b.t < b.dur) return true; this.scene.remove(b.mesh); return false; });
+    for (const f of this.flashes) {
+      f.life -= dt;
+      f.sprite.scale.setScalar(f.size * Math.max(0.01, f.life / f.max));
+    }
+    this.flashes = this.flashes.filter(f => { if (f.life > 0) return true; this.scene.remove(f.sprite); return false; });
+  }
+
+  private addFlash(at: THREE.Vector3, m: THREE.SpriteMaterial, size: number, life: number): void {
+    const sprite = new THREE.Sprite(m);
+    sprite.position.copy(at);
+    sprite.scale.setScalar(size);
+    this.scene.add(sprite);
+    this.flashes.push({ sprite, life, max: life, size });
+  }
+
+  private onKilled(x: number, y: number): void {
+    this.addFlash(new THREE.Vector3(x, 0.25, y), this.glows.kill, 0.9, 0.22);
+    this.puff(x, y, 0.15);
+  }
+
+  private clearFx(): void {
+    for (const b of this.bolts) this.scene.remove(b.mesh);
+    for (const f of this.flashes) this.scene.remove(f.sprite);
+    this.bolts = []; this.flashes = [];
+  }
+
+  private updateTowerGhost(o: Overlay): void {
+    const g = o.towerGhost;
+    for (const [kind, obj] of Object.entries(this.towerGhosts)) {
+      obj.visible = !!g && g.kind === kind;
+      if (!obj.visible || !g) continue;
+      obj.position.set(g.cx, TOP + 0.12 + Math.sin(this.time * 4) * 0.03, g.cy);
+      const m = g.valid ? this.mat.ghostOk : this.mat.ghostBad;
+      obj.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).material = m; });
+    }
+    if (g) {
+      for (let i = 0; i < 4; i++) {
+        const c = g.cells[i], foot = this.ghostFeet[i]!;
+        foot.visible = !!c;
+        if (!c) continue;
+        const onWall = this.game.world.walls.has(`${c[0]},${c[1]}`);
+        foot.position.set(c[0] + 0.5, onWall ? TOP + 0.01 : 0.012, c[1] + 0.5);
+        foot.material = g.valid ? this.mat.footOk : this.mat.footBad;
+      }
+    }
+    const r = g ?? o.selectedTower;
+    this.rangeRing.visible = this.rangeDisc.visible = !!r;
+    if (r) {
+      this.rangeRing.position.set(r.cx, 0.035, r.cy);
+      this.rangeDisc.position.set(r.cx, 0.03, r.cy);
+      this.rangeRing.scale.setScalar(r.range);
+      this.rangeDisc.scale.setScalar(r.range);
+    }
   }
 
   private updateGhost(o: Overlay): void {
@@ -379,6 +578,12 @@ export class GameView {
         v.group.children.forEach(c => { if (c.getObjectByName("body")) this.puff(c.position.x, c.position.z); });
       }
     }
+    for (const v of this.towers.values()) {
+      if (v.drop <= 0) continue;
+      v.drop = Math.max(0, v.drop - dt);
+      const k = v.drop / 0.12;
+      v.obj.position.y = TOP + 0.3 * k * k;
+    }
     for (const p of this.puffs) {
       p.life -= dt;
       p.v.y -= 6 * dt;
@@ -398,11 +603,11 @@ export class GameView {
     this.snow.geometry.attributes.position!.needsUpdate = true;
   }
 
-  private puff(x: number, z: number): void {
+  private puff(x: number, z: number, spread = 0.45): void {
     for (let i = 0; i < 5; i++) {
       const m = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.07), this.mat.puff);
       const a = Math.random() * Math.PI * 2, s = 0.8 + Math.random() * 1.2;
-      m.position.set(x + Math.cos(a) * 0.45, 0.05, z + Math.sin(a) * 0.45);
+      m.position.set(x + Math.cos(a) * spread, 0.05, z + Math.sin(a) * spread);
       this.scene.add(m);
       this.puffs.push({ mesh: m, v: new THREE.Vector3(Math.cos(a) * s, 1.5 + Math.random() * 1.5, Math.sin(a) * s), life: 0.5 });
     }

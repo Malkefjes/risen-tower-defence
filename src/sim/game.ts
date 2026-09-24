@@ -1,6 +1,7 @@
 import { computeField, keysOf, type FlowField } from "./pathfinding";
 import { pieceCells, SHAPE_IDS, type ShapeId } from "./pieces";
 import { Rng } from "./rng";
+import { BOLT_SPEED, defaultTuning, TOWER_INFO, towerCells, type Tower, type TowerKind, type Tuning } from "./towers";
 import { cellKey, type Cell } from "./types";
 import { World, type MapDef } from "./world";
 
@@ -8,7 +9,7 @@ import { World, type MapDef } from "./world";
 export const SUPPLY_PER_ROUND = 3;
 export const TICK = 1 / 60;
 
-export type Phase = "planning" | "wave";
+export type Phase = "planning" | "wave" | "over";
 
 export interface HandPiece { uid: number; shape: ShapeId }
 
@@ -30,6 +31,22 @@ export interface Walker {
   cx: number; cy: number;
   tx: number; ty: number;
   speed: number;
+  hp: number;
+  maxHp: number;
+  /** Damage from bolts already in flight, so towers don't overkill. */
+  pending: number;
+  /** Planning-phase practice walkers: shootable, but leaks cost nothing. */
+  practice: boolean;
+}
+
+/** A bolt in flight. Damage lands when `t` reaches `dur`. */
+export interface Shot {
+  id: number;
+  towerId: number;
+  targetId: number;
+  damage: number;
+  t: number;
+  dur: number;
 }
 
 export type BlockReason = "occupied" | "walker" | "cuts-off-rift" | "traps-walker";
@@ -38,12 +55,25 @@ export type PlacementCheck =
   | { ok: true; cells: Cell[]; field: FlowField }
   | { ok: false; cells: Cell[]; reason: BlockReason };
 
+export type TowerBlockReason = "no-wall" | "tower-there" | "credits" | "run-over";
+
+export type TowerCheck =
+  | { ok: true; cells: Cell[] }
+  | { ok: false; cells: Cell[]; reason: TowerBlockReason };
+
 export type GameEvent =
   | { type: "placed"; piece: PlacedPiece }
   | { type: "removed"; piece: PlacedPiece }
   | { type: "walker-arrived"; walker: Walker }
   | { type: "phase"; phase: Phase }
-  | { type: "supply"; pieces: HandPiece[] };
+  | { type: "supply"; pieces: HandPiece[]; credits: number }
+  | { type: "tower-built"; tower: Tower }
+  | { type: "tower-sold"; tower: Tower; refund: number }
+  | { type: "shot"; shot: Shot }
+  | { type: "hit"; walker: Walker }
+  | { type: "killed"; walker: Walker }
+  | { type: "leak"; walker: Walker; hp: number }
+  | { type: "reset" };
 
 export const REASON_TEXT: Record<BlockReason, string> = {
   "occupied": "Something is already there",
@@ -52,20 +82,36 @@ export const REASON_TEXT: Record<BlockReason, string> = {
   "traps-walker": "That would trap an enemy",
 };
 
-export interface GameOptions { seed?: number; waveSize?: (round: number) => number; supply?: number }
+export const TOWER_REASON_TEXT: Record<TowerBlockReason, string> = {
+  "no-wall": "Towers go on top of walls",
+  "tower-there": "There's already a tower there",
+  "credits": "Not enough credits",
+  "run-over": "The run is over",
+};
 
-/** All game rules for the placement prototype (Phase 1, step 1). No graphics. */
+export interface GameOptions {
+  seed?: number;
+  waveSize?: (round: number) => number;
+  supply?: number;
+  tuning?: Partial<Tuning>;
+}
+
+/** All game rules. No graphics. */
 export class Game {
   readonly world: World;
   readonly rng: Rng;
+  /** Live numbers; the tuning panel edits these directly. */
+  readonly tuning: Tuning;
   phase: Phase = "planning";
-  /** Rounds completed; the first wave is round 1. */
+  /** The wave about to be fought, or being fought; the first wave is round 1. */
   round = 1;
   hand: HandPiece[] = [];
-  /** Walls delivered per round (a tuning knob). */
-  supplyPerRound: number;
   pieces: PlacedPiece[] = [];
+  towers: Tower[] = [];
   walkers: Walker[] = [];
+  shots: Shot[] = [];
+  credits = 0;
+  hp = 0;
   field: FlowField;
   events: GameEvent[] = [];
   /** Spawn practice walkers during planning so rerouting can be watched. */
@@ -75,24 +121,51 @@ export class Game {
   private waveLeft = 0;
   private spawnTimer = 0;
   private waveSize: (round: number) => number;
+  /** cell key -> id of the tower standing on it */
+  private towerCellsMap = new Map<string, number>();
 
   constructor(map: MapDef, opts: GameOptions = {}) {
     this.world = new World(map);
     this.rng = new Rng(opts.seed ?? Date.now());
     this.waveSize = opts.waveSize ?? (r => 6 + r * 2);
-    this.supplyPerRound = opts.supply ?? SUPPLY_PER_ROUND;
+    this.tuning = { ...defaultTuning(), ...opts.tuning };
+    if (opts.supply !== undefined) this.tuning.supplyPerRound = opts.supply;
     this.field = computeField(this.world);
-    this.supply();
+    this.startRun();
+  }
+
+  /** Walls delivered per round (a tuning knob). */
+  get supplyPerRound(): number { return this.tuning.supplyPerRound; }
+  set supplyPerRound(n: number) { this.tuning.supplyPerRound = n; }
+
+  private startRun(): void {
+    this.credits = this.tuning.startCredits;
+    this.hp = this.tuning.startHp;
+    this.supply(0);
+  }
+
+  /** Start a new run on the same map. Tuning is kept. */
+  reset(): void {
+    this.world.walls.clear();
+    this.towerCellsMap.clear();
+    this.hand = []; this.pieces = []; this.towers = []; this.walkers = []; this.shots = [];
+    this.round = 1;
+    this.phase = "planning";
+    this.waveLeft = 0; this.spawnTimer = 0;
+    this.field = computeField(this.world);
+    this.events.push({ type: "reset" });
+    this.startRun();
   }
 
   // ---------------------------------------------------------------- supply
 
-  /** Deliver this round's random walls straight into the hand. */
-  private supply(): void {
+  /** Deliver this round's random walls straight into the hand, plus income. */
+  private supply(credits: number): void {
     const pieces: HandPiece[] = [];
-    for (let i = 0; i < this.supplyPerRound; i++) pieces.push({ uid: this.nextId++, shape: SHAPE_IDS[this.rng.int(SHAPE_IDS.length)]! });
+    for (let i = 0; i < this.tuning.supplyPerRound; i++) pieces.push({ uid: this.nextId++, shape: SHAPE_IDS[this.rng.int(SHAPE_IDS.length)]! });
     this.hand.push(...pieces);
-    this.events.push({ type: "supply", pieces });
+    this.credits += credits;
+    this.events.push({ type: "supply", pieces, credits });
   }
 
   // ---------------------------------------------------------------- placement
@@ -134,8 +207,9 @@ export class Game {
     return id === undefined ? undefined : this.pieces.find(p => p.id === id);
   }
 
+  /** A piece can be picked up while unlocked, in planning, with no tower standing on it. */
   canPickUp(piece: PlacedPiece | undefined): piece is PlacedPiece {
-    return !!piece && !piece.locked && this.phase === "planning";
+    return !!piece && !piece.locked && this.phase === "planning" && !piece.cells.some(([x, y]) => this.towerCellsMap.has(cellKey(x, y)));
   }
 
   /** Return an unlocked piece to the hand. Returns the new hand entry. */
@@ -160,12 +234,65 @@ export class Game {
     return null;
   }
 
+  // ---------------------------------------------------------------- towers
+
+  towerCost(kind: TowerKind): number { return this.tuning[kind].cost; }
+
+  /** Towers stand on walls only. A footprint may span walls from different pieces. */
+  checkTower(kind: TowerKind, at: Cell): TowerCheck {
+    const cells = towerCells(kind, at);
+    if (!this.canPlaceNow()) return { ok: false, cells, reason: "run-over" };
+    for (const [x, y] of cells) if (!this.world.walls.has(cellKey(x, y))) return { ok: false, cells, reason: "no-wall" };
+    for (const [x, y] of cells) if (this.towerCellsMap.has(cellKey(x, y))) return { ok: false, cells, reason: "tower-there" };
+    if (this.credits < this.towerCost(kind)) return { ok: false, cells, reason: "credits" };
+    return { ok: true, cells };
+  }
+
+  buildTower(kind: TowerKind, at: Cell): TowerCheck & { tower?: Tower } {
+    const check = this.checkTower(kind, at);
+    if (!check.ok) return check;
+    const n = TOWER_INFO[kind].size, cost = this.towerCost(kind);
+    const tower: Tower = {
+      id: this.nextId++, kind, at: [at[0], at[1]], cells: check.cells, cx: at[0] + n / 2, cy: at[1] + n / 2,
+      paid: cost, fresh: this.phase === "planning", cooldown: 0, targetId: null,
+    };
+    this.credits -= cost;
+    this.towers.push(tower);
+    for (const [x, y] of tower.cells) this.towerCellsMap.set(cellKey(x, y), tower.id);
+    this.events.push({ type: "tower-built", tower });
+    return { ...check, tower };
+  }
+
+  towerAt(x: number, y: number): Tower | undefined {
+    const id = this.towerCellsMap.get(cellKey(x, y));
+    return id === undefined ? undefined : this.towers.find(t => t.id === id);
+  }
+
+  /** Full price back in the planning phase it was built; a share of it after. */
+  sellValue(t: Tower): number {
+    return t.fresh ? t.paid : Math.floor(t.paid * this.tuning.sellRefund);
+  }
+
+  /** Sell a tower, in planning or mid-wave. Bolts already fired still land. Returns the refund, or null. */
+  sellTower(id: number): number | null {
+    const t = this.towers.find(x => x.id === id);
+    if (!t || !this.canPlaceNow()) return null;
+    const refund = this.sellValue(t);
+    this.towers.splice(this.towers.indexOf(t), 1);
+    for (const [x, y] of t.cells) this.towerCellsMap.delete(cellKey(x, y));
+    this.credits += refund;
+    this.events.push({ type: "tower-sold", tower: t, refund });
+    return refund;
+  }
+
   // ---------------------------------------------------------------- waves
 
   startWave(): boolean {
     if (this.phase !== "planning") return false;
     for (const p of this.pieces) p.locked = true;
+    for (const t of this.towers) t.fresh = false;
     this.walkers = [];
+    this.shots = [];
     this.waveLeft = this.waveSize(this.round);
     this.spawnTimer = 0;
     this.setPhase("wave");
@@ -174,26 +301,41 @@ export class Game {
 
   get waveRemaining(): number { return this.waveLeft + this.walkers.length; }
 
-  private spawnWalker(): void {
+  /** HP of an enemy in the given round. */
+  enemyHp(round = this.round): number {
+    return Math.max(1, Math.round(this.tuning.enemyHp * this.tuning.enemyHpGrowth ** (round - 1)));
+  }
+
+  private spawnWalker(practice: boolean): void {
+    const hp = this.enemyHp();
     for (const [sx, sy] of this.world.spawners) {
-      this.walkers.push({ id: this.nextId++, x: sx + 0.5, y: sy + 0.5, cx: sx, cy: sy, tx: sx, ty: sy, speed: 1.35 + this.rng.next() * 0.25 });
+      this.walkers.push({
+        id: this.nextId++, x: sx + 0.5, y: sy + 0.5, cx: sx, cy: sy, tx: sx, ty: sy,
+        speed: (1.35 + this.rng.next() * 0.25) * this.tuning.enemySpeed,
+        hp, maxHp: hp, pending: 0, practice,
+      });
     }
   }
 
   /** Advance the simulation by one fixed tick. */
   step(dt = TICK): void {
+    if (this.phase === "over") return;
     if (this.phase === "wave") {
       this.spawnTimer -= dt;
-      if (this.waveLeft > 0 && this.spawnTimer <= 0) { this.spawnWalker(); this.waveLeft--; this.spawnTimer = 0.9; }
+      if (this.waveLeft > 0 && this.spawnTimer <= 0) { this.spawnWalker(false); this.waveLeft--; this.spawnTimer = 0.9; }
     } else if (this.phase === "planning" && this.testWalkers) {
       this.spawnTimer -= dt;
-      if (this.spawnTimer <= 0) { this.spawnWalker(); this.spawnTimer = 1.6; }
+      if (this.spawnTimer <= 0) { this.spawnWalker(true); this.spawnTimer = 1.6; }
     }
     this.moveWalkers(dt);
+    // A leak may have ended the run.
+    if ((this.phase as Phase) === "over") return;
+    this.updateTowers(dt);
+    this.updateShots(dt);
     if (this.phase === "wave" && this.waveLeft === 0 && this.walkers.length === 0) {
       this.round++;
       this.setPhase("planning");
-      this.supply();
+      this.supply(this.tuning.income);
     }
   }
 
@@ -214,20 +356,78 @@ export class Game {
         }
       }
     }
-    if (arrived.length) {
-      this.walkers = this.walkers.filter(w => !arrived.includes(w));
-      for (const w of arrived) this.events.push({ type: "walker-arrived", walker: w });
+    if (!arrived.length) return;
+    this.walkers = this.walkers.filter(w => !arrived.includes(w));
+    for (const w of arrived) {
+      this.events.push({ type: "walker-arrived", walker: w });
+      if (w.practice || this.phase !== "wave") continue;
+      this.hp = Math.max(0, this.hp - 1);
+      this.events.push({ type: "leak", walker: w, hp: this.hp });
+      if (this.hp === 0) { this.setPhase("over"); return; }
+    }
+  }
+
+  /**
+   * How far a walker still has to go. Lower means more progress; towers shoot
+   * the walker with the most progress.
+   */
+  remaining(w: Walker): number {
+    return this.field.at(w.tx, w.ty) + Math.hypot(w.tx + 0.5 - w.x, w.ty + 0.5 - w.y);
+  }
+
+  /** The walker a tower would shoot now: in range, not already doomed, most progress. */
+  pickTarget(t: Tower): Walker | null {
+    const range = this.tuning[t.kind].range;
+    let best: Walker | null = null, bestR = Infinity;
+    for (const w of this.walkers) {
+      if (w.pending >= w.hp) continue;
+      if (Math.hypot(w.x - t.cx, w.y - t.cy) > range) continue;
+      const r = this.remaining(w);
+      if (r < bestR) { bestR = r; best = w; }
+    }
+    return best;
+  }
+
+  private updateTowers(dt: number): void {
+    for (const t of this.towers) {
+      t.cooldown = Math.max(0, t.cooldown - dt);
+      const target = this.pickTarget(t);
+      t.targetId = target?.id ?? null;
+      if (!target || t.cooldown > 0) continue;
+      const s = this.tuning[t.kind];
+      t.cooldown = 1 / s.rate;
+      const dist = Math.hypot(target.x - t.cx, target.y - t.cy);
+      const shot: Shot = { id: this.nextId++, towerId: t.id, targetId: target.id, damage: s.damage, t: 0, dur: dist / BOLT_SPEED };
+      target.pending += shot.damage;
+      this.shots.push(shot);
+      this.events.push({ type: "shot", shot });
+    }
+  }
+
+  private updateShots(dt: number): void {
+    const landed: Shot[] = [];
+    for (const s of this.shots) { s.t += dt; if (s.t >= s.dur) landed.push(s); }
+    if (!landed.length) return;
+    this.shots = this.shots.filter(s => !landed.includes(s));
+    for (const s of landed) {
+      const w = this.walkers.find(x => x.id === s.targetId);
+      if (!w) continue;
+      w.pending -= s.damage;
+      w.hp -= s.damage;
+      if (w.hp > 0) { this.events.push({ type: "hit", walker: w }); continue; }
+      this.walkers.splice(this.walkers.indexOf(w), 1);
+      this.events.push({ type: "killed", walker: w });
     }
   }
 
   setTestWalkers(on: boolean): void {
     this.testWalkers = on;
-    if (!on && this.phase === "planning") this.walkers = [];
+    if (!on && this.phase === "planning") { this.walkers = []; this.shots = []; }
     this.spawnTimer = 0;
   }
 
   private setPhase(p: Phase): void {
-    if (p === "planning") { this.walkers = []; this.spawnTimer = 0; }
+    if (p === "planning") { this.walkers = []; this.shots = []; this.spawnTimer = 0; }
     this.phase = p;
     this.events.push({ type: "phase", phase: p });
   }

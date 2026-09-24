@@ -17,7 +17,9 @@
         <div class="brand">RISEN <span>Frostfall</span></div>
         <div class="status">
           <span id="round">Round 1</span>
-          <span id="phase" class="pill">Draft</span>
+          <span id="phase" class="pill">Planning</span>
+          <span id="credits" class="stat credits" title="Credits"></span>
+          <span id="hp" class="stat hp" title="Nexus HP"></span>
         </div>
         <div class="tools">
           <button id="bPath" class="tool" aria-pressed="true" title="Path preview (P)">Path</button>
@@ -25,13 +27,25 @@
           <button id="bWalkers" class="tool" aria-pressed="false" title="Test walkers during planning (T)">Test walkers</button>
           <button id="bSpeed" class="tool" title="Game speed (F)">1×</button>
           <button id="bPause" class="tool" aria-pressed="false" title="Pause (Space)">Pause</button>
+          <button id="bTune" class="tool" aria-pressed="false" title="Tuning panel (K)">Tune</button>
         </div>
       </header>
 
       <div id="toast" role="status" aria-live="polite"></div>
 
+      <div id="over" class="over" hidden>
+        <span id="overText">The nexus fell.</span>
+        <button id="restartBtn" class="primary small">New run</button>
+      </div>
+
+      <aside id="tune" class="tune" hidden aria-label="Tuning"></aside>
+
       <div class="bottom">
-        <div class="hand" id="hand" aria-label="Your walls"></div>
+        <div class="inspect" id="inspect" hidden></div>
+        <div class="center">
+          <div class="hand" id="hand" aria-label="Your walls"></div>
+          <div class="build" id="build" aria-label="Towers"></div>
+        </div>
         <div class="actions">
           <button id="waveBtn" class="primary">Start wave <kbd>Enter</kbd></button>
         </div>

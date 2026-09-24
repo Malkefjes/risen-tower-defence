@@ -4,15 +4,20 @@ import { GameView } from "./render/view";
 import { Game, TICK } from "./sim/game";
 import { FROSTFALL } from "./sim/maps";
 import { Hud } from "./ui/hud";
+import { loadTuning, TuningPanel } from "./ui/tuning";
 
-const game = new Game(FROSTFALL);
+const game = new Game(FROSTFALL, { tuning: loadTuning() });
 const view = new GameView(document.getElementById("view")!, game);
 
 let controller!: Controller;
 const hud = new Hud(game, {
   selectHand: uid => controller.select(uid),
   startWave: () => controller.startWave(),
+  selectBuild: kind => controller.selectBuild(kind),
+  sell: () => controller.sellSelected(),
+  restart: () => { controller.clearSelection(); game.reset(); },
 });
+const tuning = new TuningPanel(game.tuning);
 controller = new Controller(game, view, hud);
 controller.attach(view.renderer.domElement);
 
@@ -23,6 +28,8 @@ btn("bGrid").addEventListener("click", () => { controller.showGrid = !controller
 btn("bWalkers").addEventListener("click", () => controller.toggleWalkers());
 btn("bSpeed").addEventListener("click", () => controller.toggleSpeed());
 btn("bPause").addEventListener("click", () => controller.togglePause());
+btn("bTune").addEventListener("click", () => tuning.toggle());
+addEventListener("keydown", e => { if (e.key.toLowerCase() === "k" && !(e.target instanceof HTMLInputElement)) tuning.toggle(); });
 function syncTools(): void {
   btn("bPath").setAttribute("aria-pressed", String(controller.showPath));
   btn("bGrid").setAttribute("aria-pressed", String(controller.showGrid));
@@ -31,6 +38,7 @@ function syncTools(): void {
   btn("bSpeed").textContent = `${controller.speed}×`;
   btn("bPause").setAttribute("aria-pressed", String(controller.paused));
   btn("bPause").textContent = controller.paused ? "Paused" : "Pause";
+  btn("bTune").setAttribute("aria-pressed", String(tuning.open));
 }
 
 addEventListener("resize", () => view.resize());
@@ -49,11 +57,11 @@ function frame(now: number): void {
     while (acc >= TICK && steps++ < 12) { game.step(TICK); acc -= TICK; simDt += TICK; }
   }
   const overlay = controller.frame(dt);
-  hud.update(controller.selectedUid, controller.rot);
+  const events = game.drainEvents();
+  hud.onEvents(events);
+  hud.update(controller);
   syncTools();
-  const fresh = game.events.filter(e => e.type === "supply");
-  for (const e of fresh) if (e.type === "supply") hud.supplyArrived(e.pieces.map(p => p.uid));
-  view.render(dt, simDt, overlay);
+  view.render(dt, simDt, overlay, events);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

@@ -101,7 +101,7 @@ Not locked yet: exact palette, wall height, zoom range, final model shapes.
 
 | Phase | Scope | Question it answers |
 | --- | --- | --- |
-| 1. Core maze | Step 1 (done): map, camera, supply drops, wall bar, placement, path preview, undo, walkers. Step 2 (next): towers, credits, enemy HP, player HP, tuning panel | Does placing pieces feel good? How many walls per round? |
+| 1. Core maze | Step 1 (done): map, camera, supply drops, wall bar, placement, path preview, undo, walkers. Step 2 (done): Twin/Gatling towers, credits, selling, enemy HP, player HP, tuning panel | Does placing pieces feel good? How many walls per round? |
 | 2. Tower variety | 3–4 towers with different reach and footprints | Do different builds want different mazes? |
 | 3. Roguelite layer | Shop, rerolls, bench, star-ups, interest | Does the economy add tension without taking over? |
 | 4. Depth | Traits, enemy variety, more terrain | Does it stay unsolvable over many runs? |
@@ -113,14 +113,14 @@ Goal: prove that shaping a path with Tetris walls feels good, and find how scarc
 
 - One handmade map (Frostfall) with a rift, a nexus, rocks and pines, in a world with no edge.
 - Round loop: untimed planning, then a wave. Pause and speed control.
-- Controls: R or right-click rotates; scroll zooms; drag or WASD pans; 1–9 selects walls; Z undoes; Enter starts the wave.
+- Controls: R or right-click rotates; scroll zooms; drag or WASD pans; 1–9 selects walls; Q builds a Twin, E a Gatling; click a tower to inspect it, X sells; Z undoes; Enter starts the wave; K opens tuning.
 - Undo in the planning phase takes a whole piece back into the wall bar.
 
-**Step 2 plan (agreed with Erik):**
+**Step 2 (built):**
 
-- One tower type in 1×1 and 2×2, bought from a fixed build menu next to the wall bar (stand-in until the Phase 3 shop). Its look is being picked from `mockups/turrets/`.
+- One tower type in 1×1 and 2×2, bought from a fixed build menu next to the wall bar (stand-in until the Phase 3 shop). The look is design B, "Twin", from `mockups/turrets/`: orange colony plating, two alternating barrels; the 2×2 is the Gatling, a spinning four-barrel cluster.
 - Towers sit on walls, and a 2×2 may span walls from different pieces. A wall carrying a tower can't be picked up.
-- Towers can be sold, so a build can change when a better tower comes along. Refund rules still to settle.
+- Towers can be sold, so a build can change when a better tower comes along: full refund in the planning phase it was built, 75% after (a tuning knob). Selling is allowed mid-wave.
 - Targeting: the enemy with the most progress (closest to the nexus). Targeting options come later.
 - Credits: flat income per round only, no kill bounty. Towers cost credits.
 - Enemies get HP and scale per wave. Player starts at 20 HP; each leak costs 1 (scaled by enemy strength once enemy types exist). At 0 a non-blocking "Run over" notice offers a restart.
@@ -151,11 +151,12 @@ Success: placing pieces is satisfying and readable, a walls-per-round range feel
 | Tower sizes | Multiple footprints on wall blocks; a footprint may span several wall pieces |
 | Tower selling | Towers can be sold to change the build |
 | Targeting | Most progress (closest to nexus) by default; options later |
+| First tower | Twin (1×1), grows into the Gatling (2×2) |
+| Selling | Full refund in the phase built, 75% after; allowed mid-wave |
 | Setting | Sci-fi colony; first world is snowy |
 
 ## Open questions
 
-- Tower selling: refund amount, and whether selling is allowed mid-wave.
 - Star-ups: keep the same footprint, or grow?
 - Economy numbers: income, interest, tower and reroll costs. Income is flat per round for now.
 - Wall supply rate: how many pieces per round? The key tuning knob, found through play.

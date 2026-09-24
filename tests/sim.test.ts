@@ -131,7 +131,7 @@ describe("placement", () => {
   it("refuses placing on an enemy and trapping one", () => {
     const g = planningGame(open({ spawners: [[0, 0]], nexus: [[20, 0]] }));
     g.startWave();
-    g.walkers.push({ id: 999, x: 5.5, y: 0.5, cx: 5, cy: 0, tx: 5, ty: 0, speed: 1 });
+    g.walkers.push({ id: 999, x: 5.5, y: 0.5, cx: 5, cy: 0, tx: 5, ty: 0, speed: 1, hp: 1, maxHp: 1, pending: 0, practice: false });
     const onWalker = g.checkPlacement("O", 0, [5, 0]);
     expect(onWalker.ok).toBe(false);
     if (!onWalker.ok) expect(onWalker.reason).toBe("walker");

@@ -4,8 +4,8 @@ Read this first in every session. Sessions do not share memory; this file and `d
 
 ## Status
 
-- **Done:** Phase 1 step 1. Snowy evening map (Frostfall), supply drops of 3 random walls per round, wall bar, placement with live path preview, undo/pick-up, waves of walkers (no combat), camera pan/zoom. Wall lamps/windows and the on-screen help card were removed at Erik's request.
-- **Next:** Phase 1 step 2: towers, credits, enemy HP, player HP, tuning panel. See "Step 2 plan" in `docs/DESIGN.md` (agreed). Waiting on Erik's pick of turret look from `mockups/turrets/` (published at https://claude.ai/artifact/SfHrBAezmbHYPbQb3rvonE; rebuild with `node scripts/mockup.mjs turrets`) and on sell refund rules.
+- **Done:** Phase 1 step 1 (map, supply drops, wall bar, placement with path preview, undo/pick-up, waves, camera). Phase 1 step 2: Twin tower (1×1) and its Gatling form (2×2) on walls, credits with flat income, selling (full refund in the phase built, 75% after, also mid-wave), enemy HP with growth, nexus HP and run over/restart, tuning panel (K) saved in localStorage. Turret look picked by Erik: design B "Twin" from `mockups/turrets/`.
+- **Next:** Erik plays and tunes step 2 (walls per round, economy). Then Phase 2: tower variety. Ask before starting.
 - **Run locally:** double-click `start-dev.cmd` (Windows) or `npm install && npm run dev`, then http://localhost:5173.
 
 ## Collaboration
@@ -26,13 +26,16 @@ Read this first in every session. Sessions do not share memory; this file and `d
 
 ## Delivering builds
 
+Mockups: `node scripts/mockup.mjs <name>` builds `mockups/<name>/` (can import the game's models) into `dist-mockup/<name>.html`.
+
+
 `npm run build:artifact` produces `dist-single/artifact.html`, a self-contained build. Publish it with the Artifact tool to the existing playable link: https://claude.ai/artifact/44JH12KkM2JYyTDMCxxmJ4 (pass it as `url` from a new session).
 
 ## Code map
 
-- `src/sim/` game rules, no graphics: `world.ts` (map, walls, no-edge bounds), `pathfinding.ts` (flow field, 8-way, no corner cutting), `pieces.ts`, `game.ts` (supply drops, hand, placement rules, waves, walkers), `maps.ts`.
+- `src/sim/` game rules, no graphics: `world.ts` (map, walls, no-edge bounds), `pathfinding.ts` (flow field, 8-way, no corner cutting), `pieces.ts`, `game.ts` (supply drops, hand, placement rules, towers, combat, credits, HP, waves), `towers.ts` (tower kinds, stats, tuning defaults), `maps.ts`.
 - `src/render/` three.js: `models.ts` (named model library, materials, evening palette), `view.ts` (scene, camera, sync with sim, effects).
-- `src/input/controller.ts` mouse/keyboard to actions; `src/ui/hud.ts` DOM overlay; `src/main.ts` fixed-step loop (60 ticks/s).
+- `src/input/controller.ts` mouse/keyboard to actions; `src/ui/hud.ts` DOM overlay; `src/ui/tuning.ts` tuning sliders; `src/main.ts` fixed-step loop (60 ticks/s).
 - Rendering uses `THREE.ColorManagement.enabled = false` and legacy-like light intensities to match the mockups.
 
 ## Locked decisions (see design doc for the full list)

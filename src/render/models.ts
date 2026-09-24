@@ -93,6 +93,11 @@ export function createMaterials() {
     trunk: std(P.trunk),
     steel: std(P.steel, { roughness: 0.6 }),
     steelLight: std(P.steelLight, { roughness: 0.6 }),
+    gun: std("#3d4457", { roughness: 0.55 }),
+    gunDark: std("#2c3142", { roughness: 0.6 }),
+    plate: std("#b4bccd", { roughness: 0.5 }),
+    accent: std(P.wallA, { roughness: 0.7 }),
+    accentDark: std("#a8432d", { roughness: 0.7 }),
     crystal: std("#8ff5e8", { emissive: P.crystal, emissiveIntensity: 0.9, roughness: 0.3 }),
     rift: std("#2a2140", { roughness: 1 }),
     riftRing: std(P.alien, { emissive: P.alien, emissiveIntensity: 0.6, transparent: true }),
@@ -126,6 +131,8 @@ export function createGlows() {
     cyan: mk("#4fdcca", 0.7),
     violet: mk("#8e5cff", 0.65),
     alien: mk("#9a6cff", 0.4),
+    muzzle: mk("#ffb45a", 0.95),
+    kill: mk("#b48cff", 0.8),
   };
 }
 export type Glows = ReturnType<typeof createGlows>;
@@ -262,5 +269,78 @@ export function createDefaultModels(mat: Materials, glow: Glows): ModelLibrary {
     return g;
   });
 
+  /** Twin (1×1): hex mount, orange colony head, two barrels that fire in turn. */
+  lib.register("twin", () => twinModel(mat, false));
+  /** Gatling (2×2): the Twin grown up, a spinning four-barrel cluster. */
+  lib.register("gatling", () => twinModel(mat, true));
+
   return lib;
+}
+
+/** Cylinder lying along +z, starting at the origin (a barrel). */
+function barrelGeo(r: number, len: number, seg = 8): THREE.BufferGeometry {
+  const g = new THREE.CylinderGeometry(r, r, len, seg);
+  g.rotateX(Math.PI / 2);
+  g.translate(0, 0, len / 2);
+  return g;
+}
+
+/**
+ * What the view needs to animate a turret. Models face +z and stand on the
+ * wall top at y = 0. `muzzle` points are in `yaw` space.
+ */
+export interface TurretRig {
+  yaw: THREE.Object3D;
+  guns: { obj: THREE.Object3D; rest: number; muzzle: THREE.Vector3 }[];
+  /** Spins while firing (the gatling cluster). */
+  spinner?: THREE.Object3D;
+  /** Recoil distance. */
+  kick: number;
+}
+
+function twinModel(mat: Materials, big: boolean): THREE.Object3D {
+  const k = big ? 1.8 : 1;
+  const m = (g: THREE.BufferGeometry, material: THREE.Material, x = 0, y = 0, z = 0) => {
+    const o = shadowed(new THREE.Mesh(g, material));
+    o.position.set(x, y, z);
+    return o;
+  };
+  const root = new THREE.Group();
+  root.add(m(new THREE.CylinderGeometry(0.32 * k, 0.36 * k, 0.12 * k, 6), mat.gun, 0, 0.06 * k, 0));
+  root.add(m(new THREE.CylinderGeometry(0.2 * k, 0.24 * k, 0.08 * k, 6), mat.gunDark, 0, 0.16 * k, 0));
+  const yaw = new THREE.Group();
+  yaw.position.y = 0.2 * k;
+  root.add(yaw);
+  const headGeo = new THREE.CylinderGeometry(0.22 * k, 0.28 * k, 0.22 * k, 6);
+  headGeo.scale(1, 1, 1.15);
+  yaw.add(m(headGeo, mat.accent, 0, 0.08 * k, -0.04 * k));
+  yaw.add(m(new THREE.CylinderGeometry(0.16 * k, 0.22 * k, 0.06 * k, 6), mat.plate, 0, 0.22 * k, -0.04 * k));
+  yaw.add(m(new THREE.BoxGeometry(0.2 * k, 0.05 * k, 0.03 * k), mat.gunDark, 0, 0.13 * k, 0.24 * k));
+  const rig: TurretRig = { yaw, guns: [], kick: big ? 0.07 : 0.06 };
+  if (!big) {
+    for (const sx of [-1, 1]) {
+      const g = new THREE.Group();
+      g.add(m(barrelGeo(0.035, 0.4), mat.gunDark));
+      g.add(m(barrelGeo(0.05, 0.1), mat.gun, 0, 0, 0.02));
+      g.position.set(sx * 0.1, 0.08, 0.14);
+      yaw.add(g);
+      rig.guns.push({ obj: g, rest: g.position.z, muzzle: new THREE.Vector3(sx * 0.1, 0.08, 0.56) });
+    }
+  } else {
+    yaw.add(m(barrelGeo(0.2, 0.22, 10), mat.gun, 0, 0.08 * k, 0.2 * k));
+    const cluster = new THREE.Group();
+    cluster.position.set(0, 0.08 * k, 0.2 * k + 0.2);
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2;
+      cluster.add(m(barrelGeo(0.055, 0.75), mat.gunDark, Math.cos(a) * 0.11, Math.sin(a) * 0.11, 0));
+    }
+    cluster.add(m(barrelGeo(0.2, 0.05, 10), mat.accent, 0, 0, 0.5));
+    cluster.add(m(barrelGeo(0.19, 0.04, 10), mat.plate, 0, 0, 0.7));
+    yaw.add(cluster);
+    yaw.add(m(roundedBox(0.16 * k, 0.16 * k, 0.24 * k, 0.03 * k), mat.accentDark, 0.3 * k, 0.04 * k, -0.08 * k));
+    rig.spinner = cluster;
+    rig.guns.push({ obj: cluster, rest: cluster.position.z, muzzle: new THREE.Vector3(0, 0.08 * k, 0.2 * k + 0.98) });
+  }
+  root.userData.rig = rig;
+  return root;
 }

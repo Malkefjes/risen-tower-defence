@@ -1,4 +1,5 @@
-import { REASON_TEXT, type Game, type PlacementCheck } from "../sim/game";
+import { REASON_TEXT, TOWER_REASON_TEXT, type Game, type PlacementCheck } from "../sim/game";
+import { TOWER_INFO, type TowerKind } from "../sim/towers";
 import type { Cell } from "../sim/types";
 import type { Hud } from "../ui/hud";
 import type { GameView, Overlay } from "../render/view";
@@ -8,7 +9,12 @@ const PAN_SPEED = 1.1; // screen heights per second at current zoom
 
 /** Turns mouse and keyboard into game actions, and describes what to draw on top. */
 export class Controller {
+  /** Held wall piece (hand uid). */
   selectedUid: number | null = null;
+  /** Tower type being placed. */
+  buildKind: TowerKind | null = null;
+  /** Placed tower picked for inspecting and selling. */
+  selectedTowerId: number | null = null;
   rot = 0;
   showPath = true;
   showGrid = false;
@@ -16,6 +22,7 @@ export class Controller {
   speed = 1;
 
   private hoverCell: Cell | null = null;
+  private hoverPoint: { x: number; z: number } | null = null;
   private hoverPieceId: number | null = null;
   private check: PlacementCheck | null = null;
   private checkSig = "";
@@ -29,13 +36,13 @@ export class Controller {
   attach(el: HTMLElement): void {
     el.addEventListener("contextmenu", e => e.preventDefault());
     el.addEventListener("pointerdown", e => {
-      if (e.button === 2) { if (this.selectedUid !== null) this.rotate(); return; }
+      if (e.button === 2) { if (this.selectedUid !== null) this.rotate(); else if (this.buildKind) this.clearSelection(); return; }
       el.setPointerCapture(e.pointerId);
       this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, button: e.button };
     });
     el.addEventListener("pointermove", e => {
       if (this.drag && this.drag.id === e.pointerId) {
-        const canDrag = this.drag.button === 1 || this.selectedUid === null;
+        const canDrag = this.drag.button === 1 || (this.selectedUid === null && this.buildKind === null);
         if (!this.drag.moved && canDrag && Math.hypot(e.clientX - this.drag.x, e.clientY - this.drag.y) > DRAG_THRESHOLD) this.drag.moved = true;
         if (this.drag.moved && this.lastPointer) {
           const a = this.view.pickGround(this.lastPointer.x, this.lastPointer.y), b = this.view.pickGround(e.clientX, e.clientY);
@@ -51,7 +58,7 @@ export class Controller {
       if (!d || d.id !== e.pointerId || d.moved || d.button !== 0) return;
       this.click();
     });
-    el.addEventListener("pointerleave", () => { this.lastPointer = null; this.hoverCell = null; this.hoverPieceId = null; });
+    el.addEventListener("pointerleave", () => { this.lastPointer = null; this.hoverCell = null; this.hoverPoint = null; this.hoverPieceId = null; });
     el.addEventListener("wheel", e => {
       e.preventDefault();
       this.view.zoomAt(Math.exp(e.deltaY * 0.0012), e.clientX, e.clientY);
@@ -71,7 +78,10 @@ export class Controller {
     switch (k) {
       case "1": case "2": case "3": case "4": case "5": case "6": case "7": case "8": case "9": { const p = this.game.hand[Number(k) - 1]; if (p) this.select(p.uid); break; }
       case "r": this.rotate(); break;
-      case "escape": this.select(null); break;
+      case "q": this.selectBuild("twin"); break;
+      case "e": this.selectBuild("gatling"); break;
+      case "x": case "delete": case "backspace": this.sellSelected(); break;
+      case "escape": this.clearSelection(); break;
       case "z": this.undo(); break;
       case "enter": this.startWave(); break;
       case " ": e.preventDefault(); this.togglePause(); break;
@@ -84,12 +94,37 @@ export class Controller {
 
   // ---------------------------------------------------------------- actions
 
+  clearSelection(): void {
+    this.selectedUid = null;
+    this.buildKind = null;
+    this.selectedTowerId = null;
+  }
+
   select(uid: number | null): void {
     if (uid !== null && !this.game.canPlaceNow()) return;
     if (uid !== null && uid === this.selectedUid) { this.selectedUid = null; return; }
+    this.clearSelection();
     this.selectedUid = uid;
     this.checkSig = "";
     this.updateHover();
+  }
+
+  /** Pick a tower type to place; picking it again puts it away. */
+  selectBuild(kind: TowerKind | null): void {
+    if (kind !== null && !this.game.canPlaceNow()) return;
+    const same = kind === this.buildKind;
+    this.clearSelection();
+    this.buildKind = same ? null : kind;
+    this.updateHover();
+  }
+
+  sellSelected(): void {
+    const id = this.selectedTowerId;
+    if (id === null) return;
+    const refund = this.game.sellTower(id);
+    if (refund === null) return;
+    this.selectedTowerId = null;
+    this.hud.toast(`Sold for ${refund} credits`, "info");
   }
 
   rotate(): void {
@@ -112,8 +147,25 @@ export class Controller {
   toggleSpeed(): void { this.speed = this.speed === 1 ? 2 : this.speed === 2 ? 3 : 1; }
   toggleWalkers(): void { this.game.setTestWalkers(!this.game.testWalkers); }
 
+  /** Footprint corner for a tower under the cursor: a 2×2 snaps to the nearest grid corner. */
+  private towerAnchor(kind: TowerKind): Cell | null {
+    const p = this.hoverPoint;
+    if (!p) return null;
+    const n = TOWER_INFO[kind].size;
+    return n === 1 ? [Math.floor(p.x), Math.floor(p.z)] : [Math.round(p.x - n / 2), Math.round(p.z - n / 2)];
+  }
+
   private click(): void {
     if (!this.hoverCell) return;
+    if (this.buildKind) {
+      const at = this.towerAnchor(this.buildKind);
+      if (!at) return;
+      const r = this.game.buildTower(this.buildKind, at);
+      if (r.ok) this.buildKind = null;
+      else this.hud.toast(TOWER_REASON_TEXT[r.reason]);
+      this.updateHover();
+      return;
+    }
     if (this.selectedUid !== null) {
       const r = this.game.place(this.selectedUid, this.rot, this.hoverCell);
       if (r.ok) { this.selectedUid = null; this.checkSig = ""; }
@@ -121,6 +173,9 @@ export class Controller {
       this.updateHover();
       return;
     }
+    const tower = this.game.towerAt(this.hoverCell[0], this.hoverCell[1]);
+    if (tower) { this.selectedTowerId = this.selectedTowerId === tower.id ? null : tower.id; return; }
+    this.selectedTowerId = null;
     const piece = this.game.pieceAt(this.hoverCell[0], this.hoverCell[1]);
     if (!piece) return;
     if (piece.locked) { this.hud.toast("That piece is locked in"); return; }
@@ -135,7 +190,8 @@ export class Controller {
     if (!this.lastPointer) return;
     const p = this.view.pickGround(this.lastPointer.x, this.lastPointer.y);
     this.hoverCell = p ? [Math.floor(p.x), Math.floor(p.z)] : null;
-    const piece = this.hoverCell && this.selectedUid === null ? this.game.pieceAt(this.hoverCell[0], this.hoverCell[1]) : undefined;
+    this.hoverPoint = p ? { x: p.x, z: p.z } : null;
+    const piece = this.hoverCell && this.selectedUid === null && this.buildKind === null && !this.game.towerAt(this.hoverCell[0], this.hoverCell[1]) ? this.game.pieceAt(this.hoverCell[0], this.hoverCell[1]) : undefined;
     this.hoverPieceId = piece && this.game.canPickUp(piece) ? piece.id : null;
   }
 
@@ -168,9 +224,21 @@ export class Controller {
     // Drop a selection that no longer exists.
     if (this.selectedUid !== null && (!this.game.hand.some(h => h.uid === this.selectedUid) || !this.game.canPlaceNow())) this.selectedUid = null;
 
+    if (!this.game.canPlaceNow()) this.buildKind = null;
+    if (this.selectedTowerId !== null && !this.game.towers.some(t => t.id === this.selectedTowerId)) this.selectedTowerId = null;
+
     const check = this.currentCheck(dt);
     const current = this.game.routes();
+    let towerGhost: Overlay["towerGhost"] = null;
+    const at = this.buildKind ? this.towerAnchor(this.buildKind) : null;
+    if (this.buildKind && at) {
+      const tc = this.game.checkTower(this.buildKind, at), n = TOWER_INFO[this.buildKind].size;
+      towerGhost = { kind: this.buildKind, cells: tc.cells, valid: tc.ok, cx: at[0] + n / 2, cy: at[1] + n / 2, range: this.game.tuning[this.buildKind].range };
+    }
+    const sel = this.game.towers.find(t => t.id === this.selectedTowerId);
     return {
+      towerGhost,
+      selectedTower: sel ? { cx: sel.cx, cy: sel.cy, range: this.game.tuning[sel.kind].range } : null,
       ghost: check ? { cells: check.cells, valid: check.ok } : null,
       route: check?.ok ? this.game.routes(check.field) : current,
       faintRoute: check?.ok ? current : null,
