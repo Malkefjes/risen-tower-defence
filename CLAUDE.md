@@ -1,13 +1,19 @@
 # Working notes for Claude
 
-Read this first in every session. Sessions do not share memory; this file and the design doc are the continuity.
+Read this first in every session. Sessions do not share memory; this file and `docs/DESIGN.md` are the continuity.
+
+## Status
+
+- **Done:** Phase 1 step 1. Snowy evening map (Frostfall), supply drops of 3 random walls per round, wall bar, placement with live path preview, undo/pick-up, waves of walkers (no combat), camera pan/zoom, softened lamp glow.
+- **Next:** Phase 1 step 2: towers, credits, enemy HP, player HP, tuning panel. See "Step 2 plan" in `docs/DESIGN.md`. Settle its open questions with Erik before building.
+- **Run locally:** double-click `start-dev.cmd` (Windows) or `npm install && npm run dev`, then http://localhost:5173.
 
 ## Collaboration
 
 - Erik is the designer and player; Claude writes the code. Erik's calls on design are final.
 - Erik dislikes popups that interrupt play: prefer non-blocking notices.
 - Take it slow on design: discuss fundamentals, reason through trade-offs, don't jump to building without agreement.
-- Design doc (source of truth): https://claude.ai/code/artifact/8a4e11d2-eea6-4144-9f29-23a844c9d1ec
+- Design: `docs/DESIGN.md` (snapshot in the repo). Erik's live, editable copy: https://claude.ai/code/artifact/8a4e11d2-eea6-4144-9f29-23a844c9d1ec. When a design decision changes, update `docs/DESIGN.md` in the same commit.
 - **Standing guardrail:** every shop/economy system must feed back into maze decisions. Flag it whenever a feature risks the economy becoming the main game.
 
 ## Code conventions
@@ -40,4 +46,5 @@ Read this first in every session. Sessions do not share memory; this file and th
 
 ## Pushing
 
-The cloud workspace cannot push to this repo. Commit and push from the linked PC folder (device shell), authored as Erik with Claude as co-author. The token lives outside the repo and must never be committed.
+- From Claude Code on Erik's PC: normal `git commit` / `git push` with Erik's own git login.
+- From a Claude cloud session (Cowork): the cloud workspace can't push to this repo. Commit and push from the linked PC folder via the device shell, authored as Erik with Claude as co-author, using a fine-grained token Erik provides. Tokens live outside the repo and must never be committed.

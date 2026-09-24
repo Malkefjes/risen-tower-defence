@@ -4,7 +4,7 @@ A browser tower defense game about mazing. Enemies take the fastest path to your
 
 A personal project, built for fun.
 
-- **Design doc:** [Maze Defense — Design Doc](https://claude.ai/code/artifact/8a4e11d2-eea6-4144-9f29-23a844c9d1ec) (the source of truth for design decisions)
+- **Design:** [`docs/DESIGN.md`](docs/DESIGN.md), synced from the [live design doc](https://claude.ai/code/artifact/8a4e11d2-eea6-4144-9f29-23a844c9d1ec)
 - **Stack:** TypeScript, Vite, three.js, Vitest
 
 ## Running locally
@@ -30,7 +30,7 @@ npm run dev        # dev server with hot reload
 
 | Phase | Scope | Question it answers |
 | --- | --- | --- |
-| 1. Core maze | Grid, terrain, spawner, nexus, live path preview, piece placement and rotation, blocking and lock rules, 1 tower, 1 enemy, waves, HP | Does placing pieces feel good? How many walls per round? |
+| 1. Core maze | Step 1 done: placement, path preview, supply drops, walkers. Step 2: towers, credits, HP, tuning panel | Does placing pieces feel good? How many walls per round? |
 | 2. Tower variety | 3–4 towers with different reach and footprints | Do different builds want different mazes? |
 | 3. Roguelite layer | Gold, interest, shop, rerolls, bench, star-ups | Does the economy add tension without taking over? |
 | 4. Depth | Traits, enemy variety, more terrain | Does it stay unsolvable over many runs? |
