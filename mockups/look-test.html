@@ -1,0 +1,667 @@
+<title>Risen Look Test</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&family=Barlow:wght@400;500;600&display=swap">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0d0f17;
+    --panel: #141722;
+    --line: #252a3a;
+    --text: #d8dce8;
+    --muted: #8990a8;
+    --cyan: #45e0c8;
+    --amber: #ffbf47;
+    --magenta: #ff5c86;
+    --pixel: "Silkscreen", ui-monospace, monospace;
+    --body: "Barlow", system-ui, sans-serif;
+  }
+  html, body { height: 100%; }
+  body { background: var(--bg); color: var(--text); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 40px; display: grid; gap: 16px; }
+
+  header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+  h1 { margin: 0; font-family: var(--pixel); font-weight: 400; font-size: 22px; letter-spacing: .04em; }
+  h1 span { color: var(--cyan); }
+  .sub { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+  .seg button, .tog {
+    font-family: var(--pixel); font-size: 12px; letter-spacing: .04em; color: var(--muted);
+    background: var(--panel); border: 0; padding: 8px 12px; cursor: pointer;
+  }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-pressed="true"] { color: var(--bg); background: var(--cyan); }
+  .tog { border: 1px solid var(--line); border-radius: 4px; }
+  .tog[aria-pressed="true"] { color: var(--text); border-color: #3b4460; background: #1b2030; }
+  button:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+  .stageWrap { display: flex; justify-content: center; background: var(--bg); }
+  .stage { position: relative; max-width: 100%; }
+  canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; max-width: 100%; }
+
+  .hud { position: absolute; inset: 0; pointer-events: none; font-family: var(--pixel); font-size: 11px; letter-spacing: .05em; }
+  .hud .tl { position: absolute; left: 10px; top: 8px; display: grid; gap: 4px; }
+  .hpbar { display: flex; gap: 2px; align-items: center; }
+  .hpbar i { width: 6px; height: 8px; background: var(--cyan); display: block; }
+  .hpbar i.lost { background: #2a3140; }
+  .row { display: flex; gap: 14px; }
+  .row b { color: var(--amber); font-weight: 400; }
+  .hud .bc { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); display: flex; gap: 6px; align-items: flex-end; }
+  .card { background: rgba(20,23,34,.88); border: 1px solid var(--line); padding: 6px 8px 4px; display: grid; justify-items: center; gap: 4px; }
+  .card.sel { border-color: var(--cyan); }
+  .card small { font-size: 9px; color: var(--muted); }
+  .mini { display: grid; grid-template-columns: repeat(3, 7px); grid-auto-rows: 7px; gap: 1px; }
+  .mini i { background: transparent; }
+  .mini i.on { background: #c7d1dc; }
+  .card.sel .mini i.on { background: var(--cyan); }
+  .draftLabel { font-size: 9px; color: var(--muted); align-self: center; margin-right: 4px; }
+  @media (max-width: 560px) { .hud .bc { display: none; } }
+
+  .notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .notes section { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 14px 16px; }
+  .notes h2 { margin: 0 0 8px; font-family: var(--pixel); font-weight: 400; font-size: 13px; letter-spacing: .05em; color: var(--cyan); }
+  .notes ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+  .notes p { margin: 0 0 8px; max-width: 65ch; }
+  .legend { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; }
+  .sw { width: 12px; height: 12px; display: block; }
+  kbd { font-family: var(--pixel); font-size: 10px; border: 1px solid var(--line); padding: 1px 4px; border-radius: 3px; color: var(--muted); }
+  .meta { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>RISEN <span>/</span> LOOK TEST</h1>
+      <p class="sub">Placeholder art in the final pixel format. Same scene, two camera styles.</p>
+    </div>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Camera style">
+        <button id="vIso" aria-pressed="true">Isometric</button>
+        <button id="vTop" aria-pressed="false">3/4 top-down</button>
+      </div>
+      <button class="tog" id="tGrid" aria-pressed="false">Grid</button>
+      <button class="tog" id="tPath" aria-pressed="true">Path</button>
+      <button class="tog" id="tPause" aria-pressed="false">Pause</button>
+    </div>
+  </header>
+
+  <div class="stageWrap" id="stageWrap">
+   <div class="stage">
+    <canvas id="stage" aria-label="Animated game mockup"></canvas>
+    <div class="hud" aria-hidden="true">
+      <div class="tl">
+        <div class="hpbar" id="hp"></div>
+        <div class="row"><span>WAVE 3</span><span>CREDITS <b>14</b></span></div>
+      </div>
+      <div class="bc">
+        <span class="draftLabel">DRAFT</span>
+        <div class="card"><div class="mini" data-p="L"></div><small>L</small></div>
+        <div class="card sel"><div class="mini" data-p="T"></div><small>T</small></div>
+        <div class="card"><div class="mini" data-p="S"></div><small>S</small></div>
+      </div>
+    </div>
+   </div>
+  </div>
+  <p class="meta" id="meta"></p>
+
+  <div class="notes">
+    <section>
+      <h2 id="viewTitle">ISOMETRIC</h2>
+      <div id="viewNotes"></div>
+    </section>
+    <section>
+      <h2>WHAT'S HAPPENING</h2>
+      <ul>
+        <li>Enemies leave the rift and take the fastest route to the nexus: 8 directions, never cutting a wall corner.</li>
+        <li>A ghost piece hovers, shows its new route in amber (the current route is faint white), then drops in. Enemies already walking reroute on the spot.</li>
+        <li>Towers sit on walls. The big one stands on a 2×2 block of walls.</li>
+        <li>The world has no edge. It fades out, and enemies can always walk around.</li>
+      </ul>
+    </section>
+    <section>
+      <h2>LEGEND</h2>
+      <div class="legend">
+        <i class="sw" style="background:#c7d1dc"></i><span>Prefab wall</span>
+        <i class="sw" style="background:#8fa0b8"></i><span>Tower (1×1 and 2×2)</span>
+        <i class="sw" style="background:#45e0c8"></i><span>Nexus</span>
+        <i class="sw" style="background:#ff5c86"></i><span>Enemy and rift</span>
+        <i class="sw" style="background:#7b6659"></i><span>Rock</span>
+        <i class="sw" style="background:#ffbf47"></i><span>Path preview</span>
+      </div>
+      <p class="meta" style="margin-top:10px">Keys: <kbd>1</kbd> <kbd>2</kbd> view, <kbd>G</kbd> grid, <kbd>P</kbd> path, <kbd>Space</kbd> pause</p>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const NW = 480, NH = 288;
+  const cvs = $('#stage');
+  cvs.width = NW; cvs.height = NH;
+  let ctx = cvs.getContext('2d');
+  const groundCache = {};
+  ctx.imageSmoothingEnabled = false;
+
+  // ---------- world ----------
+  const X0 = -8, Y0 = -8, X1 = 26, Y1 = 20, GW = X1 - X0, GH = Y1 - Y0;
+  const K = (x, y) => x + ',' + y;
+  const inW = (x, y) => x >= X0 && x < X1 && y >= Y0 && y < Y1;
+  const idx = (x, y) => (y - Y0) * GW + (x - X0);
+
+  const WALL_H = 10;
+  const rocks = new Map();
+  [[5,8,14],[6,8,11],[6,9,16],[5,9,9],[8,0,12],[9,0,15],[3,5,13],[16,11,12],[17,11,10],[2,10,11],[-1,4,12],[18,2,13]]
+    .forEach(([x,y,h]) => rocks.set(K(x,y), h));
+
+  const pieces = [
+    { cells: [[9,3],[9,4],[9,5],[9,6]] },
+    { cells: [[9,7],[9,8],[10,8],[11,8]] },
+    { cells: [[10,3],[11,3],[12,3],[13,3]] },
+    { cells: [[14,3],[14,4],[14,5],[15,5]] },
+    { cells: [[12,8],[13,8],[14,8],[13,9]] },
+    { cells: [[6,4],[7,4],[6,5],[7,5]] },
+  ];
+  const walls = new Map();
+  const rebuildWalls = () => { walls.clear(); pieces.forEach((p, i) => p.cells.forEach(([x,y]) => walls.set(K(x,y), i))); };
+  rebuildWalls();
+
+  const nexusCells = [[11,5],[12,5],[11,6],[12,6]];
+  const nexusSet = new Set(nexusCells.map(([x,y]) => K(x,y)));
+  const NEXUS_C = [12, 6];
+  const SPAWN = [1, 2];
+
+  const towers = [
+    { x: 9.5, y: 4.5, big: false, foot: [[9,4]] },
+    { x: 11.5, y: 3.5, big: false, foot: [[11,3]] },
+    { x: 14.5, y: 4.5, big: false, foot: [[14,4]] },
+    { x: 10.5, y: 8.5, big: false, foot: [[10,8]] },
+    { x: 13.5, y: 8.5, big: false, foot: [[13,8]] },
+    { x: 7, y: 5, big: true, foot: [[6,4],[7,4],[6,5],[7,5]] },
+  ].map(t => Object.assign(t, {
+    range: t.big ? 4.2 : 3.1, rate: t.big ? 1.5 : 0.75, dmg: t.big ? 4 : 1, cd: Math.random(),
+    aim: [1, 0], flash: 0,
+  }));
+
+  // ---------- pathfinding: 8-way, no corner cutting ----------
+  const DIRS = [[1,0,1],[-1,0,1],[0,1,1],[0,-1,1],[1,1,Math.SQRT2],[1,-1,Math.SQRT2],[-1,1,Math.SQRT2],[-1,-1,Math.SQRT2]];
+  const blocked = (x, y, extra) => { const k = K(x,y); return !inW(x,y) || walls.has(k) || rocks.has(k) || (extra ? extra.has(k) : false); };
+  const canStep = (x, y, dx, dy, extra) => {
+    if (blocked(x+dx, y+dy, extra)) return false;
+    if (dx && dy && (blocked(x+dx, y, extra) || blocked(x, y+dy, extra))) return false;
+    return true;
+  };
+  function field(extra) {
+    const d = new Float64Array(GW * GH).fill(Infinity);
+    const heap = [];
+    const push = (v, i) => { heap.push([v, i]); let c = heap.length - 1; while (c) { const p = (c - 1) >> 1; if (heap[p][0] <= heap[c][0]) break; [heap[p], heap[c]] = [heap[c], heap[p]]; c = p; } };
+    const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let c = 0; for (;;) { const l = 2*c+1, r = l+1; let m = c; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === c) break; [heap[m], heap[c]] = [heap[c], heap[m]]; c = m; } } return top; };
+    for (const [x,y] of nexusCells) { d[idx(x,y)] = 0; push(0, idx(x,y)); }
+    while (heap.length) {
+      const [v, i] = pop(); if (v > d[i]) continue;
+      const x = (i % GW) + X0, y = Math.floor(i / GW) + Y0;
+      for (const [dx, dy, c] of DIRS) {
+        if (!canStep(x, y, dx, dy, extra)) continue;
+        const j = idx(x+dx, y+dy), nv = v + c;
+        if (nv < d[j]) { d[j] = nv; push(nv, j); }
+      }
+    }
+    return d;
+  }
+  function nextStep(d, x, y, extra) {
+    let best = null, bv = Infinity;
+    for (const [dx, dy, c] of DIRS) {
+      if (!canStep(x, y, dx, dy, extra)) continue;
+      const v = c + d[idx(x+dx, y+dy)];
+      if (v < bv - 1e-9) { bv = v; best = [x+dx, y+dy]; }
+    }
+    return best;
+  }
+  function tracePath(d, extra) {
+    const pts = []; let [x, y] = SPAWN;
+    if (!isFinite(d[idx(x,y)])) return pts;
+    pts.push([x+.5, y+.5]);
+    for (let n = 0; n < 600 && !nexusSet.has(K(x,y)); n++) { const s = nextStep(d, x, y, extra); if (!s) break; [x, y] = s; pts.push([x+.5, y+.5]); }
+    return pts;
+  }
+
+  let cur = field();
+
+  // ---------- ghost piece: pick the placement that lengthens the route most ----------
+  const SHAPES = { T:[[0,0],[1,0],[2,0],[1,1]], L:[[0,0],[0,1],[0,2],[1,2]], J:[[1,0],[1,1],[1,2],[0,2]], S:[[1,0],[2,0],[0,1],[1,1]], Z:[[0,0],[1,0],[1,1],[2,1]], I:[[0,0],[1,0],[2,0],[3,0]] };
+  const rot = cells => { const r = cells.map(([x,y]) => [-y, x]); const mx = Math.min(...r.map(c => c[0])), my = Math.min(...r.map(c => c[1])); return r.map(([x,y]) => [x-mx, y-my]); };
+  const freeCell = (x, y) => !blocked(x,y) && !nexusSet.has(K(x,y)) && !(x === SPAWN[0] && y === SPAWN[1]);
+  let ghost = null;
+  (function pickGhost() {
+    const base = cur[idx(...SPAWN)];
+    let best = null, bestV = base + 0.5;
+    for (const name in SHAPES) {
+      let s = SHAPES[name];
+      for (let r = 0; r < 4; r++, s = rot(s)) {
+        for (let oy = -1; oy <= 12; oy++) for (let ox = 7; ox <= 19; ox++) {
+          const cells = s.map(([x,y]) => [x+ox, y+oy]);
+          if (!cells.every(([x,y]) => freeCell(x,y))) continue;
+          if (!cells.some(([x,y]) => [[1,0],[-1,0],[0,1],[0,-1]].some(([a,b]) => walls.has(K(x+a,y+b))))) continue;
+          const set = new Set(cells.map(([x,y]) => K(x,y)));
+          const v = field(set)[idx(...SPAWN)];
+          if (isFinite(v) && v > bestV) { bestV = v; best = cells; }
+        }
+      }
+    }
+    if (best) ghost = { cells: best, set: new Set(best.map(([x,y]) => K(x,y))) };
+  })();
+  let ghostField = ghost ? field(ghost.set) : cur;
+  let gState = 'hover', gT = 0, placedIndex = -1, gBlocked = false;
+
+  // ---------- actors ----------
+  const enemies = [], shots = [], parts = [];
+  let spawnT = 0, nexusFlash = 0, shake = 0, T = 0;
+  function spawnEnemy() {
+    const [x, y] = SPAWN;
+    enemies.push({ x: x+.5, y: y+.5, cx: x, cy: y, tx: x, ty: y, hp: 7, max: 7, hit: 0, bob: Math.random()*6, spd: 1.35 + Math.random()*0.25 });
+  }
+  const eDist = e => cur[idx(e.tx, e.ty)] + Math.hypot(e.tx+.5 - e.x, e.ty+.5 - e.y);
+
+  function burst(x, y, elev, color, n) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, s = 0.6 + Math.random() * 1.6;
+      parts.push({ x, y, e: elev, vx: Math.cos(a)*s, vy: Math.sin(a)*s, ve: 6 + Math.random()*14, life: 0.35 + Math.random()*0.3, color });
+    }
+  }
+
+  function tryPlaceGhost() {
+    for (const e of enemies) if (ghost.set.has(K(e.cx,e.cy)) || ghost.set.has(K(e.tx,e.ty))) return false;
+    if (!isFinite(ghostField[idx(...SPAWN)])) return false;
+    for (const e of enemies) if (!isFinite(ghostField[idx(e.tx,e.ty)])) return false;
+    pieces.push({ cells: ghost.cells, ghost: true });
+    placedIndex = pieces.length - 1;
+    rebuildWalls(); cur = field();
+    shake = 0.16;
+    for (const [x,y] of ghost.cells) burst(x+.5, y+.5, 0, '#a99bb0', 5);
+    return true;
+  }
+  function liftGhost() {
+    pieces.splice(placedIndex, 1); placedIndex = -1;
+    rebuildWalls(); cur = field(); ghostField = field(ghost.set);
+  }
+
+  function update(dt) {
+    T += dt;
+    // ghost cycle
+    if (ghost) {
+      gT += dt;
+      if (gState === 'hover' && gT > 2.6) { gState = 'drop'; gT = 0; }
+      else if (gState === 'drop' && gT > 0.14) {
+        gBlocked = !tryPlaceGhost();
+        if (gBlocked) { gState = 'hover'; gT = 1.8; } else { gState = 'placed'; gT = 0; }
+      }
+      else if (gState === 'placed' && gT > 3.4) { liftGhost(); gState = 'hover'; gT = 0; }
+    }
+    // spawn
+    spawnT -= dt;
+    if (spawnT <= 0) { spawnEnemy(); spawnT = 1.25; }
+    // enemies
+    for (const e of enemies) {
+      e.hit = Math.max(0, e.hit - dt); e.bob += dt * 9;
+      let step = e.spd * dt;
+      while (step > 0) {
+        const gx = e.tx + .5, gy = e.ty + .5, dx = gx - e.x, dy = gy - e.y, L = Math.hypot(dx, dy);
+        if (L <= step) {
+          e.x = gx; e.y = gy; step -= L; e.cx = e.tx; e.cy = e.ty;
+          if (nexusSet.has(K(e.cx, e.cy))) { e.dead = true; e.leak = true; break; }
+          const n = nextStep(cur, e.cx, e.cy);
+          if (!n) break;
+          [e.tx, e.ty] = n;
+        } else { e.x += dx / L * step; e.y += dy / L * step; step = 0; }
+      }
+    }
+    for (const e of enemies) if (e.leak && !e.gone) { e.gone = true; nexusFlash = 0.45; burst(e.x, e.y, 4, '#ff5c86', 8); }
+    // towers
+    for (const t of towers) {
+      t.cd -= dt; t.flash = Math.max(0, t.flash - dt);
+      let target = null, bd = Infinity;
+      for (const e of enemies) {
+        if (e.dead) continue;
+        if (Math.hypot(e.x - t.x, e.y - t.y) > t.range) continue;
+        const d = eDist(e); if (d < bd) { bd = d; target = e; }
+      }
+      if (target) {
+        const ax = target.x - t.x, ay = target.y - t.y, L = Math.hypot(ax, ay) || 1;
+        t.aim = [t.aim[0] + (ax/L - t.aim[0]) * Math.min(1, dt*12), t.aim[1] + (ay/L - t.aim[1]) * Math.min(1, dt*12)];
+        if (t.cd <= 0) {
+          t.cd = t.rate; t.flash = 0.07;
+          shots.push({ x: t.x, y: t.y, e: t.big ? 24 : 19, from: t.big ? 24 : 19, target, dmg: t.dmg, big: t.big, d0: L, trail: [] });
+        }
+      }
+    }
+    // shots
+    for (const s of shots) {
+      const tg = s.target, dx = tg.x - s.x, dy = tg.y - s.y, L = Math.hypot(dx, dy), v = (s.big ? 9 : 13) * dt;
+      s.trail.push([s.x, s.y, s.e]); if (s.trail.length > 3) s.trail.shift();
+      if (L <= v || tg.dead) {
+        s.done = true;
+        if (!tg.dead) {
+          const hitList = s.big ? enemies.filter(e => !e.dead && Math.hypot(e.x - tg.x, e.y - tg.y) < 0.9) : [tg];
+          for (const e of hitList) {
+            e.hp -= s.dmg; e.hit = 0.09;
+            if (e.hp <= 0 && !e.dead) { e.dead = true; burst(e.x, e.y, 4, '#ff5c86', 10); }
+          }
+          if (s.big) burst(tg.x, tg.y, 3, '#ffbf47', 6);
+        }
+      } else {
+        s.x += dx / L * v; s.y += dy / L * v;
+        s.e = 5 + (s.from - 5) * Math.min(1, L / Math.max(0.5, s.d0));
+      }
+    }
+    for (const p of parts) { p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.e = Math.max(0, p.e + p.ve * dt); p.ve -= 60 * dt; }
+    remove(enemies, e => e.dead); remove(shots, s => s.done); remove(parts, p => p.life <= 0);
+    nexusFlash = Math.max(0, nexusFlash - dt); shake = Math.max(0, shake - dt);
+  }
+  const remove = (arr, f) => { for (let i = arr.length - 1; i >= 0; i--) if (f(arr[i])) arr.splice(i, 1); };
+
+  // ---------- palettes ----------
+  const PAL = {
+    wallA: { top:'#c7d1dc', left:'#8e9aac', right:'#667286', hi:'#eef3f8' },
+    wallB: { top:'#b6c2d0', left:'#8591a4', right:'#5e6a7e', hi:'#e2e9f1' },
+    rock:  { top:'#7b6659', left:'#5d4c42', right:'#463830', hi:'#9a8474' },
+    tBase: { top:'#56657d', left:'#3b475b', right:'#2b3444', hi:'#7d8ca6' },
+    tHead: { top:'#8fa0b8', left:'#627089', right:'#48546a', hi:'#b8c6d8' },
+    nBase: { top:'#3d4a60', left:'#2c364a', right:'#222a3a', hi:'#5a6a86' },
+    nCore: { top:'#9ff5e6', left:'#45e0c8', right:'#2aa897', hi:'#e6fffa' },
+    nCoreHot: { top:'#ffffff', left:'#bdfcf1', right:'#7ff0de', hi:'#ffffff' },
+    enemy: { top:'#ff5c86', left:'#d63a67', right:'#a82a52', hi:'#ff9bb5' },
+    enemyHit: { top:'#ffffff', left:'#ffe0e8', right:'#ffc2d2', hi:'#ffffff' },
+    ghost: { top:'rgba(69,224,200,.42)', left:'rgba(69,224,200,.24)', right:'rgba(69,224,200,.16)', hi:'#45e0c8' },
+    ghostBad: { top:'rgba(255,92,134,.42)', left:'rgba(255,92,134,.24)', right:'rgba(255,92,134,.16)', hi:'#ff5c86' },
+  };
+  const GROUND = ['#3a3040', '#3d3243', '#372d3c'], SPECK = ['#463b4d', '#30283a'], GRID = '#2a2231';
+  const hash = (x, y, s = 0) => { let h = (x * 374761393 + y * 668265263 + s * 982451653) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+  const even = v => Math.max(2, Math.round(v / 2) * 2);
+
+  // ---------- projections ----------
+  let OX = 0, OY = 0;
+  const PROJ = {
+    iso: {
+      name: 'iso', cx: 208, cy: 30,
+      toS: (wx, wy) => [OX + (wx - wy) * 16, OY + (wx + wy) * 8],
+      key: (wx, wy) => wx + wy,
+      box(wx, wy, s, h, elev, c) {
+        const W = even(s * 16), [sx, sy] = this.toS(wx, wy);
+        isoBox(Math.round(sx), Math.round(sy - W / 2 - h - elev), W, h, c);
+      },
+      topCenter(wx, wy, elev) { const [sx, sy] = this.toS(wx, wy); return [Math.round(sx), Math.round(sy - elev)]; },
+      dir(dx, dy) { return [(dx - dy) * 16, (dx + dy) * 8]; },
+      ground(x, y, grid) {
+        const [sx, sy] = this.toS(x, y), cx = Math.round(sx), ty = Math.round(sy);
+        const col = GROUND[Math.floor(hash(x, y) * 3)];
+        for (let r = 0; r < 16; r++) {
+          const hw = r < 8 ? 2 * (r + 1) : 2 * (16 - r);
+          ctx.fillStyle = col; ctx.fillRect(cx - hw, ty + r, 2 * hw, 1);
+          if (grid && r < 8) { ctx.fillStyle = GRID; ctx.fillRect(cx - hw, ty + r, 2, 1); ctx.fillRect(cx + hw - 2, ty + r, 2, 1); }
+        }
+        for (let i = 0; i < 3; i++) {
+          const dx = Math.round((hash(x, y, i + 1) - .5) * 18), dy = Math.round((hash(x, y, i + 9) - .5) * 7);
+          if (Math.abs(dx) / 2 + Math.abs(dy) > 5) continue;
+          ctx.fillStyle = SPECK[i % 2]; ctx.fillRect(cx + dx, ty + 8 + dy, i === 0 ? 2 : 1, 1);
+        }
+      },
+      ring(wx, wy, W, color) { const [sx, sy] = this.toS(wx, wy); diamondOutline(Math.round(sx), Math.round(sy - W / 2), W, color); },
+      shadow(wx, wy, W) { const [sx, sy] = this.toS(wx, wy); ctx.fillStyle = 'rgba(8,6,14,.45)'; diamondFill(Math.round(sx), Math.round(sy - W / 2), W); },
+    },
+    top: {
+      name: 'top', cx: 24, cy: 50,
+      toS: (wx, wy) => [OX + wx * 24, OY + wy * 16],
+      key: (wx, wy) => wy + wx * 0.001,
+      box(wx, wy, s, h, elev, c) {
+        const w = even(s * 24), d = even(s * 16), [sx, sy] = this.toS(wx, wy);
+        const x = Math.round(sx - w / 2), y = Math.round(sy - d / 2 - h - elev);
+        ctx.fillStyle = c.top; ctx.fillRect(x, y, w, d);
+        ctx.fillStyle = c.hi; ctx.fillRect(x, y, w, 1); ctx.fillRect(x, y, 1, d);
+        if (h > 0) { ctx.fillStyle = c.left; ctx.fillRect(x, y + d, w, h); ctx.fillStyle = c.right; ctx.fillRect(x + w - 1, y + d, 1, h); ctx.fillRect(x, y + d + h - 1, w, 1); }
+      },
+      topCenter(wx, wy, elev) { const [sx, sy] = this.toS(wx, wy); return [Math.round(sx), Math.round(sy - elev)]; },
+      dir(dx, dy) { return [dx * 24, dy * 16]; },
+      ground(x, y, grid) {
+        const [sx, sy] = this.toS(x, y), px = Math.round(sx), py = Math.round(sy);
+        ctx.fillStyle = GROUND[Math.floor(hash(x, y) * 3)]; ctx.fillRect(px, py, 24, 16);
+        if (grid) { ctx.fillStyle = GRID; ctx.fillRect(px, py, 24, 1); ctx.fillRect(px, py, 1, 16); }
+        for (let i = 0; i < 3; i++) {
+          ctx.fillStyle = SPECK[i % 2];
+          ctx.fillRect(px + 2 + Math.floor(hash(x, y, i + 1) * 20), py + 2 + Math.floor(hash(x, y, i + 9) * 12), i === 0 ? 2 : 1, 1);
+        }
+      },
+      ring(wx, wy, W, color) {
+        const [sx, sy] = this.toS(wx, wy), w = Math.round(W * 1.5), d = W;
+        const x = Math.round(sx - w), y = Math.round(sy - d / 2);
+        ctx.fillStyle = color; ctx.fillRect(x, y, 2 * w, 1); ctx.fillRect(x, y + d - 1, 2 * w, 1); ctx.fillRect(x, y, 1, d); ctx.fillRect(x + 2 * w - 1, y, 1, d);
+      },
+      shadow(wx, wy, W) { const [sx, sy] = this.toS(wx, wy); ctx.fillStyle = 'rgba(8,6,14,.45)'; ctx.fillRect(Math.round(sx - W * .75), Math.round(sy + 1), Math.round(W * 1.5), 3); },
+    },
+  };
+
+  function diamondFill(cx, ty, W) {
+    for (let r = 0; r < W; r++) { const hw = r < W / 2 ? 2 * (r + 1) : 2 * (W - r); ctx.fillRect(cx - hw, ty + r, 2 * hw, 1); }
+  }
+  function diamondOutline(cx, ty, W, color) {
+    ctx.fillStyle = color;
+    for (let r = 0; r < W; r++) { const hw = r < W / 2 ? 2 * (r + 1) : 2 * (W - r); ctx.fillRect(cx - hw, ty + r, 2, 1); ctx.fillRect(cx + hw - 2, ty + r, 2, 1); }
+  }
+  function isoBox(cx, ty, W, h, c) {
+    if (h > 0) for (let k = 1; k <= W; k++) {
+      const top = ty + W - Math.ceil(k / 2) + 1;
+      ctx.fillStyle = c.left; ctx.fillRect(cx - k, top, 1, h);
+      ctx.fillStyle = c.right; ctx.fillRect(cx + k - 1, top, 1, h);
+    }
+    for (let r = 0; r < W; r++) {
+      const hw = r < W / 2 ? 2 * (r + 1) : 2 * (W - r);
+      ctx.fillStyle = c.top; ctx.fillRect(cx - hw, ty + r, 2 * hw, 1);
+      if (r < W / 2) { ctx.fillStyle = c.hi; ctx.fillRect(cx - hw, ty + r, 2, 1); ctx.fillRect(cx + hw - 2, ty + r, 2, 1); }
+    }
+  }
+  function pixLine(x0, y0, dx, dy, len, color, thick) {
+    ctx.fillStyle = color;
+    for (let i = 0; i <= len; i++) ctx.fillRect(Math.round(x0 + dx * i), Math.round(y0 + dy * i), thick, thick);
+  }
+
+  // ---------- render ----------
+  let view = 'iso', showGrid = false, showPath = true, paused = false;
+
+  function drawPath(P, pts, style) {
+    if (pts.length < 2) return;
+    let acc = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const [ax, ay] = P.toS(...pts[i - 1]), [bx, by] = P.toS(...pts[i]);
+      const L = Math.hypot(bx - ax, by - ay), n = Math.ceil(L);
+      for (let j = 0; j < n; j++) {
+        const a = acc + j;
+        const x = Math.round(ax + (bx - ax) * j / n), y = Math.round(ay + (by - ay) * j / n);
+        if (style === 'preview') {
+          if (((a - T * 22) % 10 + 10) % 10 < 5) { ctx.fillStyle = '#ffbf47'; ctx.fillRect(x, y, 2, 1); }
+        } else if (style === 'faint') {
+          if (Math.floor(a) % 4 === 0) { ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(x, y, 1, 1); }
+        }
+      }
+      acc += L;
+    }
+  }
+
+  function render() {
+    const P = PROJ[view];
+    const sh = shake > 0 ? 1 : 0;
+    OX = P.cx + (sh ? Math.round(Math.random() * 2 - 1) : 0);
+    OY = P.cy + (sh ? Math.round(Math.random() * 2 - 1) : 0);
+    ctx.fillStyle = '#0d0f17'; ctx.fillRect(0, 0, NW, NH);
+
+    const gk = view + showGrid;
+    if (!groundCache[gk]) {
+      const c = document.createElement('canvas'); c.width = NW; c.height = NH;
+      const main = ctx, sx = OX, sy = OY; ctx = c.getContext('2d'); OX = P.cx; OY = P.cy;
+      for (let y = -22; y < 34; y++) for (let x = -22; x < 40; x++) P.ground(x, y, showGrid);
+      groundCache[gk] = c; ctx = main; OX = sx; OY = sy;
+    }
+    ctx.drawImage(groundCache[gk], OX - P.cx, OY - P.cy);
+
+    // rift (spawner)
+    const pulse = (T * 1.4) % 1;
+    P.ring(SPAWN[0] + .5, SPAWN[1] + .5, 10, '#5a1a33');
+    ctx.fillStyle = '#1a0a14';
+    if (view === 'iso') { const [sx, sy] = P.toS(SPAWN[0] + .5, SPAWN[1] + .5); diamondFill(Math.round(sx), Math.round(sy - 4), 8); }
+    else { const [sx, sy] = P.toS(SPAWN[0] + .5, SPAWN[1] + .5); ctx.fillRect(Math.round(sx - 8), Math.round(sy - 4), 16, 8); }
+    P.ring(SPAWN[0] + .5, SPAWN[1] + .5, even(8 + pulse * 10), pulse < .7 ? '#ff5c86' : '#8a2a4b');
+
+    // paths
+    const hovering = ghost && (gState === 'hover' || gState === 'drop');
+    if (showPath) {
+      if (hovering) { drawPath(P, tracePath(cur), 'faint'); drawPath(P, tracePath(ghostField, ghost.set), 'preview'); }
+      else drawPath(P, tracePath(cur), 'preview');
+    }
+
+    // depth-sorted objects
+    const list = [];
+    walls.forEach((pi, k) => {
+      const [x, y] = k.split(',').map(Number);
+      list.push({ k: P.key(x + .5, y + .5), f: () => {
+        P.box(x + .5, y + .5, 1, WALL_H, 0, pi % 2 ? PAL.wallB : PAL.wallA);
+        if (pieces[pi].cells[0][0] === x && pieces[pi].cells[0][1] === y) {
+          const [cx, cy] = P.topCenter(x + .5, y + .5, WALL_H);
+          ctx.fillStyle = (Math.floor(T * 2 + pi) % 3) ? '#45e0c8' : '#1f6b61'; ctx.fillRect(cx - 1, cy, 2, 1);
+        }
+      }});
+    });
+    rocks.forEach((h, k) => {
+      const [x, y] = k.split(',').map(Number);
+      list.push({ k: P.key(x + .5, y + .5), f: () => {
+        P.box(x + .5, y + .5, 0.9, h, 0, PAL.rock);
+        P.box(x + .3 + hash(x, y, 3) * .4, y + .75, 0.35, 4, 0, PAL.rock);
+      }});
+    });
+    // nexus
+    const nk = Math.max(...nexusCells.map(([x, y]) => P.key(x + .5, y + .5))) + .02;
+    list.push({ k: nk, f: () => {
+      const [nx, ny] = NEXUS_C;
+      P.box(nx, ny, 1.75, 6, 0, PAL.nBase);
+      P.box(nx, ny, 1.1, 3, 6, PAL.nBase);
+      const bob = Math.round(Math.sin(T * 2.2) * 1.5);
+      const hot = nexusFlash > 0 && Math.floor(nexusFlash * 20) % 2 === 0;
+      P.box(nx, ny, 0.5, 18, 9 + bob, hot ? PAL.nCoreHot : PAL.nCore);
+      const r = (T * .8) % 1;
+      P.ring(nx, ny + 0, even(20 + r * 14), r < .6 ? 'rgba(69,224,200,.55)' : 'rgba(69,224,200,.18)');
+    }});
+    // towers
+    for (const t of towers) {
+      const k = Math.max(...t.foot.map(([x, y]) => P.key(x + .5, y + .5))) + .02;
+      list.push({ k, f: () => drawTower(P, t) });
+    }
+    // enemies
+    for (const e of enemies) list.push({ k: P.key(e.x, e.y) + .01, f: () => {
+      const bob = Math.round(Math.abs(Math.sin(e.bob)) * 2);
+      P.shadow(e.x, e.y, 4);
+      P.box(e.x, e.y, 0.4, 5, 1 + bob, e.hit > 0 ? PAL.enemyHit : PAL.enemy);
+      const [cx, cy] = P.topCenter(e.x, e.y, 1 + bob + 5);
+      const [dx, dy] = P.dir(e.tx + .5 - e.x, e.ty + .5 - e.y); const L = Math.hypot(dx, dy) || 1;
+      ctx.fillStyle = '#fff0a0'; ctx.fillRect(Math.round(cx + dx / L * 2), Math.round(cy + dy / L * 1), 1, 1);
+      if (e.hp < e.max) {
+        ctx.fillStyle = '#1a1420'; ctx.fillRect(cx - 4, cy - 6, 8, 1);
+        ctx.fillStyle = '#ff5c86'; ctx.fillRect(cx - 4, cy - 6, Math.max(1, Math.round(8 * e.hp / e.max)), 1);
+      }
+    }});
+    // ghost piece
+    if (ghost && (gState === 'hover' || gState === 'drop')) {
+      const lift = gState === 'drop' ? Math.round(6 * (1 - gT / 0.14) ** 2) : 6 + Math.round(Math.sin(T * 4) * 1.5);
+      for (const [x, y] of ghost.cells) list.push({ k: P.key(x + .5, y + .5) + .01, f: () => P.box(x + .5, y + .5, 1, WALL_H, lift, gBlocked ? PAL.ghostBad : PAL.ghost) });
+    }
+    list.sort((a, b) => a.k - b.k).forEach(o => o.f());
+
+    // shots + particles on top
+    for (const s of shots) {
+      for (const [x, y, e] of s.trail) { const [cx, cy] = P.topCenter(x, y, e); ctx.fillStyle = s.big ? 'rgba(255,191,71,.5)' : 'rgba(69,224,200,.45)'; ctx.fillRect(cx, cy, 1, 1); }
+      const [cx, cy] = P.topCenter(s.x, s.y, s.e);
+      ctx.fillStyle = s.big ? '#ffbf47' : '#bffcf2'; ctx.fillRect(cx, cy, s.big ? 3 : 2, s.big ? 2 : 1);
+    }
+    for (const p of parts) { const [cx, cy] = P.topCenter(p.x, p.y, p.e); ctx.fillStyle = p.color; ctx.fillRect(cx, cy, 1, 1); }
+
+    // fog: the world has no edge
+    const g = ctx.createRadialGradient(NW / 2, NH / 2, NH * 0.38, NW / 2, NH / 2, NW * 0.52);
+    g.addColorStop(0, 'rgba(13,15,23,0)'); g.addColorStop(1, 'rgba(13,15,23,1)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, NW, NH);
+  }
+
+  function drawTower(P, t) {
+    const baseS = t.big ? 1.4 : 0.6, baseH = t.big ? 7 : 5, headS = t.big ? 0.8 : 0.38, headH = t.big ? 6 : 4;
+    P.box(t.x, t.y, baseS, baseH, WALL_H, PAL.tBase);
+    const headElev = WALL_H + baseH;
+    const [dx0, dy0] = P.dir(t.aim[0], t.aim[1]); const L = Math.hypot(dx0, dy0) || 1, dx = dx0 / L, dy = dy0 / L;
+    const [hx, hy] = P.topCenter(t.x, t.y, headElev + headH - 1);
+    const len = t.big ? 11 : 7, th = t.big ? 2 : 1;
+    const barrel = () => {
+      pixLine(hx, hy, dx, dy, len, '#d7e0ea', th);
+      ctx.fillStyle = t.flash > 0 ? '#ffffff' : (t.big ? '#ffbf47' : '#45e0c8');
+      ctx.fillRect(Math.round(hx + dx * len), Math.round(hy + dy * len), th + 1, th + 1);
+    };
+    if (dy < 0) barrel();
+    P.box(t.x, t.y, headS, headH, headElev, PAL.tHead);
+    if (dy >= 0) barrel();
+  }
+
+  // ---------- loop, scaling, controls ----------
+  const hpEl = $('#hp');
+  for (let i = 0; i < 20; i++) { const b = document.createElement('i'); if (i >= 17) b.className = 'lost'; hpEl.appendChild(b); }
+  const MINI = { L: [[0,0],[0,1],[0,2],[1,2]], T: [[0,0],[1,0],[2,0],[1,1]], S: [[1,0],[2,0],[0,1],[1,1]] };
+  document.querySelectorAll('.mini').forEach(m => {
+    const cells = MINI[m.dataset.p];
+    for (let y = 0; y < 3; y++) for (let x = 0; x < 3; x++) { const i = document.createElement('i'); if (cells.some(([a, b]) => a === x && b === y)) i.className = 'on'; m.appendChild(i); }
+  });
+
+  function fit() {
+    const w = $('#stageWrap').clientWidth, s = Math.floor(w / NW);
+    if (s >= 1) { cvs.style.width = NW * s + 'px'; cvs.style.height = NH * s + 'px'; }
+    else { cvs.style.width = '100%'; cvs.style.height = 'auto'; }
+    $('#meta').textContent = `Native ${NW}×${NH} px, shown at ${s >= 1 ? s + '× integer scale' : 'reduced size (screen too narrow for 1×)'}. Tiles: ${view === 'iso' ? '32×16 iso' : '24×16 top + 10 px wall face'}. Walls ${WALL_H} px tall.`;
+  }
+  addEventListener('resize', fit);
+
+  const NOTES = {
+    iso: {
+      title: 'ISOMETRIC',
+      html: '<p>Diamond grid, 32×16 pixel tiles. Walls read as solid blocks with two lit faces, which is the diorama look Into the Breach uses.</p><ul><li>Strongest sense of depth and height</li><li>Tetris shapes read rotated 45°</li><li>Tall objects can hide what is behind them. Low walls keep that small here.</li></ul>',
+    },
+    top: {
+      title: '3/4 TOP-DOWN',
+      html: '<p>Square grid seen from above at an angle. Objects show their top and front face.</p><ul><li>Tetris shapes read exactly like Tetris</li><li>Easier pixel art: straight edges, no 2:1 diagonals</li><li>Less depth; walls look more like tiles than buildings</li></ul>',
+    },
+  };
+  function setView(v) {
+    view = v;
+    $('#vIso').setAttribute('aria-pressed', v === 'iso'); $('#vTop').setAttribute('aria-pressed', v === 'top');
+    $('#viewTitle').textContent = NOTES[v].title; $('#viewNotes').innerHTML = NOTES[v].html;
+    fit();
+  }
+  const toggle = (id, get, set) => { const b = $(id); b.addEventListener('click', () => { set(!get()); b.setAttribute('aria-pressed', get()); }); };
+  $('#vIso').addEventListener('click', () => setView('iso'));
+  $('#vTop').addEventListener('click', () => setView('top'));
+  toggle('#tGrid', () => showGrid, v => showGrid = v);
+  toggle('#tPath', () => showPath, v => showPath = v);
+  toggle('#tPause', () => paused, v => paused = v);
+  addEventListener('keydown', e => {
+    if (e.key === '1') setView('iso'); else if (e.key === '2') setView('top');
+    else if (e.key === 'g' || e.key === 'G') $('#tGrid').click();
+    else if (e.key === 'p' || e.key === 'P') $('#tPath').click();
+    else if (e.key === ' ') { e.preventDefault(); $('#tPause').click(); }
+  });
+
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { paused = true; $('#tPause').setAttribute('aria-pressed', 'true'); }
+  // warm up so the first frame already shows a live scene
+  for (let i = 0; i < 360; i++) update(1 / 60);
+  setView('iso');
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (!paused) update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
