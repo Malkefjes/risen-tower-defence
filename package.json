@@ -1,0 +1,22 @@
+{
+  "name": "risen-tower-defence",
+  "version": "0.0.1",
+  "private": true,
+  "description": "A mazing tower defense game: shape the enemy path with Tetris walls, mount towers on top.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "build:single": "tsc --noEmit && vite build --mode single",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1",
+    "vite-plugin-singlefile": "^2.3.3",
+    "vitest": "^5.0.1"
+  }
+}
