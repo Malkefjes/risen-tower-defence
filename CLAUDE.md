@@ -19,13 +19,20 @@ Read this first in every session. Sessions do not share memory; this file and th
 
 ## Delivering builds
 
-`npm run build:single` produces `dist-single/index.html`, a self-contained build published as a private playable link for Erik.
+`npm run build:artifact` produces `dist-single/artifact.html`, a self-contained build. Publish it with the Artifact tool to the existing playable link: https://claude.ai/artifact/44JH12KkM2JYyTDMCxxmJ4 (pass it as `url` from a new session).
+
+## Code map
+
+- `src/sim/` game rules, no graphics: `world.ts` (map, walls, no-edge bounds), `pathfinding.ts` (flow field, 8-way, no corner cutting), `pieces.ts`, `game.ts` (drafts, hand, placement rules, waves, walkers), `maps.ts`.
+- `src/render/` three.js: `models.ts` (named model library, materials, evening palette), `view.ts` (scene, camera, sync with sim, effects).
+- `src/input/controller.ts` mouse/keyboard to actions; `src/ui/hud.ts` DOM overlay; `src/main.ts` fixed-step loop (60 ticks/s).
+- Rendering uses `THREE.ColorManagement.enabled = false` and legacy-like light intensities to match the mockups.
 
 ## Locked decisions (see design doc for the full list)
 
 - Art style: clean low-poly 3D with three.js, soft light and shadows. Replaces the earlier pixel-art decision.
 - Camera: orthographic, fixed iso-style angle (about 30 deg elevation, 45 deg rotation). Pan/zoom OK.
-- First world is snowy and cozy: cold world, warm colony (orange prefab walls, warm lamps, cyan nexus, violet aliens). Day, evening and night lighting presets.
+- First world is snowy and cozy: cold world, warm colony (orange prefab walls, warm lamps, cyan nexus, violet aliens). Evening lighting is THE look (day/night presets were dropped).
 - Game logic never touches graphics; the renderer builds everything from named models so Erik's own models (e.g. Blockbench) can replace placeholders.
 - 8-direction movement, no corner cutting. Enemies take the fastest path. No map edge.
 - Visual reference: mockups/snow-test.html, Clean 3D view (published at https://claude.ai/artifact/4Y1EHcKtCrum2szcH6Diqd). mockups/look-test.html is the older pixel exploration.

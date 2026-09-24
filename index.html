@@ -2,16 +2,61 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Risen Tower Defence</title>
-    <style>
-      html, body { margin: 0; height: 100%; background: #0b0f14; color: #cfd8e3; font-family: system-ui, sans-serif; }
-      body { display: flex; align-items: center; justify-content: center; }
-      canvas { display: block; max-width: 100vw; max-height: 100vh; }
-    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&display=swap" />
   </head>
   <body>
-    <canvas id="game"></canvas>
+    <div id="app">
+      <div id="view"></div>
+      <div class="vignette"></div>
+
+      <header class="topbar">
+        <div class="brand">RISEN <span>Frostfall</span></div>
+        <div class="status">
+          <span id="round">Round 1</span>
+          <span id="phase" class="pill">Draft</span>
+        </div>
+        <div class="tools">
+          <button id="bPath" class="tool" aria-pressed="true" title="Path preview (P)">Path</button>
+          <button id="bGrid" class="tool" aria-pressed="false" title="Grid (G)">Grid</button>
+          <button id="bWalkers" class="tool" aria-pressed="false" title="Test walkers during planning (T)">Test walkers</button>
+          <button id="bSpeed" class="tool" title="Game speed (F)">1×</button>
+          <button id="bPause" class="tool" aria-pressed="false" title="Pause (Space)">Pause</button>
+        </div>
+      </header>
+
+      <div id="toast" role="status" aria-live="polite"></div>
+
+      <div class="bottom">
+        <div class="help" id="help">
+          <div><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> or click a piece to hold it</div>
+          <div><kbd>R</kbd> / right-click rotate, click to place</div>
+          <div>Click your glowing pieces to pick them up, <kbd>Z</kbd> undo</div>
+          <div>Drag or <kbd>WASD</kbd> to pan, scroll to zoom</div>
+        </div>
+        <div class="hand" id="hand" aria-label="Your pieces"></div>
+        <div class="actions">
+          <button id="waveBtn" class="primary">Start wave <kbd>Enter</kbd></button>
+        </div>
+      </div>
+
+      <div id="draft" class="overlay" hidden>
+        <div class="panel" role="dialog" aria-labelledby="draftTitle">
+          <p class="eyebrow" id="draftEyebrow">Supply drop</p>
+          <h2 id="draftTitle">Choose a piece</h2>
+          <p class="sub" id="draftSub"></p>
+          <div class="options" id="draftOptions"></div>
+          <div class="discard" id="discard" hidden>
+            <p class="sub">Your hand is full. Choose a piece to give up:</p>
+            <div class="options small" id="discardOptions"></div>
+          </div>
+          <div class="row"><button id="skipBtn" class="ghost">Skip this drop</button></div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
