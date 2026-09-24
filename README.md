@@ -9,7 +9,9 @@ A personal project, built for fun.
 
 ## Running locally
 
-Requires [Node.js](https://nodejs.org) 20+.
+Requires [Node.js](https://nodejs.org) 20+. On Windows, just double-click `start-dev.cmd`: it installs packages the first time, starts the dev server and opens http://localhost:5173.
+
+Or from a terminal:
 
 ```sh
 npm install
