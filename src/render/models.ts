@@ -52,7 +52,6 @@ export const EVENING = {
   trunk: "#6b4b3a",
   steel: "#4f586b",
   steelLight: "#798399",
-  lamp: "#ffb45a",
   crystal: "#4fdcca",
   alien: "#8e5cff",
   path: "#ff7a2f",
@@ -94,8 +93,6 @@ export function createMaterials() {
     trunk: std(P.trunk),
     steel: std(P.steel, { roughness: 0.6 }),
     steelLight: std(P.steelLight, { roughness: 0.6 }),
-    lamp: std("#ffcf85", { emissive: P.lamp, emissiveIntensity: 0.9 }),
-    window: std("#ffd79a", { emissive: "#ffa94d", emissiveIntensity: 1.0 }),
     crystal: std("#8ff5e8", { emissive: P.crystal, emissiveIntensity: 0.9, roughness: 0.3 }),
     rift: std("#2a2140", { roughness: 1 }),
     riftRing: std(P.alien, { emissive: P.alien, emissiveIntensity: 0.6, transparent: true }),
@@ -126,17 +123,12 @@ export function createGlows() {
   const mk = (color: string, opacity: number) =>
     new THREE.SpriteMaterial({ map: tex, color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false });
   return {
-    warm: mk("#ffb45a", 0.55),
-    window: mk("#ffa94d", 0.35),
-    /** Soft pool of lamplight on the snow. Lies flat on the ground, so walls occlude it cleanly. */
-    pool: new THREE.MeshBasicMaterial({ map: tex, color: "#ff9a4a", transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }),
     cyan: mk("#4fdcca", 0.7),
     violet: mk("#8e5cff", 0.65),
     alien: mk("#9a6cff", 0.4),
   };
 }
 export type Glows = ReturnType<typeof createGlows>;
-const poolGeo = new THREE.PlaneGeometry(1, 1);
 
 export const glowSprite = (m: THREE.SpriteMaterial, s: number): THREE.Sprite => {
   const sp = new THREE.Sprite(m);
@@ -155,8 +147,6 @@ export function createDefaultModels(mat: Materials, glow: Glows): ModelLibrary {
   const geo = {
     wall: roundedBox(0.96, WALL_HEIGHT, 0.96, 0.1),
     cap: roundedBox(0.78, 0.07, 0.78, 0.06),
-    lamp: new THREE.BoxGeometry(0.1, 0.1, 0.06),
-    window: new THREE.BoxGeometry(0.22, 0.14, 0.03),
     rock: new THREE.DodecahedronGeometry(0.45, 0),
     rockCap: new THREE.DodecahedronGeometry(0.3, 0),
     trunk: new THREE.CylinderGeometry(0.07, 0.09, 0.3, 6),
@@ -179,32 +169,6 @@ export function createDefaultModels(mat: Materials, glow: Glows): ModelLibrary {
     return g;
   });
   lib.register("ghostWall", () => new THREE.Mesh(geo.wall, mat.ghostOk));
-
-  /** Warm lamp mounted on a wall face (faces +z). */
-  lib.register("lamp", () => {
-    const g = new THREE.Group();
-    const l = new THREE.Mesh(geo.lamp, mat.lamp);
-    l.position.set(0, 0.36, 0.49);
-    // Small halo held off the wall face so it never slices through the block.
-    const s = glowSprite(glow.warm, 0.42);
-    s.position.set(0, 0.36, 0.78);
-    const pool = new THREE.Mesh(poolGeo, glow.pool);
-    pool.rotation.x = -Math.PI / 2;
-    pool.scale.set(2.2, 1.7, 1);
-    pool.position.set(0, 0.012, 1.15);
-    g.add(l, s, pool);
-    return g;
-  });
-  /** Lit window on a wall face (faces +z). */
-  lib.register("window", () => {
-    const g = new THREE.Group();
-    const w = new THREE.Mesh(geo.window, mat.window);
-    w.position.set(0, 0.3, 0.485);
-    const s = glowSprite(glow.window, 0.28);
-    s.position.set(0, 0.3, 0.72);
-    g.add(w, s);
-    return g;
-  });
 
   lib.register("rock", ({ scale = 13, seed = 0 }) => {
     const g = new THREE.Group(), k = scale / 13;

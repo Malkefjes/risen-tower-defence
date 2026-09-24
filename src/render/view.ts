@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import type { Game, PlacedPiece } from "../sim/game";
-import { cellKey, type Cell } from "../sim/types";
+import type { Cell } from "../sim/types";
 import { createDefaultModels, createGlows, createMaterials, EVENING, hash, type Materials, type ModelLibrary } from "./models";
 
 // Author colors as plain hex and light the way the mockups did.
@@ -20,10 +20,9 @@ export interface Overlay {
 }
 
 const CAM_OFFSET = new THREE.Vector3(20, 16.33, 20); // ~30° elevation, 45° around: classic iso
-const LAMP_LIGHTS = 8;
 const ZOOM_MIN = 3.2, ZOOM_MAX = 11;
 
-interface PieceView { group: THREE.Group; drop: number; bodies: THREE.Mesh[]; lamp: THREE.Vector3 | null }
+interface PieceView { group: THREE.Group; drop: number; bodies: THREE.Mesh[] }
 
 export class GameView {
   readonly renderer: THREE.WebGLRenderer;
@@ -39,7 +38,6 @@ export class GameView {
   private walkers = new Map<number, THREE.Object3D>();
   private animated: THREE.Object3D[] = [];
   private nexus: THREE.Object3D;
-  private lampLights: THREE.PointLight[] = [];
   private ghostCells: THREE.Mesh[] = [];
   private ghostFeet: THREE.Mesh[] = [];
   private dashes: THREE.InstancedMesh;
@@ -78,11 +76,6 @@ export class GameView {
     this.sun.shadow.bias = -0.0006;
     this.sun.shadow.radius = 3;
     this.scene.add(this.sun, this.sun.target);
-    for (let i = 0; i < LAMP_LIGHTS; i++) {
-      const l = new THREE.PointLight(P.lamp, 0, 2.6, 2);
-      this.lampLights.push(l);
-      this.scene.add(l);
-    }
 
     this.buildTerrain();
     this.nexus = this.buildNexusAndRifts();
@@ -259,7 +252,6 @@ export class GameView {
     this.syncWalkers(simDt);
     this.updateGhost(o);
     this.updatePath(o);
-    this.updateLamps();
 
     this.cursor.visible = !!o.hoverCell && !o.ghost;
     if (o.hoverCell) this.cursor.position.set(o.hoverCell[0], 0.02, o.hoverCell[1]);
@@ -288,38 +280,14 @@ export class GameView {
     const group = new THREE.Group();
     const variant = p.id % 2;
     const bodies: THREE.Mesh[] = [];
-    const own = new Set(p.cells.map(([x, y]) => cellKey(x, y)));
-    const w = this.game.world;
     for (const [x, y] of p.cells) {
       const cell = this.models.create("wall", { variant });
       cell.position.set(x + 0.5, 0, y + 0.5);
       bodies.push(cell.getObjectByName("body") as THREE.Mesh);
       group.add(cell);
     }
-    // Lamp on the first free, camera-facing side of the piece.
-    let lamp: THREE.Vector3 | null = null;
-    const faces: [number, number, number][] = [[0, 1, 0], [1, 0, Math.PI / 2], [0, -1, Math.PI], [-1, 0, -Math.PI / 2]];
-    outer: for (const [x, y] of p.cells) {
-      for (const [dx, dy, rot] of faces) {
-        if (own.has(cellKey(x + dx, y + dy)) || w.walls.has(cellKey(x + dx, y + dy))) continue;
-        const l = this.models.create("lamp");
-        l.position.set(x + 0.5, 0, y + 0.5); l.rotation.y = rot;
-        group.add(l);
-        lamp = new THREE.Vector3(x + 0.5 + dx * 1.2, 0.45, y + 0.5 + dy * 1.2);
-        break outer;
-      }
-    }
-    // Windows on some camera-facing sides.
-    for (const [x, y] of p.cells) {
-      if (hash(x, y, 11) > 0.55) continue;
-      const side = !own.has(cellKey(x, y + 1)) ? [0, 0] : !own.has(cellKey(x + 1, y)) ? [1, Math.PI / 2] : null;
-      if (!side) continue;
-      const win = this.models.create("window");
-      win.position.set(x + 0.5, 0, y + 0.5); win.rotation.y = side[1]!;
-      group.add(win);
-    }
     this.scene.add(group);
-    return { group, drop: 0, bodies, lamp };
+    return { group, drop: 0, bodies };
   }
 
   private syncPieces(hoverId: number | null): void {
@@ -397,20 +365,6 @@ export class GameView {
     const off = (this.time * 0.9) % 0.3;
     this.dashes.count = this.layPath(this.dashes, o.route, 0.3, 0.3 - off);
     this.dots.count = o.faintRoute ? this.layPath(this.dots, o.faintRoute, 0.25, 0) : 0;
-  }
-
-  /** A fixed pool of point lights follows the lamps nearest the view (keeps shaders stable). */
-  private updateLamps(): void {
-    const lamps: THREE.Vector3[] = [];
-    for (const v of this.pieces.values()) if (v.lamp) lamps.push(v.lamp);
-    lamps.sort((a, b) => a.distanceToSquared(this.target) - b.distanceToSquared(this.target));
-    this.lampLights.forEach((l, i) => {
-      const p = lamps[i];
-      if (!p) { l.intensity = 0; return; }
-      l.position.copy(p);
-      l.intensity = 0.55 * (1 + Math.sin(this.time * 7 + i * 2.3) * 0.04 + Math.sin(this.time * 13 + i) * 0.03);
-    });
-    this.mat.lamp.emissiveIntensity = 0.75 + Math.sin(this.time * 1.6) * 0.2;
   }
 
   private updateFx(dt: number): void {

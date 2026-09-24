@@ -86,9 +86,9 @@ The first world, Frostfall, is a snowy planet with a cozy mood: cold world, warm
 Locked: clean low-poly 3D, rendered with three.js through a fixed isometric-style camera. The fortress should read as a place: a small, cozy colony on a hostile planet. References: `mockups/snow-test.html` (Clean 3D view); `mockups/look-test.html` is the older pixel exploration, kept as history.
 
 - **Style:** simple low-poly shapes, soft light and shadows, rounded prefab blocks. Lighting carries much of the mood.
-- **First world: snow.** Blue-white snow, orange prefab modules like a polar research station, warm lamps and windows, a cyan nexus, violet aliens.
-- **Evening is the look:** a low orange sun, lavender sky, warm lamps and windows. Day and night presets were dropped.
-- **Lamps glow softly:** small halos and warm light pools on the snow; light must never look like it cuts through blocks.
+- **First world: snow.** Blue-white snow, orange prefab modules like a polar research station, a cyan nexus, violet aliens.
+- **Evening is the look:** a low orange sun, lavender sky. Day and night presets were dropped.
+- **Plain walls for now:** wall lamps and lit windows were removed for simplicity (they looked off). Revisit later; any light must never look like it cuts through blocks.
 - **Camera:** orthographic, fixed angle (about 30° elevation, 45° rotation). Pan and zoom are fine; rotation can be considered later.
 - **Low walls** so towers and enemies behind them stay visible.
 - **Art is swappable:** game logic never knows about graphics. Everything is drawn from named models; code-built placeholders now, Erik's models (e.g. made in Blockbench) later.

@@ -79,7 +79,6 @@ export class Controller {
       case "p": this.showPath = !this.showPath; break;
       case "g": this.showGrid = !this.showGrid; break;
       case "t": this.toggleWalkers(); break;
-      case "h": { const h = document.getElementById("help"); if (h) h.hidden = !h.hidden; break; }
     }
   }
 

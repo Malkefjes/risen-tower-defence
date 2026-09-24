@@ -4,7 +4,7 @@ Read this first in every session. Sessions do not share memory; this file and `d
 
 ## Status
 
-- **Done:** Phase 1 step 1. Snowy evening map (Frostfall), supply drops of 3 random walls per round, wall bar, placement with live path preview, undo/pick-up, waves of walkers (no combat), camera pan/zoom, softened lamp glow.
+- **Done:** Phase 1 step 1. Snowy evening map (Frostfall), supply drops of 3 random walls per round, wall bar, placement with live path preview, undo/pick-up, waves of walkers (no combat), camera pan/zoom. Wall lamps/windows and the on-screen help card were removed at Erik's request.
 - **Next:** Phase 1 step 2: towers, credits, enemy HP, player HP, tuning panel. See "Step 2 plan" in `docs/DESIGN.md`. Settle its open questions with Erik before building.
 - **Run locally:** double-click `start-dev.cmd` (Windows) or `npm install && npm run dev`, then http://localhost:5173.
 
@@ -39,7 +39,7 @@ Read this first in every session. Sessions do not share memory; this file and `d
 
 - Art style: clean low-poly 3D with three.js, soft light and shadows. Replaces the earlier pixel-art decision.
 - Camera: orthographic, fixed iso-style angle (about 30 deg elevation, 45 deg rotation). Pan/zoom OK.
-- First world is snowy and cozy: cold world, warm colony (orange prefab walls, warm lamps, cyan nexus, violet aliens). Evening lighting is THE look (day/night presets were dropped).
+- First world is snowy and cozy: cold world, warm colony (orange prefab walls, cyan nexus, violet aliens). Evening lighting is THE look (day/night presets were dropped).
 - Game logic never touches graphics; the renderer builds everything from named models so Erik's own models (e.g. Blockbench) can replace placeholders.
 - 8-direction movement, no corner cutting. Enemies take the fastest path. No map edge.
 - Visual reference: mockups/snow-test.html, Clean 3D view (published at https://claude.ai/artifact/4Y1EHcKtCrum2szcH6Diqd). mockups/look-test.html is the older pixel exploration.
