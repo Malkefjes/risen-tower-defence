@@ -173,13 +173,11 @@ function buildRocket() {
   core.position.y = 1.38;
   g.add(core);
 
-  // Upper body with a porthole, then the nose.
+  // Nose: a steel cap on the core cage, the orange stripe, then straight into the cone.
   g.add(cyl(R + 0.03, R + 0.03, 0.08, M.steel, 2.46));
-  g.add(cyl(R, R, 0.78, M.hull, 2.54));
-  g.add(cyl(R + 0.02, R + 0.02, 0.1, M.orange, 3.08));
-  facing(90 * deg).add(mesh(new THREE.CircleGeometry(0.13, 14), M.visor, 0, 2.86, R + 0.01));
-  g.add(mesh(new THREE.ConeGeometry(R, 1.05, 20), M.hull, 0, 3.32 + 0.525, 0));
-  g.add(mesh(new THREE.ConeGeometry(0.2, 0.3, 20), M.orange, 0, 4.28, 0));
+  g.add(cyl(R + 0.02, R + 0.02, 0.1, M.orange, 2.54));
+  g.add(mesh(new THREE.ConeGeometry(R, 1.05, 20), M.hull, 0, 2.64 + 0.525, 0));
+  g.add(mesh(new THREE.ConeGeometry(0.2, 0.3, 20), M.orange, 0, 3.6, 0));
 
   shadowAll(g);
   return {
