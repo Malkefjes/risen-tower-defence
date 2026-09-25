@@ -156,7 +156,8 @@ export function enemyLook(look: EnemyLook): Enemy {
     const skull = plate(0.17, 0.14, 0.3, m.chitin); skull.position.z = 0.08; head.add(skull);
     for (const s of [-1, 1]) {
       const l = legChain(body, s * 0.12, -0.08, -0.14, 0.26, 0.3, 0.2, 0.05, s > 0 ? 0 : Math.PI);
-      l.lift = 0.22; l.swing = 0.32;
+      // Long, unhurried strides (Erik).
+      l.lift = 0.26; l.swing = 0.62;
       legs.push(l);
       const sh = joint(body, s * 0.15, 0.08, 0.2);
       sh.add(seg(0.16, 0.03, 0.025, m.chitin));
@@ -171,8 +172,10 @@ export function enemyLook(look: EnemyLook): Enemy {
     t.add(mesh(sting, m.bone, 0, 0, -0.18));
   }
 
+  // The leaper is half the size it was modelled at (Erik).
+  if (look === "C") root.scale.setScalar(0.5);
   const baseY = body.position.y;
-  const tipPos = new THREE.Vector3(), rootPos = new THREE.Vector3();
+  const tipPos = new THREE.Vector3();
   /** Half the foot's thickness: the tip sits this far above the snow. */
   const FOOT_R = 0.015;
   let smoothY = -1, lastT = -1;
@@ -180,7 +183,7 @@ export function enemyLook(look: EnemyLook): Enemy {
   return {
     object: root,
     update(t: number, walking: boolean) {
-      const w = walking ? 1 : 0, f = t * (look === "B" ? 11 : look === "C" ? 7 : 9);
+      const w = walking ? 1 : 0, f = t * (look === "B" ? 11 : look === "C" ? 5.5 : 9);
       for (const l of legs) {
         const s = Math.sin(f + l.phase);
         if (look === "B") { l.hip.rotation.y = s * l.swing * w; l.knee.rotation.x = Math.max(0, Math.cos(f + l.phase)) * l.lift * w; }
@@ -195,7 +198,8 @@ export function enemyLook(look: EnemyLook): Enemy {
       body.position.y = baseY;
       root.updateMatrixWorld(true);
       let low = Infinity;
-      for (const l of legs) low = Math.min(low, l.tip.getWorldPosition(tipPos).y - root.getWorldPosition(rootPos).y);
+      // In the creature's own units, so it works at any scale.
+      for (const l of legs) low = Math.min(low, root.worldToLocal(l.tip.getWorldPosition(tipPos)).y);
       const want = isFinite(low) ? baseY + FOOT_R - low : baseY;
       const dt = lastT < 0 ? 1 : Math.min(0.1, Math.max(0, t - lastT));
       lastT = t;

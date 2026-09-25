@@ -5,8 +5,8 @@ import { createDefaultModels, createGlows, createMaterials, EVENING } from "../.
 import { createRig, RigAnimator } from "../../src/render/rig";
 import "./style.css";
 
-// The new basic enemy: three Tyranid-inspired looks in ice blue, A, B, C. A pack walks
-// out of cave exit A and loops past the rig. Drag to pan, scroll to zoom.
+// The new basic enemy (the leaper): they climb out of cave exit A, walk out in a line
+// and die about 7 tiles out. Drag to pan, scroll to zoom.
 
 THREE.ColorManagement.enabled = false;
 
@@ -46,25 +46,33 @@ for (const [x, z, s] of [[-5, -1, 1], [-1, -5, 0.95], [3.5, -3, 1.1], [-4.5, 3, 
   scene.add(t);
 }
 const rig = createRig();
-rig.object.position.set(2.2, 0, 1.2);
+rig.object.position.set(1.6, 0, -1.2);
 rig.object.rotation.y = -2.2;
 scene.add(rig.object);
 const anim = new RigAnimator(rig);
 
-// Close up: one standing still, big, to see the model; the pack walks the loop.
+// Leapers climb out of the cave mouth one after another, walk out in a line, and
+// die about 7 tiles out: they crumple and sink, with a burst of dark bits.
 let look: EnemyLook = "C";
-try { const l = localStorage.getItem("risen.enemies.look"); void l; } catch { /* storage blocked */ }
-let pack: Enemy[] = [];
-let still: Enemy | null = null;
+const OUT = new THREE.Vector3(Math.SQRT1_2, 0, Math.SQRT1_2); // the way the cave mouth faces
+const START = cave.object.position.clone().addScaledVector(OUT, 0.55);
+const DIE_AT = 7, SPEED = 1.5, EVERY = 1.1;
+interface Walker { e: Enemy; d: number; t: number; dying: number }
+let walkers: Walker[] = [];
+let spawnT = 0;
+const bits: { m: THREE.Mesh; v: THREE.Vector3; life: number }[] = [];
+const bitGeo = new THREE.IcosahedronGeometry(0.035, 0);
+const bitMat = new THREE.MeshStandardMaterial({ color: "#2a0f44", roughness: 0.8, emissive: "#160626", emissiveIntensity: 0.3 });
+function spawn(): void {
+  const e = enemyLook(look);
+  e.object.rotation.y = Math.atan2(OUT.x, OUT.z);
+  scene.add(e.object);
+  walkers.push({ e, d: 0, t: Math.random() * 10, dying: 0 });
+}
 function build(): void {
-  for (const e of pack) scene.remove(e.object);
-  if (still) scene.remove(still.object);
-  pack = [0, 1, 2].map(() => { const e = enemyLook(look); scene.add(e.object); return e; });
-  still = enemyLook(look);
-  still.object.position.set(0.6, 0, 2.6);
-  // Three-quarter view, facing the camera and a little to the side.
-  still.object.rotation.y = Math.PI / 4 + 0.6;
-  scene.add(still.object);
+  for (const w of walkers) scene.remove(w.e.object);
+  walkers = [];
+  spawnT = 0;
 }
 build();
 
@@ -81,14 +89,9 @@ looksEl.addEventListener("click", e => {
 });
 drawLooks();
 
-/** The loop: out of the cave mouth, round past the rig, and back in. */
-const loop = (u: number) => {
-  const a = u * Math.PI * 2;
-  return new THREE.Vector3(-0.2 + Math.cos(a) * 2.4, 0, -0.2 + Math.sin(a) * 1.6).applyAxisAngle(new THREE.Vector3(0, 1, 0), -Math.PI / 4);
-};
 
-const target = new THREE.Vector3(0, 0, 0.3);
-let zoom = 3.6;
+const target = new THREE.Vector3(0, 0, 0);
+let zoom = 4.6;
 let drag: { x: number; y: number } | null = null;
 renderer.domElement.addEventListener("pointerdown", e => { drag = { x: e.clientX, y: e.clientY }; });
 addEventListener("pointerup", () => { drag = null; });
@@ -106,13 +109,44 @@ let last = performance.now(), time = 0;
 function frame(now: number): void {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now; time += dt;
-  pack.forEach((e, i) => {
-    const u = (time * 0.06 + i * 0.09) % 1, p = loop(u), q = loop(u + 0.002);
-    e.object.position.copy(p);
-    e.object.rotation.y = Math.atan2(q.x - p.x, q.z - p.z);
-    e.update(time + i * 0.7, true);
-  });
-  still?.update(time, false);
+  spawnT -= dt;
+  if (spawnT <= 0) { spawn(); spawnT = EVERY; }
+  for (const w of walkers) {
+    w.t += dt;
+    if (w.dying > 0) {
+      // Crumple: tip over, sink and shrink away.
+      w.dying += dt;
+      const k = Math.min(1, w.dying / 0.6);
+      w.e.object.rotation.z = k * 1.3;
+      w.e.object.position.y = -k * 0.12;
+      w.e.object.scale.setScalar(1 - k * k * 0.9);
+      w.e.update(w.t, false);
+      continue;
+    }
+    w.d += SPEED * dt;
+    const p = START.clone().addScaledVector(OUT, w.d);
+    // Climbing out of the mouth: rising from below the snow over the first half tile.
+    p.y = -0.25 * Math.max(0, 1 - w.d / 0.5);
+    w.e.object.position.copy(p);
+    w.e.update(w.t, true);
+    if (w.d >= DIE_AT) {
+      w.dying = 1e-6;
+      for (let i = 0; i < 10; i++) {
+        const m = new THREE.Mesh(bitGeo, bitMat);
+        m.position.copy(p).setY(0.12);
+        scene.add(m);
+        const a = Math.random() * Math.PI * 2, sp = 0.6 + Math.random() * 1.2;
+        bits.push({ m, v: new THREE.Vector3(Math.cos(a) * sp, 1.2 + Math.random() * 1.5, Math.sin(a) * sp), life: 0.8 });
+      }
+    }
+  }
+  walkers = walkers.filter(w => { if (w.dying < 0.7) return true; scene.remove(w.e.object); return false; });
+  for (const b of bits) {
+    b.life -= dt; b.v.y -= 7 * dt; b.m.position.addScaledVector(b.v, dt);
+    if (b.m.position.y < 0.02) { b.m.position.y = 0.02; b.v.set(0, 0, 0); }
+    b.m.scale.setScalar(Math.max(0.01, Math.min(1, b.life / 0.3)));
+  }
+  for (let i = bits.length - 1; i >= 0; i--) if (bits[i]!.life <= 0) { scene.remove(bits[i]!.m); bits.splice(i, 1); }
   anim.update(dt, { speed: 0, topSpeed: 5, grounded: true, vz: 0, jumpSpeed: 5, landed: false, ready: false, mining: false });
   const a = container.clientWidth / Math.max(1, container.clientHeight);
   Object.assign(camera, { left: -zoom * a, right: zoom * a, top: zoom, bottom: -zoom });
@@ -125,4 +159,4 @@ function frame(now: number): void {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-(window as unknown as { closeUp: () => void }).closeUp = () => { target.set(0.6, 0.3, 2.6); zoom = 0.9; };
+(window as unknown as { closeUp: () => void }).closeUp = () => { target.set(0, 0.1, 0); zoom = 1.4; };
