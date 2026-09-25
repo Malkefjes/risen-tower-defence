@@ -124,7 +124,9 @@ Not locked yet: zoom range, final model shapes.
 | Visual style | Clean low-poly 3D, fixed iso-style camera, evening light |
 | Palette | Colony orange, cyan power, dark steel, white; violet aliens |
 | Walls look | Armored deck; neighbouring walls fuse seamlessly; one orange |
-| Map | No edge; enemies can always go around |
+| Map | No edge; enemies can always go around. Generated world (zones, raised ground with cliffs, forests, lakes) |
+| Spawners | Caves anywhere except raised ground, 24+ cells from the ship, rarer than ore; the nearest few send each wave |
+| Basic enemy | The leaper: dark red, Tyranid-like, climbs out of a cave, bursts on death |
 | Movement | 8 directions, no corner cutting |
 | Tower sizes | Multiple footprints on wall blocks; a footprint may span several wall pieces |
 | First tower | Twin (1×1), grows into the Gatling (2×2) |
