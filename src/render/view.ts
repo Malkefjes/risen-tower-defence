@@ -569,11 +569,6 @@ export class GameView {
       o.userData.flash = Math.max(0, ((o.userData.flash as number) ?? 0) - dt);
       e.flash((o.userData.flash as number) > 0 ? 1 : 0);
       e.update(o.userData.t as number, true);
-      const x = (w.px ?? w.x) + (w.x - (w.px ?? w.x)) * alpha, y = (w.py ?? w.y) + (w.y - (w.py ?? w.y)) * alpha;
-      this.syncBar(w.id, x, y, w.hp / w.maxHp);
-      // Climbing out: below the snow at the mouth, up on it half a cell out.
-      const [fx, fy] = o.userData.from as [number, number], out = Math.hypot(x - fx, y - fy);
-      o.position.set(x, -0.25 * Math.max(0, 1 - out / 0.5), y);
       const dx = w.tx + 0.5 - w.x, dz = w.ty + 0.5 - w.y;
       if (dx * dx + dz * dz > 1e-6) {
         const want = Math.atan2(dx, dz);
@@ -581,6 +576,15 @@ export class GameView {
         d = Math.atan2(Math.sin(d), Math.cos(d));
         o.rotation.y += d * Math.min(1, dt * 8);
       }
+      // Its own line through each tile: off the centre line to its right or left. It turns
+      // with the (eased) heading, so it swings round smoothly at corners.
+      const side = (w.lane ?? 0) * this.game.tuning.laneSpread, r = o.rotation.y;
+      const cx = (w.px ?? w.x) + (w.x - (w.px ?? w.x)) * alpha, cy = (w.py ?? w.y) + (w.y - (w.py ?? w.y)) * alpha;
+      const x = cx + Math.cos(r) * side, y = cy - Math.sin(r) * side;
+      this.syncBar(w.id, x, y, w.hp / w.maxHp);
+      // Climbing out: below the snow at the mouth, up on it half a cell out.
+      const [fx, fy] = o.userData.from as [number, number], out = Math.hypot(cx - fx, cy - fy);
+      o.position.set(x, -0.25 * Math.max(0, 1 - out / 0.5), y);
     }
     for (const [id, o] of this.walkers) if (!alive.has(id)) { this.scene.remove(o); this.walkers.delete(id); }
     for (const [id, b] of this.bars) if (!alive.has(id)) { this.scene.remove(b); this.bars.delete(id); }

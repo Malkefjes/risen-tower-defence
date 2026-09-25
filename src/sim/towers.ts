@@ -43,6 +43,14 @@ export interface Tuning {
   enemyHpGrowth: number;
   /** Multiplier on enemy walking speed. */
   enemySpeed: number;
+  /** Each enemy's speed varies by up to this share either way (0.12 = ±12%). */
+  speedSpread: number;
+  /** Enemies leave a cave in packs of packMin to packMax, packGap seconds apart. */
+  packMin: number;
+  packMax: number;
+  packGap: number;
+  /** How far an enemy walks off its tile's centre line, in cells (looks only; the path is per tile). */
+  laneSpread: number;
   /** Share of the price returned when selling a tower placed in an earlier phase. */
   sellRefund: number;
   twin: TowerStats;
@@ -64,6 +72,11 @@ export const defaultTuning = (): Tuning => ({
   enemyHp: 6,
   enemyHpGrowth: 1.15,
   enemySpeed: 1,
+  speedSpread: 0.12,
+  packMin: 3,
+  packMax: 5,
+  packGap: 4,
+  laneSpread: 0.2,
   sellRefund: 0.75,
   twin: { cost: 200, damage: 1, range: 2.5, rate: 3 },
   gatling: { cost: 500, damage: 1, range: 3.5, rate: 9 },

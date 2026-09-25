@@ -1,4 +1,4 @@
-# Risen: Survival direction plan
+# Frostfall: Survival direction plan
 
 Status: **approved by Erik on 2026-09-25.** Work one step at a time: before each step, Claude describes exactly what it will build and waits for Erik's feedback.
 Written 2026-09-25 from the design conversation where Erik chose the survival direction.

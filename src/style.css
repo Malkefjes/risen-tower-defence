@@ -30,7 +30,6 @@ button { font: inherit; color: inherit; }
 }
 .topbar > * { pointer-events: auto; }
 .brand { font-weight: 700; font-size: 18px; letter-spacing: .14em; }
-.brand span { font-weight: 600; letter-spacing: .04em; color: var(--warm); margin-left: 6px; font-size: 14px; }
 .status { display: flex; gap: 8px; align-items: center; font-weight: 600; }
 .pill { padding: 3px 10px; border-radius: 99px; background: var(--panel); border: 1px solid var(--line); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
 .pill.planning { color: var(--cyan); border-color: rgba(79,220,202,.5); }

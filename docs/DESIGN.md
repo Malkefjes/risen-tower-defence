@@ -1,4 +1,4 @@
-# Risen: Design
+# Frostfall: Design
 
 Snapshot of the living design doc, kept in the repo so every session can read it.
 Live version (editable by Erik): https://claude.ai/code/artifact/8a4e11d2-eea6-4144-9f29-23a844c9d1ec
@@ -126,6 +126,7 @@ Not locked yet: zoom range, final model shapes.
 | Walls look | Armored deck; neighbouring walls fuse seamlessly; one orange |
 | Map | No edge; enemies can always go around. Generated world (zones, raised ground with cliffs, forests, lakes) |
 | Spawners | Caves anywhere except raised ground, 24+ cells from the ship, rarer than ore; the nearest few send each wave |
+| Waves | Each nearby cave sends packs of 3–5 a few seconds apart; enemies vary a little in speed and walk slightly off the tile centre (looks only) |
 | Basic enemy | The leaper: dark red, Tyranid-like, climbs out of a cave, bursts on death |
 | Movement | 8 directions, no corner cutting |
 | Tower sizes | Multiple footprints on wall blocks; a footprint may span several wall pieces |
