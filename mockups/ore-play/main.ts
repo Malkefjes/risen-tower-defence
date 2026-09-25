@@ -102,7 +102,7 @@ const anim = new RigAnimator(rig);
 const MINE_TIME = 25 / 3; // seconds per node (about 2.8 s per break stage)
 const RESPAWN = 20; // seconds an empty node stays gone
 /** Mining speed while the cursor is on the hotspot, and how long it takes hits before it hops. */
-const HOTSPOT_BONUS = 1.2, HOTSPOT_RADIUS = 0.32;
+const HOTSPOT_BONUS = 1.2, HOTSPOT_RADIUS = 0.42;
 const carried: Record<NodeKind, number> = { stone: 0, metal: 0 };
 
 // ------------------------------------------------------------------ input
@@ -198,7 +198,7 @@ function cursorOnHotspot(nd: Node): boolean {
   if (hit && hit.point.distanceTo(hotspot.pos) < HOTSPOT_RADIUS) return true;
   // Also accept aiming straight at the glint itself.
   const onScreen = hotspot.pos.clone().project(camera);
-  return Math.hypot(onScreen.x - mouse.x, (onScreen.y - mouse.y) * (container.clientHeight / container.clientWidth)) < 0.012;
+  return Math.hypot(onScreen.x - mouse.x, (onScreen.y - mouse.y) * (container.clientHeight / container.clientWidth)) < 0.018;
 }
 
 // ------------------------------------------------------------------ effects
