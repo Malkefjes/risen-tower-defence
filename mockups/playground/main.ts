@@ -111,7 +111,7 @@ const save = () => { try { localStorage.setItem(STORE, JSON.stringify(knobs.map(
 
 const panel = document.getElementById("tune")!;
 function renderPanel(): void {
-  panel.innerHTML = `<h4>Movement <button id="reset">Reset</button></h4>`;
+  panel.innerHTML = `<h4>Movement <span><button id="copy">Copy values</button> <button id="reset">Reset</button></span></h4>`;
   knobs.forEach((k, i) => {
     const l = document.createElement("label");
     l.innerHTML = `<span>${k.label}</span><output>${+k.get().toFixed(2)}</output><input id="k${i}" type="range" min="${k.min}" max="${k.max}" step="${k.step}" value="${k.get()}">`;
@@ -119,6 +119,12 @@ function renderPanel(): void {
     input.addEventListener("input", () => { k.set(Number(input.value)); out.textContent = String(+k.get().toFixed(2)); save(); });
     input.addEventListener("keydown", e => e.stopPropagation());
     panel.appendChild(l);
+  });
+  panel.querySelector("#copy")!.addEventListener("click", e => {
+    const text = knobs.map(k => `${k.label}: ${+k.get().toFixed(2)}`).join("\n");
+    const btn = e.currentTarget as HTMLButtonElement;
+    navigator.clipboard.writeText(text).then(() => { btn.textContent = "Copied"; }, () => { btn.textContent = "Copy failed"; });
+    setTimeout(() => { btn.textContent = "Copy values"; }, 1500);
   });
   panel.querySelector("#reset")!.addEventListener("click", () => {
     const d = defaultAvatarTuning();
@@ -149,7 +155,8 @@ addEventListener("keyup", e => keys.delete(e.key.toLowerCase()));
 addEventListener("blur", () => keys.clear());
 
 // Drag to pan; scroll to zoom.
-let drag: { x: number; y: number } | null = null;
+/** A press only becomes a pan once the mouse has moved a few pixels, so clicks don't break the follow. */
+let drag: { x: number; y: number; sx: number; sy: number; panning: boolean } | null = null;
 const ray = new THREE.Raycaster(), plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 function groundAt(cx: number, cy: number): THREE.Vector3 | null {
   const r = renderer.domElement.getBoundingClientRect();
@@ -157,12 +164,17 @@ function groundAt(cx: number, cy: number): THREE.Vector3 | null {
   const p = new THREE.Vector3();
   return ray.ray.intersectPlane(plane, p) ? p : null;
 }
-renderer.domElement.addEventListener("pointerdown", e => { drag = { x: e.clientX, y: e.clientY }; renderer.domElement.setPointerCapture(e.pointerId); });
+renderer.domElement.addEventListener("pointerdown", e => {
+  drag = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, panning: false };
+  renderer.domElement.setPointerCapture(e.pointerId);
+});
 renderer.domElement.addEventListener("pointermove", e => {
   if (!drag) return;
+  if (!drag.panning && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 6) return;
+  if (!drag.panning) { drag.panning = true; drag.x = e.clientX; drag.y = e.clientY; return; }
   const a = groundAt(drag.x, drag.y), b = groundAt(e.clientX, e.clientY);
-  if (a && b && a.distanceTo(b) > 0.001) { following = false; target.x += a.x - b.x; target.z += a.z - b.z; }
-  drag = { x: e.clientX, y: e.clientY };
+  if (a && b) { following = false; target.x += a.x - b.x; target.z += a.z - b.z; }
+  drag.x = e.clientX; drag.y = e.clientY;
 });
 renderer.domElement.addEventListener("pointerup", () => { drag = null; });
 renderer.domElement.addEventListener("wheel", e => { e.preventDefault(); view.zoom = Math.min(10, Math.max(2, view.zoom * Math.exp(e.deltaY * 0.0012))); }, { passive: false });
@@ -220,7 +232,7 @@ function frame(now: number): void {
   }
   rig.object.position.set(avatar.x, avatar.z, avatar.y);
   rig.object.rotation.y = avatar.facing;
-  speedEl.textContent = `${avatar.speed.toFixed(1)} cells/s${avatar.grounded ? "" : "  ·  airborne"}${avatar.z > 0.3 && avatar.grounded ? "  ·  on a wall" : ""}`;
+  speedEl.textContent = `${following ? "Following" : "Free camera"}  ·  ${avatar.speed.toFixed(1)} cells/s${avatar.grounded ? "" : "  ·  airborne"}${avatar.z > 0.3 && avatar.grounded ? "  ·  on a wall" : ""}`;
 
   // Camera: follows the rig unless panned away.
   let pr = 0, pu = 0;
