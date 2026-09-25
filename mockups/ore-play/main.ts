@@ -2,7 +2,9 @@ import * as THREE from "three";
 import { createMaterials, EVENING } from "../../src/render/models";
 import { createOreNode, type NodeKind, type OreNodeModel } from "../../src/render/ore";
 import { createRig, RigAnimator } from "../../src/render/rig";
+import { COLONY_ORANGE } from "../../src/render/palette";
 import { Avatar, defaultAvatarTuning } from "../../src/sim/avatar";
+import { Hotbar, STACK_MAX, type ItemKind } from "../../src/sim/inventory";
 import "./style.css";
 
 // Ore playground: stone and metal nodes (one size, 3×3) on the snow and the player rig.
@@ -123,7 +125,11 @@ const MINE_TIME = 25 / 3; // seconds per node (about 2.8 s per break stage)
 const RESPAWN = 20; // seconds an empty node stays gone
 /** Mining speed while the cursor is on the hotspot, and how long it takes hits before it hops. */
 const HOTSPOT_BONUS = 1.2, HOTSPOT_RADIUS = 0.42;
-const carried: Record<NodeKind, number> = { stone: 0, metal: 0 };
+const hotbar = new Hotbar();
+/** Seconds the gain stays up after the last ore, and how long it takes to fade. */
+const GAIN_HOLD = 1, GAIN_FADE = 0.5;
+/** Mined ore not yet a whole unit, per kind. */
+const pending: Record<NodeKind, number> = { stone: 0, metal: 0 };
 
 // ------------------------------------------------------------------ input
 
@@ -132,6 +138,8 @@ let jumpQueued = false;
 addEventListener("keydown", e => {
   const k = e.key.toLowerCase();
   if (k === " ") { e.preventDefault(); if (!e.repeat) jumpQueued = true; return; }
+  const slot = Number(e.key) - 1;
+  if (Number.isInteger(slot) && slot >= 0 && slot < hotbar.slots.length) { hotbar.select(slot); return; }
   keys.add(k);
 });
 addEventListener("keyup", e => keys.delete(e.key.toLowerCase()));
@@ -271,7 +279,24 @@ const wrap = (v: number, c: number) => ((((v - c + H) % (2 * H)) + 2 * H) % (2 *
 
 // ------------------------------------------------------------------ loop
 
-const hud = document.getElementById("speed")!;
+const ICONS: Record<ItemKind, string> = {
+  multitool: `<svg viewBox="0 0 40 40"><rect x="3" y="12" width="26" height="12" rx="2.5" fill="#e8eaf0"/><rect x="8" y="22" width="9" height="12" rx="2" fill="#3d4457"/><rect x="28" y="14.5" width="6" height="7" rx="1.5" fill="#3d4457"/><rect x="33" y="16.5" width="5" height="3" fill="#4fdcca"/><rect x="6" y="15.5" width="14" height="3" fill="${COLONY_ORANGE}"/></svg>`,
+  stone: `<svg viewBox="0 0 40 40"><path d="M8 27 12 14 22 9 32 15 33 26 22 32Z" fill="#6c7280"/><path d="M12 14 22 9 32 15 21 19Z" fill="#8a909e"/><path d="M21 19 32 15 33 26 22 32Z" fill="#555a67"/></svg>`,
+  metal: `<svg viewBox="0 0 40 40"><path d="M8 27 12 14 22 9 32 15 33 26 22 32Z" fill="#9aa6b6"/><path d="M12 14 22 9 32 15 21 19Z" fill="#dde3ec"/><path d="M21 19 32 15 33 26 22 32Z" fill="#7d8898"/></svg>`,
+};
+const bar = document.getElementById("hotbar")!;
+let barSig = "";
+function drawHotbar(): void {
+  const sig = hotbar.selected + "|" + hotbar.slots.map(s => (s ? s.kind + s.count : "")).join(",");
+  if (sig === barSig) return;
+  barSig = sig;
+  bar.innerHTML = hotbar.slots.map((s, i) =>
+    `<div class="slot${i === hotbar.selected ? " on" : ""}">${s ? ICONS[s.kind] + (STACK_MAX[s.kind] > 1 ? `<b>${s.count}</b>` : "") : ""}</div>`).join("");
+}
+/** "+N" over the node being mined; it counts up while you mine and fades once you stop. */
+const gainEl = document.getElementById("gain")!;
+const gain = { node: null as Node | null, amount: 0, idle: 9, full: false };
+const gainPos = new THREE.Vector3();
 const TICK = 1 / 60;
 const prev = { x: avatar.x, y: avatar.y, z: avatar.z, facing: avatar.facing };
 const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -300,7 +325,7 @@ function frame(now: number): void {
 
   // Holding the left mouse button always fires the tool; it mines only when a node is in reach.
   const target_ = nodeInReach();
-  const firing = mouseDown;
+  const firing = mouseDown && hotbar.held === "multitool";
   const mining = !!target_ && firing;
   // The first hit on a node reveals its hotspot.
   if (mining && target_ && !target_.spot) placeSpot(target_);
@@ -317,9 +342,20 @@ function frame(now: number): void {
     jumpQueued = false;
     landed ||= avatar.landed;
     if (mining && target_) {
-      const got = Math.min(target_.amount, (target_.max / MINE_TIME) * (onSpot ? HOTSPOT_BONUS : 1) * TICK);
+      const kind = target_.kind;
+      // A full hotbar mines nothing; the node keeps its ore.
+      const room = hotbar.room(kind) - pending[kind];
+      const got = Math.max(0, Math.min(target_.amount, room, (target_.max / MINE_TIME) * (onSpot ? HOTSPOT_BONUS : 1) * TICK));
+      if (gain.node !== target_ || gain.idle > GAIN_HOLD + GAIN_FADE) { gain.node = target_; gain.amount = 0; }
+      gain.full = got <= 0;
+      gain.idle = 0;
       target_.amount -= got;
-      carried[target_.kind] += got;
+      pending[kind] += got;
+      // The last crumbs of a node round up, so a node gives exactly its yield.
+      const whole = target_.amount <= 0 ? Math.round(pending[kind]) : Math.floor(pending[kind]);
+      const added = hotbar.add(kind, whole);
+      pending[kind] = Math.max(0, pending[kind] - whole);
+      gain.amount += added;
       const broke = target_.model.setAmount(target_.amount / target_.max);
       for (const p of broke) breakBurst(p, target_.kind);
       // A stage broke off: the hotspot moves to one of the rocks that are left.
@@ -380,8 +416,17 @@ function frame(now: number): void {
   ring.material.opacity = (1 - rp) * 0.8 * targetW;
   if (mining && onSpot && Math.random() < dt * 25) spark(glint.position, null, true);
 
-  const left = target_ ? `  ·  node ${Math.ceil(target_.amount)} / ${target_.max}` : "";
-  hud.textContent = `Stone ${Math.floor(carried.stone)}  ·  Metal ${Math.floor(carried.metal)}${left}`;
+  drawHotbar();
+  gain.idle += dt;
+  const gainA = gain.node && (gain.amount > 0 || gain.full) ? Math.max(0, Math.min(1, 1 - (gain.idle - GAIN_HOLD) / GAIN_FADE)) : 0;
+  if (gainA > 0 && gain.node) {
+    const nd = gain.node;
+    gainPos.set(nd.x + nd.n / 2, 1.6 + Math.max(0, gain.idle - GAIN_HOLD) * 0.5, nd.y + nd.n / 2).project(camera);
+    gainEl.style.transform = `translate(${(gainPos.x + 1) / 2 * container.clientWidth}px, ${(1 - gainPos.y) / 2 * container.clientHeight}px) translate(-50%, -50%)`;
+    gainEl.innerHTML = (gain.amount > 0 ? `${ICONS[nd.kind]}+${gain.amount}` : "") + (gain.full ? `<i>Full</i>` : "");
+    gainEl.className = "gain " + nd.kind;
+  }
+  gainEl.style.opacity = String(gainA);
 
   const k = 1 - Math.exp(-dt * 4);
   target.x += (rx - target.x) * k; target.z += (ry - target.z) * k;
