@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { EVENING } from "./models";
 import { createOreNode, type NodeKind } from "./ore";
 
@@ -12,8 +11,6 @@ import { createOreNode, type NodeKind } from "./ore";
 let cache: Record<NodeKind, string> | undefined;
 /** How much brighter than the world the icons are lit: mostly the sun, so the facets contrast. */
 const ICON_BOOST = { sky: 1.05, sun: 1.9 };
-/** Strength of the reflections that make the metal icon read as silver. */
-const METAL_SHEEN = 0.7;
 
 /** Ore icons: the last stage of a node (its core), seen from the game's camera angle. */
 export function oreIcons(size = 96): Record<NodeKind, string> {
@@ -41,18 +38,17 @@ export function oreIcons(size = 96): Record<NodeKind, string> {
   ground.receiveShadow = true;
   scene.add(ground);
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
-  // Silver is mostly reflection: give metal a soft bright room to reflect so it
-  // reads cool and shiny next to stone at hotbar size.
   const pmrem = new THREE.PMREMGenerator(renderer);
-  const room = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  const shine = pmrem.fromScene(stripRoom(), 0.02).texture;
   const out = {} as Record<NodeKind, string>;
   for (const kind of ["stone", "metal"] as const) {
     const node = createOreNode(3, kind === "stone" ? 7 : 11, kind);
     node.setAmount(0.2); // only the core is left
-    // The icon's metal is polished: sharp reflections give bright glints next to darker facets.
+    // Shine is contrast: polished metal mirrors a few bright strips in a dark room,
+    // so some facets flash bright and the rest stay dark.
     if (kind === "metal") node.object.traverse(c => {
       const m = c as THREE.Mesh;
-      if (m.isMesh) m.material = Object.assign((m.material as THREE.MeshStandardMaterial).clone(), { metalness: 0.95, roughness: 0.18 });
+      if (m.isMesh) m.material = Object.assign((m.material as THREE.MeshStandardMaterial).clone(), { metalness: 1, roughness: 0.15, emissiveIntensity: 0.1 });
     });
     scene.add(node.object);
     // Frame what's still there (Box3.setFromObject counts hidden layers too).
@@ -67,8 +63,7 @@ export function oreIcons(size = 96): Record<NodeKind, string> {
     camera.lookAt(centre);
     sun.target.position.copy(centre);
     sun.position.copy(centre).add(new THREE.Vector3(...EVENING.sunOffset));
-    scene.environment = kind === "metal" ? room : null;
-    scene.environmentIntensity = METAL_SHEEN;
+    scene.environment = kind === "metal" ? shine : null;
     renderer.render(scene, camera);
     out[kind] = fadeEdges(renderer.domElement, size);
     scene.remove(node.object);
@@ -80,11 +75,31 @@ export function oreIcons(size = 96): Record<NodeKind, string> {
     });
   }
   ground.geometry.dispose();
-  room.dispose();
+  shine.dispose();
   pmrem.dispose();
   renderer.dispose();
   renderer.forceContextLoss();
   return (cache = out);
+}
+
+/** What polished metal mirrors in an icon: a dark, cool room with a few bright light strips. */
+function stripRoom(): THREE.Scene {
+  const room = new THREE.Scene();
+  room.background = new THREE.Color("#4a5063");
+  const strip = (w: number, h: number, x: number, y: number, z: number, color: string) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide }));
+    m.position.set(x, y, z);
+    m.lookAt(0, 0, 0);
+    room.add(m);
+  };
+  // The camera looks from +x +z, so facets facing it mirror what's on that side.
+  strip(5, 1.4, 4, 4.5, 4, "#dfe6f2");    // high, behind the camera
+  strip(1.2, 4, 5.5, 1, 1, "#e8f0ff");    // right of the camera
+  strip(1.2, 4, 1, 1, 5.5, "#e8f0ff");    // left of the camera
+  strip(6, 1.5, 0, 6, 0, "#f4f7ff");      // overhead
+  strip(1, 3, 4, 2, -2, "#ffffff");       // small glints off to the sides
+  strip(1, 3, -2, 2, 4, "#ffffff");
+  return room;
 }
 
 /** The low sun throws a long shadow; fade it out toward the icon's edge instead of cutting it off. */
