@@ -73,7 +73,7 @@ export interface Shot {
   dur: number;
 }
 
-export type BlockReason = "occupied" | "walker" | "avatar" | "cuts-off-rift" | "traps-walker" | "stone";
+export type BlockReason = "occupied" | "walker" | "avatar" | "cuts-off-rift" | "traps-walker" | "stone" | "out-of-range" | "unconnected";
 
 export type PlacementCheck =
   | { ok: true; cells: Cell[]; field: FlowField }
@@ -81,7 +81,7 @@ export type PlacementCheck =
 
 export type TowerBlockReason = "no-wall" | "stone-wall" | "tower-there" | "avatar" | "alloy" | "run-over";
 
-export type SmelterBlockReason = "occupied" | "walker" | "avatar" | "cuts-off-rift" | "traps-walker" | "stone" | "metal" | "run-over";
+export type SmelterBlockReason = "occupied" | "walker" | "avatar" | "cuts-off-rift" | "traps-walker" | "stone" | "metal" | "run-over" | "out-of-range" | "unconnected";
 
 export type SmelterCheck =
   | { ok: true; cells: Cell[]; field: FlowField }
@@ -123,6 +123,8 @@ export type GameEvent =
   | { type: "reset" };
 
 export const REASON_TEXT: Record<BlockReason, string> = {
+  "out-of-range": "Too far from the ship",
+  "unconnected": "Must connect to your walls",
   "occupied": "Something is already there",
   "walker": "An enemy is in the way",
   "avatar": "You're standing there",
@@ -139,6 +141,8 @@ export const SMELTER_REASON_TEXT: Record<SmelterBlockReason, string> = {
   "traps-walker": "That would trap an enemy",
   "stone": "Not enough stone",
   "metal": "Not enough raw metal",
+  "out-of-range": "Too far from the ship",
+  "unconnected": "Must connect to your walls",
   "run-over": "The run is over",
 };
 
@@ -155,6 +159,12 @@ export interface GameOptions {
   seed?: number;
   waveSize?: (round: number) => number;
   tuning?: Partial<Tuning>;
+  /**
+   * Supply rules for building: walls and buildings must be within the ship's supply
+   * radius and connected to it through walls. On in the game; off by default so rule
+   * tests about other things can put walls anywhere.
+   */
+  supply?: boolean;
 }
 
 /** All game rules. No graphics. */
@@ -179,6 +189,13 @@ export class Game {
   hp = 0;
   /** The ship was destroyed: a wreck that still blocks, its gun silent. The run goes on. */
   shipDown = false;
+  /** Building needs supply (see GameOptions.supply). */
+  readonly supplyRule: boolean;
+  /**
+   * Wall and building cells that are supplied: within the ship's radius and connected
+   * to it through walls or buildings (touching counts, corners too).
+   */
+  supplied = new Set<string>();
   field: FlowField;
   events: GameEvent[] = [];
   /** Spawn practice walkers during planning so rerouting can be watched. */
@@ -216,10 +233,12 @@ export class Game {
     this.rng = new Rng(opts.seed ?? Date.now());
     this.waveSize = opts.waveSize ?? (r => 6 + r * 2);
     this.tuning = { ...defaultTuning(), ...opts.tuning };
+    this.supplyRule = opts.supply ?? false;
     this.nodes = (map.ore ?? []).map(o => ({ id: this.nextId++, kind: o.kind, x: o.x, y: o.y, amount: nodeMax(o.kind), max: nodeMax(o.kind) }));
     this.syncOre();
     this.syncWallWeights();
     this.field = computeField(this.world);
+    this.syncSupply();
     const [sx, sy] = map.start ?? map.spawners[0]!;
     this.avatar = new Avatar(sx + 0.5, sy + 0.5);
     this.startRun();
@@ -319,7 +338,7 @@ export class Game {
     this.avatar.place(sx + 0.5, sy + 0.5);
     for (const n of this.nodes) n.amount = n.max;
     this.syncOre();
-    this.field = computeField(this.world);
+    this.refresh();
     this.events.push({ type: "reset" });
     this.startRun();
   }
@@ -375,7 +394,7 @@ export class Game {
     n.amount = floor;
     const added = this.hotbar.add(n.kind, chunk);
     this.syncOre();
-    this.field = computeField(this.world);
+    this.refresh();
     this.events.push({ type: "node-broke", node: n, stagesLeft: stagesLeft(n), added });
     this.noise(n.kind === "metal" ? this.tuning.noiseMetal : this.tuning.noiseStone);
   }
@@ -394,7 +413,7 @@ export class Game {
       if (this.world.targets.size && this.world.spawners.some(([sx, sy]) => !isFinite(field.at(sx, sy)))) continue;
       n.amount = n.max;
       this.syncOre();
-      this.field = computeField(this.world);
+      this.refresh();
       this.events.push({ type: "node-grew", node: n });
     }
   }
@@ -410,6 +429,8 @@ export class Game {
   checkPlacement(shape: ShapeId, rot: number, at: Cell): PlacementCheck {
     const cells = pieceCells(shape, rot, at);
     for (const [x, y] of cells) if (this.world.isOccupied(x, y)) return { ok: false, cells, reason: "occupied" };
+    const supply = this.checkSupply(cells);
+    if (supply) return { ok: false, cells, reason: supply };
     if (this.ore("stone") < this.wallCost(cells.length)) return { ok: false, cells, reason: "stone" };
     const set = keysOf(cells);
     // A wall can't be dropped on the avatar (only matters while it's below deck height).
@@ -437,7 +458,7 @@ export class Game {
     this.pieces.push(piece);
     for (const [x, y] of piece.cells) this.world.walls.set(cellKey(x, y), piece.id);
     this.world.pieceHp.set(piece.id, this.tuning.wallHp);
-    this.field = computeField(this.world);
+    this.refresh();
     this.events.push({ type: "placed", piece });
     this.noise(this.tuning.noiseWall);
     return { ...check, piece };
@@ -460,7 +481,7 @@ export class Game {
     this.pieces.splice(this.pieces.indexOf(piece), 1);
     for (const [x, y] of piece.cells) this.world.walls.delete(cellKey(x, y));
     this.world.pieceHp.delete(piece.id);
-    this.field = computeField(this.world);
+    this.refresh();
     this.hotbar.add("stone", piece.paid);
     if (piece.plated) this.hotbar.add("alloy", piece.plated);
     this.events.push({ type: "removed", piece });
@@ -483,7 +504,7 @@ export class Game {
     // Plating toughens the whole piece, keeping its share of damage.
     this.world.pieceHp.set(piece.id, (this.world.pieceHp.get(piece.id) ?? this.tuning.wallHp) * this.tuning.platedHpMult);
     piece.metal = true;
-    this.field = computeField(this.world);
+    this.refresh();
     this.events.push({ type: "plated", piece });
     return true;
   }
@@ -513,7 +534,7 @@ export class Game {
     if (!this.canRepair(piece)) return false;
     this.hotbar.remove("stone", this.repairCost(piece));
     this.world.pieceHp.set(piece.id, this.wallMaxHp(piece));
-    this.field = computeField(this.world);
+    this.refresh();
     this.events.push({ type: "repaired", piece });
     return true;
   }
@@ -542,7 +563,7 @@ export class Game {
     }
     this.world.pieceHp.delete(id);
     if (piece) this.pieces.splice(this.pieces.indexOf(piece), 1);
-    this.field = computeField(this.world);
+    this.refresh();
     if (piece) this.events.push({ type: "wall-broken", piece });
   }
 
@@ -555,6 +576,59 @@ export class Game {
     return null;
   }
 
+  // ---------------------------------------------------------------- supply
+
+  /** Walls or buildings changed: new paths for the enemies, and new supply. */
+  private refresh(): void {
+    this.field = computeField(this.world);
+    this.syncSupply();
+  }
+
+  /** Is a cell within the ship's supply radius (measured to the cell's centre)? */
+  inSupplyRange(x: number, y: number): boolean {
+    if (this.shipDown) return false;
+    const c = this.shipCenter();
+    return Math.hypot(x + 0.5 - c.x, y + 0.5 - c.y) <= this.tuning.supplyRadius;
+  }
+
+  /** Why these cells can't be built on under the supply rules, or null if they can. */
+  private checkSupply(cells: readonly Cell[]): "out-of-range" | "unconnected" | null {
+    if (!this.supplyRule) return null;
+    if (cells.some(([x, y]) => !this.inSupplyRange(x, y))) return "out-of-range";
+    const joins = cells.some(([x, y]) => {
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const k = cellKey(x + dx, y + dy);
+        if ((dx || dy) && (this.supplied.has(k) || this.world.nexus.has(k))) return true;
+      }
+      return false;
+    });
+    return joins ? null : "unconnected";
+  }
+
+  /**
+   * Which walls and buildings are supplied: a flood from the ship through touching
+   * walls and buildings (corners count), staying within the supply radius.
+   */
+  private syncSupply(): void {
+    const out = new Set<string>();
+    if (!this.shipDown) {
+      const stack: Cell[] = [...this.world.nexus].map(k => parseKey(k));
+      while (stack.length) {
+        const [x, y] = stack.pop()!;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx, ny = y + dy, k = cellKey(nx, ny);
+          if (out.has(k) || !(this.world.walls.has(k) || this.world.buildings.has(k)) || !this.inSupplyRange(nx, ny)) continue;
+          out.add(k);
+          stack.push([nx, ny]);
+        }
+      }
+    }
+    this.supplied = out;
+  }
+
+  /** Is this wall piece supplied (any of its cells: a piece is one connected shape)? */
+  pieceSupplied(piece: PlacedPiece): boolean { return piece.cells.some(([x, y]) => this.supplied.has(cellKey(x, y))); }
+
   // ---------------------------------------------------------------- smelters
 
   /** Can a smelter go down with its top-left cell at `at`? Open ground only, paid in stone and raw metal. */
@@ -562,6 +636,8 @@ export class Game {
     const cells = smelterCells(at);
     if (!this.canPlaceNow()) return { ok: false, cells, reason: "run-over" };
     for (const [x, y] of cells) if (this.world.isOccupied(x, y)) return { ok: false, cells, reason: "occupied" };
+    const supply = this.checkSupply(cells);
+    if (supply) return { ok: false, cells, reason: supply };
     const set = keysOf(cells);
     for (const k of this.avatarCells()) if (set.has(k)) return { ok: false, cells, reason: "avatar" };
     for (const w of this.walkers) if (set.has(cellKey(w.cx, w.cy)) || set.has(cellKey(w.tx, w.ty))) return { ok: false, cells, reason: "walker" };
@@ -583,7 +659,7 @@ export class Game {
     const s = newSmelter(this.nextId++, at, paid, this.tuning.smelterHp);
     this.smelters.push(s);
     for (const [x, y] of s.cells) { this.world.buildings.set(cellKey(x, y), s.id); this.world.targets.add(cellKey(x, y)); }
-    this.field = computeField(this.world);
+    this.refresh();
     this.events.push({ type: "smelter-built", smelter: s });
     this.noise(this.tuning.noiseBuild);
     return { ...check, smelter: s };
@@ -621,7 +697,7 @@ export class Game {
   private dropSmelter(s: Smelter): void {
     this.smelters.splice(this.smelters.indexOf(s), 1);
     for (const [x, y] of s.cells) { this.world.buildings.delete(cellKey(x, y)); this.world.targets.delete(cellKey(x, y)); }
-    this.field = computeField(this.world);
+    this.refresh();
   }
 
   /** An enemy claws what's at `key`: a wall cell, the ship or a smelter. At 0 HP it's destroyed. */
@@ -639,7 +715,7 @@ export class Game {
       if (this.hp > 0) return;
       this.shipDown = true;
       for (const k of this.world.nexus) this.world.targets.delete(k);
-      this.field = computeField(this.world);
+      this.refresh();
       this.events.push({ type: "ship-destroyed" });
       return;
     }

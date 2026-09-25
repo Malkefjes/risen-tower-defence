@@ -49,6 +49,7 @@ const SECTIONS: { title: string; knobs: Knob[] }[] = [
     top("startHp", "Ship HP", 10, 3000, 10),
     top("smelterHp", "Smelter HP", 10, 2000, 10),
     top("enemyDamage", "Damage per second (to buildings and walls)", 0, 20, 0.5),
+    top("supplyRadius", "Ship supply radius (cells)", 5, 100, 1),
     top("wallHp", "Stone wall HP (per piece)", 10, 5000, 10),
     top("platedHpMult", "Plated wall HP (× stone)", 1, 10, 0.5),
     top("wallClawers", "Enemies that can claw one wall piece", 1, 8, 1),

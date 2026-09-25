@@ -60,6 +60,8 @@ export interface Tuning {
   smelterHp: number;
   /** Damage per second one enemy does to the building it's clawing. */
   enemyDamage: number;
+  /** How far the ship's supply reaches, in cells from its centre. Walls and buildings need it (and a wall connection). */
+  supplyRadius: number;
   /** HP of a stone wall piece (it breaks as a whole); plating multiplies it. At most `wallClawers` enemies claw one piece at a time. */
   wallHp: number;
   platedHpMult: number;
@@ -109,6 +111,7 @@ export const defaultTuning = (): Tuning => ({
   startHp: 400,
   smelterHp: 150,
   enemyDamage: 2,
+  supplyRadius: 40,
   wallHp: 600,
   platedHpMult: 3,
   wallClawers: 2,

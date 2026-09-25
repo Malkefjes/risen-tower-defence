@@ -129,6 +129,11 @@ export class GameView {
   private dust: { mesh: THREE.Mesh; v: THREE.Vector3; life: number; max: number }[] = [];
   private dustGeo = new THREE.IcosahedronGeometry(0.12, 0);
   private rangeRing: THREE.Mesh;
+  /** The ship's supply reach, drawn on the snow while you hold something to build. */
+  private supplyRing: THREE.Mesh;
+  /** Walls cut off from supply: a cold, dim look (they'll decay). */
+  private unsuppliedStone = new THREE.MeshStandardMaterial({ color: "#5b5a68", roughness: 0.95, flatShading: true });
+  private unsuppliedMetal = new THREE.MeshStandardMaterial({ color: "#6d5a58", roughness: 0.9, flatShading: true });
   private rangeDisc: THREE.Mesh;
   private animated: THREE.Object3D[] = [];
   private nexus: THREE.Object3D;
@@ -202,6 +207,10 @@ export class GameView {
     this.rangeDisc = new THREE.Mesh(new THREE.CircleGeometry(1, 72).rotateX(-Math.PI / 2),
       new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.1, depthWrite: false }));
     this.rangeRing.visible = this.rangeDisc.visible = false;
+    this.supplyRing = new THREE.Mesh(new THREE.RingGeometry(0.994, 1, 256).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: "#7ff5e6", transparent: true, opacity: 0.55, depthWrite: false }));
+    this.supplyRing.visible = false;
+    this.scene.add(this.supplyRing);
     this.scene.add(this.rangeRing, this.rangeDisc);
     this.nexus = this.buildNexusAndRifts();
     this.rig = createRig();
@@ -457,6 +466,13 @@ export class GameView {
     this.stirCaves(t, frameDt);
     this.updateShipLanding(frameDt);
     this.updateAvatar(frameDt, alpha, landed, o.toolReady);
+    // Supply reach: shown while holding something to build.
+    this.supplyRing.visible = o.toolReady && this.game.supplyRule && !this.game.shipDown;
+    if (this.supplyRing.visible) {
+      const c = this.nexusCenter(), r = this.game.tuning.supplyRadius;
+      this.supplyRing.position.set(c.x, 0.04, c.z);
+      this.supplyRing.scale.setScalar(r);
+    }
     this.updateFx(frameDt);
 
     // Camera: follow the avatar, or glide to a goal, or stay where the player panned.
@@ -576,9 +592,10 @@ export class GameView {
     for (const p of this.game.pieces) {
       let v = this.pieces.get(p.id);
       if (!v) { v = this.buildPiece(p); this.pieces.set(p.id, v); }
+      const cut = !this.game.pieceSupplied(p);
       const m = p.metal
-        ? (p.id === hoverId ? this.mat.wallHover : p.locked ? this.mat.wallA : this.mat.wallLooseA)
-        : (p.id === hoverId ? stone.hover : p.locked ? stone.base : stone.loose);
+        ? (p.id === hoverId ? this.mat.wallHover : cut ? this.unsuppliedMetal : p.locked ? this.mat.wallA : this.mat.wallLooseA)
+        : (p.id === hoverId ? stone.hover : cut ? this.unsuppliedStone : p.locked ? stone.base : stone.loose);
       for (const b of v.bodies) b.material = m;
     }
     // Walls that can still be picked up breathe slightly brighter than locked ones.

@@ -11,7 +11,7 @@ import { loadTuning, TuningPanel } from "./ui/tuning";
 let seed = 1;
 try { seed = Number(localStorage.getItem("risen.world.seed")) || 1; } catch { /* storage blocked */ }
 const world = generateWorld(seed);
-const game = new Game(world.map, { tuning: loadTuning() });
+const game = new Game(world.map, { tuning: loadTuning(), supply: true });
 const view = new GameView(document.getElementById("view")!, game, world);
 
 let controller!: Controller;
