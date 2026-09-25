@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { createMaterials, EVENING } from "../../src/render/models";
-import { createOreNode, type OreNodeModel } from "../../src/render/ore";
+import { createOreNode, type NodeKind, type OreNodeModel } from "../../src/render/ore";
 import { createRig, RigAnimator } from "../../src/render/rig";
 import { Avatar, defaultAvatarTuning } from "../../src/sim/avatar";
 import "./style.css";
@@ -38,10 +38,15 @@ scene.add(ground);
 
 // ------------------------------------------------------------------ ore nodes
 
-interface Node { x: number; y: number; n: number; amount: number; max: number; model: OreNodeModel; emptyFor: number }
+interface Node { x: number; y: number; n: number; kind: NodeKind; amount: number; max: number; model: OreNodeModel; emptyFor: number }
+const node = (x: number, y: number, n: number, kind: NodeKind, seed: number): Node => {
+  const max = n === 2 ? 40 : 100;
+  return { x, y, n, kind, amount: max, max, model: createOreNode(n, seed, kind), emptyFor: 0 };
+};
+// Stone on the left, metal on the right.
 const nodes: Node[] = [
-  { x: -3, y: -1, n: 2, amount: 40, max: 40, model: createOreNode(2, 7), emptyFor: 0 },
-  { x: 2, y: -2, n: 3, amount: 100, max: 100, model: createOreNode(3, 23), emptyFor: 0 },
+  node(-4, -1, 2, "stone", 7), node(-4, 3, 3, "stone", 23),
+  node(3, -2, 2, "metal", 11), node(3, 2, 3, "metal", 31),
 ];
 for (const nd of nodes) {
   nd.model.object.position.set(nd.x + nd.n / 2, 0, nd.y + nd.n / 2);
@@ -69,14 +74,14 @@ function nodeInReach(): Node | null {
 // ------------------------------------------------------------------ avatar and rig
 
 const T = defaultAvatarTuning();
-const avatar = new Avatar(0.5, 3.5);
+const avatar = new Avatar(0.5, 1.5);
 const rig = createRig();
 scene.add(rig.object);
 const anim = new RigAnimator(rig);
 
 const MINE_RATE = 12; // ore per second
 const RESPAWN = 20; // seconds an empty node stays gone
-let carried = 0;
+const carried: Record<NodeKind, number> = { stone: 0, metal: 0 };
 
 // ------------------------------------------------------------------ input
 
@@ -112,14 +117,14 @@ function moveInput(): { x: number; y: number } {
 
 const sparkGeo = new THREE.BoxGeometry(0.035, 0.035, 0.035);
 const sparkMat = new THREE.MeshBasicMaterial({ color: "#e8f4ff" });
-const chipMat = new THREE.MeshStandardMaterial({ color: "#d6dde8", metalness: 0.5, roughness: 0.3, flatShading: true });
+const chipMat = new THREE.MeshStandardMaterial({ color: "#adb8c6", metalness: 0.7, roughness: 0.25, flatShading: true });
 const sparks: { m: THREE.Mesh; v: THREE.Vector3; life: number }[] = [];
 let shake = 0;
 /** A rock breaking off: a burst of ore chunks and a small shake. */
-function breakBurst(at: THREE.Vector3): void {
+function breakBurst(at: THREE.Vector3, kind: NodeKind): void {
   shake = Math.max(shake, 0.12);
   for (let i = 0; i < 6; i++) {
-    const m = new THREE.Mesh(chunkGeo, Math.random() < 0.5 ? chipMat : rockMat);
+    const m = new THREE.Mesh(chunkGeo, kind === "metal" ? chipMat : rockMat);
     m.position.copy(at);
     m.rotation.set(Math.random() * 3, Math.random() * 3, 0);
     scene.add(m);
@@ -133,8 +138,9 @@ function nodeUnderAvatar(nd: Node): boolean {
   const r = T.radius;
   return avatar.x + r > nd.x && avatar.x - r < nd.x + nd.n && avatar.y + r > nd.y && avatar.y - r < nd.y + nd.n;
 }
-function spark(at: THREE.Vector3, chip: boolean): void {
-  const m = new THREE.Mesh(sparkGeo, chip ? chipMat : sparkMat);
+/** A spark, or a small chip of the node's material. */
+function spark(at: THREE.Vector3, chip: NodeKind | null): void {
+  const m = new THREE.Mesh(sparkGeo, chip === "metal" ? chipMat : chip === "stone" ? rockMat : sparkMat);
   m.position.copy(at);
   scene.add(m);
   sparks.push({ m, v: new THREE.Vector3((Math.random() - 0.5) * 2, 0.8 + Math.random() * 1.4, (Math.random() - 0.5) * 2), life: chip ? 0.6 : 0.3 });
@@ -168,8 +174,8 @@ function frame(now: number): void {
   time += dt;
 
   // Mining: hold E within reach of a node. You stand still while mining.
-  const node = nodeInReach();
-  const mining = !!node && mouseDown;
+  const target_ = nodeInReach();
+  const mining = !!target_ && mouseDown;
 
   acc += dt;
   let landed = false;
@@ -179,11 +185,11 @@ function frame(now: number): void {
     avatar.step(TICK, { x: m.x, y: m.y, jump: jumpQueued && !mining }, heightAt, T);
     jumpQueued = false;
     landed ||= avatar.landed;
-    if (mining && node) {
-      const got = Math.min(node.amount, MINE_RATE * TICK);
-      node.amount -= got;
-      carried += got;
-      for (const p of node.model.setAmount(node.amount / node.max)) breakBurst(p);
+    if (mining && target_) {
+      const got = Math.min(target_.amount, MINE_RATE * TICK);
+      target_.amount -= got;
+      carried[target_.kind] += got;
+      for (const p of target_.model.setAmount(target_.amount / target_.max)) breakBurst(p, target_.kind);
     }
     acc -= TICK;
   }
@@ -197,9 +203,9 @@ function frame(now: number): void {
   const alpha = acc / TICK;
   const rx = prev.x + (avatar.x - prev.x) * alpha, ry = prev.y + (avatar.y - prev.y) * alpha;
   rig.object.position.set(rx, prev.z + (avatar.z - prev.z) * alpha, ry);
-  if (mining && node) {
+  if (mining && target_) {
     // Turn to face the node's centre.
-    const want = Math.atan2(node.x + node.n / 2 - rx, node.y + node.n / 2 - ry);
+    const want = Math.atan2(target_.x + target_.n / 2 - rx, target_.y + target_.n / 2 - ry);
     let d = want - avatar.facing;
     d = Math.atan2(Math.sin(d), Math.cos(d));
     avatar.facing += d * Math.min(1, dt * 12);
@@ -216,13 +222,13 @@ function frame(now: number): void {
   if (mining && Math.random() < dt * 40) {
     rig.object.updateMatrixWorld(true);
     rig.beam.localToWorld(tip.set(0, 0, 1));
-    spark(tip, Math.random() < 0.3);
+    spark(tip, Math.random() < 0.3 ? target_!.kind : null);
   }
   for (const p of sparks) { p.life -= dt; p.v.y -= 7 * dt; p.m.position.addScaledVector(p.v, dt); if (p.m.position.y < 0.02) { p.m.position.y = 0.02; p.v.set(0, 0, 0); } p.m.scale.setScalar(Math.max(0.01, Math.min(1, p.life / 0.3))); }
   for (let i = sparks.length - 1; i >= 0; i--) if (sparks[i]!.life <= 0) { scene.remove(sparks[i]!.m); sparks.splice(i, 1); }
 
-  const left = node ? `  ·  node ${Math.ceil(node.amount)} / ${node.max}` : "";
-  hud.textContent = `Ore ${Math.floor(carried)}${left}`;
+  const left = target_ ? `  ·  node ${Math.ceil(target_.amount)} / ${target_.max}` : "";
+  hud.textContent = `Stone ${Math.floor(carried.stone)}  ·  Metal ${Math.floor(carried.metal)}${left}`;
 
   const k = 1 - Math.exp(-dt * 4);
   target.x += (rx - target.x) * k; target.z += (ry - target.z) * k;

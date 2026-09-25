@@ -1,21 +1,22 @@
 import * as THREE from "three";
 
 /**
- * An ore node (Erik's pick: the B1 ore body from mockups/ore-b, without the
- * crater): a mound of grey stone streaked with silver ore, sitting on the snow.
- * `setAmount(0..1)` shrinks it as it's mined out.
+ * A resource node (Erik's pick: the B1 ore body from mockups/ore-b, without the
+ * crater): a mound of rock sitting on the snow. Two kinds share the shape:
+ * stone (grey) and metal (all silver). Mining breaks it off in three stages.
  */
+export type NodeKind = "stone" | "metal";
 
 const std = (color: string, o: THREE.MeshStandardMaterialParameters = {}) =>
   new THREE.MeshStandardMaterial({ color, roughness: 0.9, metalness: 0, flatShading: true, ...o });
 let M: ReturnType<typeof palette> | undefined;
 // Created on first use, after colour management is switched off.
 const palette = () => ({
-  // Grey stone with silver ore. The silver glows a little so it reads cool against the warm evening light.
-  body: std("#4a4f5c"),
-  bodyWarm: std("#555a67"),
-  gold: std("#dfe7f0", { metalness: 0.5, roughness: 0.3, emissive: "#9fb1c6", emissiveIntensity: 0.45 }),
-  goldBright: std("#f6faff", { metalness: 0.5, roughness: 0.25, emissive: "#c3d2e4", emissiveIntensity: 0.55 }),
+  stone: std("#4a4f5c"),
+  stoneAlt: std("#555a67"),
+  // Metal glows a little so it reads cool against the warm evening light.
+  metal: std("#9aa6b6", { metalness: 0.7, roughness: 0.28, emissive: "#5d6e86", emissiveIntensity: 0.25 }),
+  metalAlt: std("#adb8c6", { metalness: 0.7, roughness: 0.25, emissive: "#6e7f97", emissiveIntensity: 0.3 }),
 });
 
 function rng(seed: number) {
@@ -23,24 +24,14 @@ function rng(seed: number) {
   return () => { s = (s + 0x6d2b79f5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
 
-function lump(r: number, rand: () => number, x: number, z: number, sink: number, rich: boolean): THREE.Group {
+function lump(r: number, rand: () => number, x: number, z: number, sink: number, kind: NodeKind): THREE.Group {
   const m = M!;
   const g = new THREE.Group();
-  const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(r, 0), rich ? m.gold : rand() < 0.5 ? m.body : m.bodyWarm);
+  const a = kind === "metal" ? [m.metal, m.metalAlt] : [m.stone, m.stoneAlt];
+  const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(r, 0), rand() < 0.5 ? a[0]! : a[1]!);
   rock.scale.set(1.15, 0.7 + rand() * 0.3, 1);
   rock.rotation.set(rand(), rand() * 6, rand());
   g.add(rock);
-  const flecks = rich ? 0 : 5 + Math.floor(rand() * 4);
-  for (let i = 0; i < flecks; i++) {
-    const th = rand() * Math.PI * 2, ph = 0.3 + rand() * 1.1;
-    const n = new THREE.Vector3(Math.sin(ph) * Math.cos(th), Math.cos(ph), Math.sin(ph) * Math.sin(th));
-    const f = new THREE.Mesh(new THREE.BoxGeometry(r * (0.45 + rand() * 0.45), r * 0.1, r * (0.25 + rand() * 0.3)), rand() < 0.35 ? m.goldBright : m.gold);
-    f.position.copy(n).multiplyScalar(r * 0.78);
-    f.position.y *= rock.scale.y;
-    f.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n);
-    f.rotateY(rand() * 3);
-    g.add(f);
-  }
   g.position.set(x, r * (0.7 - sink), z);
   return g;
 }
@@ -55,8 +46,8 @@ export interface OreNodeModel {
   setAmount(frac: number): THREE.Vector3[];
 }
 
-/** An n×n ore node, centred on its footprint, built in three layers that break off in turn. */
-export function createOreNode(n: number, seed: number): OreNodeModel {
+/** An n×n node, centred on its footprint, built in three layers that break off in turn. */
+export function createOreNode(n: number, seed: number, kind: NodeKind = "stone"): OreNodeModel {
   M ??= palette();
   const rand = rng(seed);
   const object = new THREE.Group();
@@ -69,11 +60,11 @@ export function createOreNode(n: number, seed: number): OreNodeModel {
     const a = rand() * Math.PI * 2, d = i === 0 ? 0 : Math.sqrt(rand()) * R * 0.78;
     const size = (0.3 + rand() * 0.14) * (1 - 0.55 * d / R) * (n / 2.2 + 0.3);
     const layer = layers[d < R * 0.25 ? 2 : d < R * 0.5 ? 1 : 0]!;
-    layer.add(lump(size, rand, Math.cos(a) * d, Math.sin(a) * d, 0.3, false));
-    if (rand() < 0.6) layer.add(lump(size * 0.35, rand, Math.cos(a) * d + (rand() - 0.5) * 0.2, Math.sin(a) * d + (rand() - 0.5) * 0.2, 0.1, true));
+    layer.add(lump(size, rand, Math.cos(a) * d, Math.sin(a) * d, 0.3, kind));
+    if (rand() < 0.6) layer.add(lump(size * 0.35, rand, Math.cos(a) * d + (rand() - 0.5) * 0.2, Math.sin(a) * d + (rand() - 0.5) * 0.2, 0.1, kind));
   }
   // Every layer must have something to break.
-  for (const [i, l] of layers.entries()) if (!l.children.length) l.add(lump(0.25 * (n / 2.2 + 0.3), rand, (rand() - 0.5) * R * (0.3 + i * 0.2), (rand() - 0.5) * R * 0.3, 0.3, false));
+  for (const [i, l] of layers.entries()) if (!l.children.length) l.add(lump(0.25 * (n / 2.2 + 0.3), rand, (rand() - 0.5) * R * (0.3 + i * 0.2), (rand() - 0.5) * R * 0.3, 0.3, kind));
   object.traverse(c => { if ((c as THREE.Mesh).isMesh) { c.castShadow = true; c.receiveShadow = true; } });
   return {
     object,
