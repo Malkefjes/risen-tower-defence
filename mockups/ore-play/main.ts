@@ -6,7 +6,8 @@ import { Avatar, defaultAvatarTuning } from "../../src/sim/avatar";
 import "./style.css";
 
 // Ore playground: a 2×2 and a 3×3 ore node on the snow and the player rig.
-// WASD runs, Space jumps, hold E next to a node to mine it.
+// WASD runs, Space jumps, hold the left mouse button next to a node to mine it.
+// Nodes break in three stages; an empty node comes back after a while (for testing).
 THREE.ColorManagement.enabled = false;
 
 const CAM_OFFSET = new THREE.Vector3(20, 16.33, 20);
@@ -37,10 +38,10 @@ scene.add(ground);
 
 // ------------------------------------------------------------------ ore nodes
 
-interface Node { x: number; y: number; n: number; amount: number; max: number; model: OreNodeModel }
+interface Node { x: number; y: number; n: number; amount: number; max: number; model: OreNodeModel; emptyFor: number }
 const nodes: Node[] = [
-  { x: -3, y: -1, n: 2, amount: 40, max: 40, model: createOreNode(2, 7) },
-  { x: 2, y: -2, n: 3, amount: 100, max: 100, model: createOreNode(3, 23) },
+  { x: -3, y: -1, n: 2, amount: 40, max: 40, model: createOreNode(2, 7), emptyFor: 0 },
+  { x: 2, y: -2, n: 3, amount: 100, max: 100, model: createOreNode(3, 23), emptyFor: 0 },
 ];
 for (const nd of nodes) {
   nd.model.object.position.set(nd.x + nd.n / 2, 0, nd.y + nd.n / 2);
@@ -74,6 +75,7 @@ scene.add(rig.object);
 const anim = new RigAnimator(rig);
 
 const MINE_RATE = 6; // ore per second
+const RESPAWN = 20; // seconds an empty node stays gone
 let carried = 0;
 
 // ------------------------------------------------------------------ input
@@ -86,7 +88,11 @@ addEventListener("keydown", e => {
   keys.add(k);
 });
 addEventListener("keyup", e => keys.delete(e.key.toLowerCase()));
-addEventListener("blur", () => keys.clear());
+addEventListener("blur", () => { keys.clear(); mouseDown = false; });
+let mouseDown = false;
+renderer.domElement.addEventListener("pointerdown", e => { if (e.button === 0) mouseDown = true; });
+addEventListener("pointerup", e => { if (e.button === 0) mouseDown = false; });
+renderer.domElement.addEventListener("contextmenu", e => e.preventDefault());
 renderer.domElement.addEventListener("wheel", e => { e.preventDefault(); wantZoom = Math.min(10, Math.max(2, wantZoom * Math.exp(e.deltaY * 0.0012))); }, { passive: false });
 addEventListener("resize", () => renderer.setSize(container.clientWidth, container.clientHeight));
 renderer.setSize(container.clientWidth, container.clientHeight);
@@ -108,6 +114,25 @@ const sparkGeo = new THREE.BoxGeometry(0.035, 0.035, 0.035);
 const sparkMat = new THREE.MeshBasicMaterial({ color: "#ffe29a" });
 const chipMat = new THREE.MeshStandardMaterial({ color: "#d9a441", flatShading: true });
 const sparks: { m: THREE.Mesh; v: THREE.Vector3; life: number }[] = [];
+let shake = 0;
+/** A rock breaking off: a burst of ore chunks and a small shake. */
+function breakBurst(at: THREE.Vector3): void {
+  shake = Math.max(shake, 0.12);
+  for (let i = 0; i < 6; i++) {
+    const m = new THREE.Mesh(chunkGeo, Math.random() < 0.5 ? chipMat : rockMat);
+    m.position.copy(at);
+    m.rotation.set(Math.random() * 3, Math.random() * 3, 0);
+    scene.add(m);
+    sparks.push({ m, v: new THREE.Vector3((Math.random() - 0.5) * 3, 1.5 + Math.random() * 2, (Math.random() - 0.5) * 3), life: 0.9 });
+  }
+}
+const chunkGeo = new THREE.DodecahedronGeometry(0.06, 0);
+const rockMat = new THREE.MeshStandardMaterial({ color: "#3f3a36", flatShading: true });
+/** Does the avatar stand in this node's footprint (so it can't respawn on top of them)? */
+function nodeUnderAvatar(nd: Node): boolean {
+  const r = T.radius;
+  return avatar.x + r > nd.x && avatar.x - r < nd.x + nd.n && avatar.y + r > nd.y && avatar.y - r < nd.y + nd.n;
+}
 function spark(at: THREE.Vector3, chip: boolean): void {
   const m = new THREE.Mesh(sparkGeo, chip ? chipMat : sparkMat);
   m.position.copy(at);
@@ -144,7 +169,7 @@ function frame(now: number): void {
 
   // Mining: hold E within reach of a node. You stand still while mining.
   const node = nodeInReach();
-  const mining = !!node && keys.has("e");
+  const mining = !!node && mouseDown;
 
   acc += dt;
   let landed = false;
@@ -158,10 +183,17 @@ function frame(now: number): void {
       const got = Math.min(node.amount, MINE_RATE * TICK);
       node.amount -= got;
       carried += got;
-      node.model.setAmount(node.amount / node.max);
+      for (const p of node.model.setAmount(node.amount / node.max)) breakBurst(p);
     }
     acc -= TICK;
   }
+  // Empty nodes come back after a while.
+  for (const nd of nodes) {
+    if (nd.amount > 0) continue;
+    nd.emptyFor += dt;
+    if (nd.emptyFor >= RESPAWN && !nodeUnderAvatar(nd)) { nd.amount = nd.max; nd.emptyFor = 0; nd.model.setAmount(1); }
+  }
+  shake = Math.max(0, shake - dt);
   const alpha = acc / TICK;
   const rx = prev.x + (avatar.x - prev.x) * alpha, ry = prev.y + (avatar.y - prev.y) * alpha;
   rig.object.position.set(rx, prev.z + (avatar.z - prev.z) * alpha, ry);
@@ -186,7 +218,7 @@ function frame(now: number): void {
     rig.beam.localToWorld(tip.set(0, 0, 1));
     spark(tip, Math.random() < 0.3);
   }
-  for (const p of sparks) { p.life -= dt; p.v.y -= 7 * dt; p.m.position.addScaledVector(p.v, dt); if (p.m.position.y < 0.02) { p.m.position.y = 0.02; p.v.set(0, 0, 0); } p.m.scale.setScalar(Math.max(0.01, p.life / 0.4)); }
+  for (const p of sparks) { p.life -= dt; p.v.y -= 7 * dt; p.m.position.addScaledVector(p.v, dt); if (p.m.position.y < 0.02) { p.m.position.y = 0.02; p.v.set(0, 0, 0); } p.m.scale.setScalar(Math.max(0.01, Math.min(1, p.life / 0.3))); }
   for (let i = sparks.length - 1; i >= 0; i--) if (sparks[i]!.life <= 0) { scene.remove(sparks[i]!.m); sparks.splice(i, 1); }
 
   const left = node ? `  ·  node ${Math.ceil(node.amount)} / ${node.max}` : "";
@@ -207,6 +239,7 @@ function frame(now: number): void {
   Object.assign(camera, { left: -zoom * a, right: zoom * a, top: zoom, bottom: -zoom });
   camera.updateProjectionMatrix();
   camera.position.copy(target).add(CAM_OFFSET);
+  if (shake > 0) { camera.position.x += (Math.random() - 0.5) * 0.06; camera.position.y += (Math.random() - 0.5) * 0.06; }
   camera.lookAt(target.x, 0, target.z);
   sun.position.set(EVENING.sunOffset[0], EVENING.sunOffset[1], EVENING.sunOffset[2]);
   sun.target.position.set(0, 0, 0);
