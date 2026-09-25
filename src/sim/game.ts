@@ -163,7 +163,7 @@ export class Game {
   /** Enemies each active cave still has to send this wave. */
   private waveLeft = 0;
   /** Enemies of packs already under way, each waiting to climb out of its cave. */
-  private packQueue: { at: Cell; delay: number }[] = [];
+  private packQueue: { at: Cell; delay: number; speed: number }[] = [];
   private spawnTimer = 0;
   private waveSize: (round: number) => number;
   /** cell key -> id of the tower standing on it */
@@ -500,13 +500,17 @@ export class Game {
     return Math.max(1, Math.round(this.tuning.enemyHp * this.tuning.enemyHpGrowth ** (round - 1)));
   }
 
-  /** One enemy climbs out of a cave, with its own speed and line. */
-  private spawnWalker(at: Cell, practice: boolean): void {
+  /** A walking speed within ±speedSpread of the average: one per pack, so a pack moves as one. */
+  private rollSpeed(): number {
+    return ENEMY_SPEED * (1 + (this.rng.next() * 2 - 1) * this.tuning.speedSpread) * this.tuning.enemySpeed;
+  }
+
+  /** One enemy climbs out of a cave, with its pack's speed and its own line. */
+  private spawnWalker(at: Cell, practice: boolean, speed = this.rollSpeed()): void {
     const [sx, sy] = at, hp = this.enemyHp();
-    const spread = 1 + (this.rng.next() * 2 - 1) * this.tuning.speedSpread;
     this.walkers.push({
       id: this.nextId++, x: sx + 0.5, y: sy + 0.5, cx: sx, cy: sy, tx: sx, ty: sy,
-      speed: ENEMY_SPEED * spread * this.tuning.enemySpeed,
+      speed,
       hp, maxHp: hp, pending: 0, practice, lane: this.rng.next() * 2 - 1,
     });
   }
@@ -515,7 +519,10 @@ export class Game {
   private sendPack(): void {
     const t = this.tuning, lo = Math.max(1, Math.round(Math.min(t.packMin, t.packMax))), hi = Math.max(lo, Math.round(t.packMax));
     const size = Math.min(this.waveLeft, lo + this.rng.int(hi - lo + 1));
-    for (const at of this.activeSpawners()) for (let i = 0; i < size; i++) this.packQueue.push({ at, delay: i * PACK_STAGGER });
+    for (const at of this.activeSpawners()) {
+      const speed = this.rollSpeed();
+      for (let i = 0; i < size; i++) this.packQueue.push({ at, delay: i * PACK_STAGGER, speed });
+    }
     this.waveLeft -= size;
     this.spawnTimer = t.packGap + size * PACK_STAGGER;
   }
@@ -542,7 +549,7 @@ export class Game {
     if (this.phase === "wave") {
       this.spawnTimer -= dt;
       if (this.waveLeft > 0 && this.spawnTimer <= 0) this.sendPack();
-      for (const q of this.packQueue) if ((q.delay -= dt) <= 0) this.spawnWalker(q.at, false);
+      for (const q of this.packQueue) if ((q.delay -= dt) <= 0) this.spawnWalker(q.at, false, q.speed);
       this.packQueue = this.packQueue.filter(q => q.delay > 0);
     } else if (this.phase === "planning" && this.testWalkers) {
       this.spawnTimer -= dt;

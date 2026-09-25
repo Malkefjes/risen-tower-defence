@@ -126,7 +126,7 @@ Not locked yet: zoom range, final model shapes.
 | Walls look | Armored deck; neighbouring walls fuse seamlessly; one orange |
 | Map | No edge; enemies can always go around. Generated world (zones, raised ground with cliffs, forests, lakes) |
 | Spawners | Caves anywhere except raised ground, 24+ cells from the ship, rarer than ore; the nearest few send each wave |
-| Waves | Each nearby cave sends packs of 3–5 a few seconds apart; enemies vary a little in speed and walk slightly off the tile centre (looks only) |
+| Waves | Each nearby cave sends packs of 3–5 a few seconds apart; a pack moves at one speed, packs vary a little in speed; enemies walk slightly off the tile centre (looks only) |
 | Basic enemy | The leaper: dark red, Tyranid-like, climbs out of a cave, bursts on death |
 | Movement | 8 directions, no corner cutting |
 | Tower sizes | Multiple footprints on wall blocks; a footprint may span several wall pieces |

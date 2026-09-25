@@ -26,15 +26,23 @@ describe("enemy packs", () => {
     expect(g.walkers).toHaveLength(5);
   });
 
-  it("enemies differ a little in speed and line", () => {
-    const g = new Game(map(), { seed: 5, waveSize: () => 40, tuning: { packMin: 40, packMax: 40, speedSpread: 0.12 } });
+  it("a pack moves at one speed, packs differ a little, and each enemy has its own line", () => {
+    const g = new Game(map(), { seed: 5, waveSize: () => 60, tuning: { packMin: 5, packMax: 5, packGap: 0.5, speedSpread: 0.12 } });
     g.startWave();
-    run(g, 40 * PACK_STAGGER + 0.1);
-    const speeds = g.walkers.map(w => w.speed / ENEMY_SPEED);
-    expect(Math.min(...speeds)).toBeGreaterThanOrEqual(0.88);
-    expect(Math.max(...speeds)).toBeLessThanOrEqual(1.12);
-    expect(Math.max(...speeds) - Math.min(...speeds)).toBeGreaterThan(0.1);
+    const packs: number[][] = [];
+    for (let p = 0; p < 12; p++) {
+      const before = new Set(g.walkers.map(w => w.id));
+      run(g, 5 * PACK_STAGGER + 0.5);
+      packs.push(g.walkers.filter(w => !before.has(w.id)).map(w => w.speed / ENEMY_SPEED));
+    }
+    for (const pack of packs) {
+      expect(pack).toHaveLength(5);
+      expect(new Set(pack).size).toBe(1);
+      expect(pack[0]!).toBeGreaterThanOrEqual(0.88);
+      expect(pack[0]!).toBeLessThanOrEqual(1.12);
+    }
+    expect(new Set(packs.map(p => p[0])).size).toBeGreaterThan(1);
     for (const w of g.walkers) expect(Math.abs(w.lane!)).toBeLessThanOrEqual(1);
-    expect(new Set(g.walkers.map(w => w.lane)).size).toBe(40);
+    expect(new Set(g.walkers.map(w => w.lane)).size).toBe(g.walkers.length);
   });
 });

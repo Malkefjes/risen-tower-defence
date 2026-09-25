@@ -43,7 +43,7 @@ export interface Tuning {
   enemyHpGrowth: number;
   /** Multiplier on enemy walking speed. */
   enemySpeed: number;
-  /** Each enemy's speed varies by up to this share either way (0.12 = ±12%). */
+  /** Each pack's speed varies by up to this share either way (0.12 = ±12%); a pack moves as one. */
   speedSpread: number;
   /** Enemies leave a cave in packs of packMin to packMax, packGap seconds apart. */
   packMin: number;
