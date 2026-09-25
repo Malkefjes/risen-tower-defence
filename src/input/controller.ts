@@ -52,6 +52,9 @@ export class Controller {
   attach(el: HTMLElement): void {
     this.wheel = new BuildWheel(document.getElementById("app")!);
     el.addEventListener("contextmenu", e => e.preventDefault());
+    // The middle button drags the camera: keep the browser from starting autoscroll or a middle-click paste.
+    el.addEventListener("mousedown", e => { if (e.button === 1) e.preventDefault(); });
+    el.addEventListener("auxclick", e => { if (e.button === 1) e.preventDefault(); });
     el.addEventListener("pointerdown", e => {
       if (e.button === 2) {
         if (this.selectedUid !== null) this.rotate();
@@ -59,6 +62,7 @@ export class Controller {
         else this.openMods(e.clientX, e.clientY);
         return;
       }
+      if (e.button === 1) e.preventDefault();
       el.setPointerCapture(e.pointerId);
       this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, button: e.button };
       this.pressedAt = performance.now();
