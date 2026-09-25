@@ -30,6 +30,10 @@ export interface PlacedPiece {
   locked: boolean;
   /** Stone paid, returned when it's picked back up. */
   paid: number;
+  /** Plated with metal: the Armored deck, the only wall towers stand on. */
+  metal: boolean;
+  /** Metal paid for the plating, returned with the stone on pick-up. */
+  plated: number;
 }
 
 export interface Walker {
@@ -64,7 +68,7 @@ export type PlacementCheck =
   | { ok: true; cells: Cell[]; field: FlowField }
   | { ok: false; cells: Cell[]; reason: BlockReason };
 
-export type TowerBlockReason = "no-wall" | "tower-there" | "avatar" | "metal" | "run-over";
+export type TowerBlockReason = "no-wall" | "stone-wall" | "tower-there" | "avatar" | "metal" | "run-over";
 
 export type TowerCheck =
   | { ok: true; cells: Cell[] }
@@ -79,6 +83,7 @@ export type GameEvent =
   /** A stage broke off a node; `added` is the ore that went into the hotbar. */
   | { type: "node-broke"; node: OreNode; stagesLeft: number; added: number }
   | { type: "node-grew"; node: OreNode }
+  | { type: "plated"; piece: PlacedPiece }
   | { type: "tower-built"; tower: Tower }
   | { type: "tower-sold"; tower: Tower; refund: number }
   | { type: "shot"; shot: Shot }
@@ -99,6 +104,7 @@ export const REASON_TEXT: Record<BlockReason, string> = {
 
 export const TOWER_REASON_TEXT: Record<TowerBlockReason, string> = {
   "no-wall": "Towers go on top of walls",
+  "stone-wall": "Needs metal plating",
   "tower-there": "There's already a tower there",
   "avatar": "You're standing there",
   "metal": "Not enough metal",
@@ -360,7 +366,7 @@ export class Game {
     if (!check.ok) return check;
     this.hand.splice(hi, 1);
     const paid = this.hotbar.remove("stone", this.wallCost(check.cells.length));
-    const piece: PlacedPiece = { id: this.nextId++, shape: held.shape, rot, at, cells: check.cells, locked: this.phase === "wave", paid };
+    const piece: PlacedPiece = { id: this.nextId++, shape: held.shape, rot, at, cells: check.cells, locked: this.phase === "wave", paid, metal: false, plated: 0 };
     this.pieces.push(piece);
     for (const [x, y] of piece.cells) this.world.walls.set(cellKey(x, y), piece.id);
     this.field = computeField(this.world);
@@ -386,10 +392,29 @@ export class Game {
     for (const [x, y] of piece.cells) this.world.walls.delete(cellKey(x, y));
     this.field = computeField(this.world);
     this.hotbar.add("stone", piece.paid);
+    if (piece.plated) this.hotbar.add("metal", piece.plated);
     const entry: HandPiece = { uid: this.nextId++, shape: piece.shape };
     this.hand.push(entry);
     this.events.push({ type: "removed", piece });
     return entry;
+  }
+
+  /** Can this piece be plated now? Any stone piece, locked or not, while the run is on. */
+  canPlate(piece: PlacedPiece | undefined): piece is PlacedPiece {
+    return !!piece && !piece.metal && this.canPlaceNow() && this.ore("metal") >= this.tuning.platingCost;
+  }
+
+  /**
+   * Metal plating: turns a whole stone piece into the Armored deck, which towers
+   * can stand on. Same shape and place, so the path doesn't change.
+   */
+  plate(pieceId: number): boolean {
+    const piece = this.pieces.find(p => p.id === pieceId);
+    if (!this.canPlate(piece)) return false;
+    piece.plated = this.hotbar.remove("metal", this.tuning.platingCost);
+    piece.metal = true;
+    this.events.push({ type: "plated", piece });
+    return true;
   }
 
   /** Undo the most recent unlocked placement. */
@@ -410,6 +435,7 @@ export class Game {
     const cells = towerCells(kind, at);
     if (!this.canPlaceNow()) return { ok: false, cells, reason: "run-over" };
     for (const [x, y] of cells) if (!this.world.walls.has(cellKey(x, y))) return { ok: false, cells, reason: "no-wall" };
+    for (const [x, y] of cells) if (!this.pieceAt(x, y)?.metal) return { ok: false, cells, reason: "stone-wall" };
     for (const [x, y] of cells) if (this.towerCellsMap.has(cellKey(x, y))) return { ok: false, cells, reason: "tower-there" };
     const under = this.avatarCells();
     for (const [x, y] of cells) if (under.has(cellKey(x, y))) return { ok: false, cells, reason: "avatar" };

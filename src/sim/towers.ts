@@ -25,6 +25,8 @@ export interface Tuning {
   supplyPerRound: number;
   /** Stone per wall cell (a 4-cell wall costs four times this). */
   wallCost: number;
+  /** Metal to plate a whole wall piece (the Armored deck, which towers need). */
+  platingCost: number;
   /** Ore in the hotbar at the start of a run. */
   startStone: number;
   startMetal: number;
@@ -49,6 +51,7 @@ export interface Tuning {
 export const defaultTuning = (): Tuning => ({
   supplyPerRound: 3,
   wallCost: 25,
+  platingCost: 50,
   startStone: 400,
   startMetal: 100,
   mineTime: 25 / 3,

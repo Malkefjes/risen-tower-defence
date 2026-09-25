@@ -12,6 +12,7 @@ const SECTIONS: { title: string; knobs: Knob[] }[] = [
   { title: "Supply and ore", knobs: [
     top("supplyPerRound", "Walls per round", 1, 8, 1),
     top("wallCost", "Stone per wall cell", 0, 100, 5),
+    top("platingCost", "Metal plating per wall piece", 0, 300, 5),
     top("startStone", "Starting stone", 0, 2000, 50),
     top("startMetal", "Starting metal", 0, 1000, 25),
     top("sellRefund", "Sell refund (after the wave starts)", 0, 1, 0.05, true),

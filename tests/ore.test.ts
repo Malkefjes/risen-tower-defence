@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Game } from "../src/sim/game";
 import { nodeFootprint, STAGE_YIELD, stagesLeft, viewGap, type OreNode } from "../src/sim/ore";
 import type { MapDef } from "../src/sim/world";
+import { metalWall } from "./helpers";
 
 const map = (extra: Partial<MapDef> = {}): MapDef => ({
   name: "test", spawners: [[0, 0]], nexus: [[20, 0]], rocks: [], trees: [],
@@ -108,7 +109,7 @@ describe("ore pays for building", () => {
 
   it("towers cost metal", () => {
     const g = new Game(map(), { seed: 1, tuning: { startMetal: 100 } });
-    g.world.walls.set("2,10", 99);
+    metalWall(g, [[2, 10]]);
     expect(g.buildTower("twin", [2, 10]).ok).toBe(true);
     expect(g.ore("metal")).toBe(0);
   });

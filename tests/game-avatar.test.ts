@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Game } from "../src/sim/game";
 import { rockTop, TREE_HURDLE, WALL_DECK, type MapDef } from "../src/sim/world";
+import { metalWall } from "./helpers";
 
 const open = (extra: Partial<MapDef> = {}): MapDef => ({
   name: "test", spawners: [[0, 0]], nexus: [[20, 0]], rocks: [], trees: [], start: [5, 5], ...extra,
@@ -21,9 +22,9 @@ describe("avatar in the game", () => {
 
   it("the ship is solid; rocks, walls and towers have tops; trees are hurdles", () => {
     const g = new Game(open({ rocks: [{ x: 7, y: 5, h: 10 }], trees: [{ x: 8, y: 5, s: 1 }] }), { seed: 1, tuning: { startMetal: 500 } });
-    g.world.walls.set("3,3", 1);
+    metalWall(g, [[3, 3]]);
     g.buildTower("twin", [3, 3]);
-    g.world.walls.set("4,3", 1);
+    metalWall(g, [[4, 3]]);
     expect(g.heightAt(20, 0)).toBe(Infinity);
     expect(g.heightAt(7, 5)).toBeCloseTo(rockTop(10));
     expect(g.heightAt(8, 5)).toBe(TREE_HURDLE);
@@ -44,7 +45,7 @@ describe("avatar in the game", () => {
 
   it("towers can't be placed under the avatar standing on a deck", () => {
     const g = new Game(open(), { seed: 1, tuning: { startMetal: 500 } });
-    g.world.walls.set("5,5", 1);
+    metalWall(g, [[5, 5]]);
     g.avatar.place(5.5, 5.5, WALL_DECK);
     const r = g.checkTower("twin", [5, 5]);
     expect(r.ok).toBe(false);
@@ -53,7 +54,7 @@ describe("avatar in the game", () => {
 
   it("jumping onto a wall reports the landing, and the avatar never blocks enemies", () => {
     const g = new Game(open({ start: [2, 0] }), { seed: 1 });
-    for (let x = 4; x < 8; x++) g.world.walls.set(`${x},0`, 1);
+    metalWall(g, [4, 5, 6, 7].map(x => [x, 0] as [number, number]));
     g.avatarInput = { x: 1, y: 0, jump: true };
     g.drainEvents();
     ticks(g, 60);
@@ -66,7 +67,7 @@ describe("avatar in the game", () => {
 
   it("can climb from a wall deck onto a tower, but not from the snow", () => {
     const g = new Game(open({ start: [2, 0] }), { seed: 1, tuning: { startMetal: 500 } });
-    for (let x = 4; x < 9; x++) g.world.walls.set(`${x},0`, 1);
+    metalWall(g, [4, 5, 6, 7, 8].map(x => [x, 0] as [number, number]));
     g.buildTower("twin", [7, 0]);
     // From the snow straight at the tower's wall: lands on the deck in front of it.
     g.avatarInput = { x: 1, y: 0, jump: true };
@@ -86,7 +87,7 @@ describe("avatar in the game", () => {
 
   it("a tower leaves a rim of wall around it: jump onto the rim from the snow, then onto the tower", () => {
     const g = new Game(open({ start: [3, 5] }), { seed: 1, tuning: { startMetal: 500 } });
-    g.world.walls.set("6,5", 1);
+    metalWall(g, [[6, 5]]);
     g.buildTower("twin", [6, 5]);
     // The tower is out of reach from the snow...
     expect(WALL_DECK + 0.45).toBeGreaterThan(g.avatarTuning.jumpHeight + g.avatarTuning.stepUp);
@@ -102,7 +103,7 @@ describe("avatar in the game", () => {
 
   it("walking beside a wall with a tower on it is unchanged: the wall still blocks at ground level", () => {
     const g = new Game(open({ start: [3, 4] }), { seed: 1, tuning: { startMetal: 500 } });
-    g.world.walls.set("6,5", 1);
+    metalWall(g, [[6, 5]]);
     g.buildTower("twin", [6, 5]);
     // Run past along the row above it, then into it from the side.
     g.avatarInput = { x: 1, y: 0, jump: false };
@@ -110,7 +111,7 @@ describe("avatar in the game", () => {
     expect(g.avatar.x).toBeGreaterThan(8);
     expect(g.avatar.z).toBe(0);
     const h = new Game(open({ start: [3, 5] }), { seed: 1, tuning: { startMetal: 500 } });
-    h.world.walls.set("6,5", 1);
+    metalWall(h, [[6, 5]]);
     h.buildTower("twin", [6, 5]);
     h.avatarInput = { x: 1, y: 0, jump: false };
     for (let i = 0; i < 90; i++) h.stepAvatar();

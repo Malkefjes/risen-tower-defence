@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Game, type Walker } from "../src/sim/game";
 import type { MapDef } from "../src/sim/world";
+import { metalWall } from "./helpers";
 
 const open = (extra: Partial<MapDef> = {}): MapDef => ({
   name: "test", spawners: [[0, 0]], nexus: [[20, 0]], rocks: [], trees: [], ...extra,
@@ -9,7 +10,9 @@ const open = (extra: Partial<MapDef> = {}): MapDef => ({
 /** A game with walls set directly (piece ids given), plenty of metal. */
 function withWalls(cells: [number, number, number][], metal = 1000): Game {
   const g = new Game(open(), { seed: 1, tuning: { startMetal: metal } });
-  for (const [x, y, id] of cells) g.world.walls.set(`${x},${y}`, id);
+  const byId = new Map<number, [number, number][]>();
+  for (const [x, y, id] of cells) byId.set(id, [...(byId.get(id) ?? []), [x, y]]);
+  for (const [id, cs] of byId) metalWall(g, cs, id);
   return g;
 }
 
@@ -59,6 +62,7 @@ describe("tower placement", () => {
   it("a wall carrying a tower can't be picked up until the tower is sold", () => {
     const g = new Game(open(), { seed: 1, tuning: { startMetal: 500 } });
     const piece = g.place(g.hand[0]!.uid, 0, [8, 5]).piece!;
+    g.plate(piece.id);
     const [x, y] = piece.cells[0]!;
     const t = g.buildTower("twin", [x, y]).tower!;
     expect(g.canPickUp(piece)).toBe(false);
