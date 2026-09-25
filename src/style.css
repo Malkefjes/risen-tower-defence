@@ -43,6 +43,18 @@ kbd { font: 600 11px/1 var(--font); padding: 2px 5px; border-radius: 4px; backgr
 .tool:disabled { opacity: .4; cursor: default; }
 button:focus-visible { outline: 2px solid var(--warm); outline-offset: 2px; }
 
+/* ---------- pause ---------- */
+#view canvas { transition: filter .2s; }
+#app.is-paused #view canvas { filter: saturate(.55) brightness(.82); }
+.paused { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); display: flex; gap: 12px; align-items: center; padding: 12px 20px; border-radius: 14px; background: var(--panel-solid); border: 1px solid rgba(255,255,255,.28); box-shadow: 0 10px 30px rgba(20,16,40,.4); pointer-events: none; font-size: 15px; }
+.paused[hidden] { display: none; }
+.paused b { font-size: 18px; letter-spacing: .14em; text-transform: uppercase; }
+.paused > span:last-child { color: var(--muted); font-weight: 600; }
+.paused .bars { display: inline-flex; gap: 4px; }
+.paused .bars i { width: 5px; height: 18px; border-radius: 2px; background: var(--warm); }
+@media (prefers-reduced-motion: no-preference) { .paused { animation: breathe 2.4s ease-in-out infinite; } }
+@keyframes breathe { 50% { border-color: rgba(255,180,90,.6); } }
+
 /* ---------- toast ---------- */
 #toast {
   position: absolute; left: 50%; top: 64px; transform: translate(-50%, -6px);

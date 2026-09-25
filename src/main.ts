@@ -38,6 +38,9 @@ function syncTools(): void {
   btn("bSpeed").textContent = `${controller.speed}×`;
   btn("bPause").setAttribute("aria-pressed", String(controller.paused));
   btn("bPause").textContent = controller.paused ? "Paused" : "Pause";
+  // Make pause impossible to miss, without blocking the map.
+  document.getElementById("app")!.classList.toggle("is-paused", controller.paused);
+  document.getElementById("paused")!.hidden = !controller.paused;
   btn("bTune").setAttribute("aria-pressed", String(tuning.open));
 }
 
