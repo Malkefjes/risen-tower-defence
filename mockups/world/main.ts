@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { crystalCluster, deadTree } from "../../src/render/alien";
 import { bakeStatic } from "../../src/render/bake";
 import { createDefaultModels, createGlows, createMaterials, EVENING } from "../../src/render/models";
 import { createOreNode } from "../../src/render/ore";
@@ -9,9 +10,10 @@ import { cellKey } from "../../src/sim/types";
 import { rockTop, TREE_HURDLE } from "../../src/sim/world";
 import "./style.css";
 
-// World playground: a bigger piece of the planet, made only from what the game has
-// today (pines, rocks, ore nodes, snow drifts), to walk around in and judge. No
-// buildings. The world is generated from a seed; "New seed" makes another.
+// World playground: a piece of the planet built in zones around the landing site
+// (the clearing, a pine forest belt, rocky highlands with the metal, and the violet
+// rift wastes to the north-west). Built in chunks so only what's on screen is drawn.
+// No buildings. "New seed" makes another world; the ` key shows performance numbers.
 
 THREE.ColorManagement.enabled = false;
 
@@ -20,8 +22,12 @@ const LIGHT_DIR = new THREE.Vector3(-EVENING.sunOffset[0], -EVENING.sunOffset[1]
 const LIGHT_DIST = Math.hypot(...EVENING.sunOffset);
 const LIGHT_RIGHT = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), LIGHT_DIR).normalize();
 const LIGHT_UP = new THREE.Vector3().crossVectors(LIGHT_DIR, LIGHT_RIGHT).normalize();
-/** Half the size of the generated world, in cells (the world is 2·R across). */
-const R = 36;
+/** Beyond the game's own zoom range, the playground zooms out to see the whole world (snow fades away there). */
+const OVERVIEW_ZOOM = 70;
+/** Half the size of the generated world, in cells. */
+const R = 112;
+/** Scenery is merged per chunk of this many cells, so chunks off screen are skipped. */
+const CHUNK = 16;
 
 const container = document.getElementById("view")!;
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -43,18 +49,21 @@ sun.shadow.mapSize.set(2048, 2048);
 sun.shadow.bias = -0.0006;
 sun.shadow.radius = 3;
 scene.add(sun, sun.target);
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), mat.snow);
-ground.rotation.x = -Math.PI / 2;
-ground.receiveShadow = true;
-scene.add(ground);
+// Plain snow far beyond the world's edge.
+const farGround = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), mat.snow);
+farGround.rotation.x = -Math.PI / 2;
+farGround.position.y = -0.01;
+farGround.receiveShadow = true;
+scene.add(farGround);
+const groundMat = new THREE.MeshStandardMaterial({ color: "#ffffff", vertexColors: true, roughness: 1, metalness: 0 });
 
-// ------------------------------------------------------------------ generation
+// ------------------------------------------------------------------ noise
 
 function rng(seed: number) {
   let s = seed >>> 0;
   return () => { s = (s + 0x6d2b79f5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
-/** Smooth value noise in 0..1, for groves and outcrops. */
+/** Smooth value noise in 0..1. */
 function noise(seed: number) {
   const h = (x: number, y: number) => { let n = Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(seed, 1442695041); n = Math.imul(n ^ (n >>> 13), 1274126177); return ((n ^ (n >>> 16)) >>> 0) / 4294967296; };
   const sm = (t: number) => t * t * (3 - 2 * t);
@@ -64,11 +73,53 @@ function noise(seed: number) {
     return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
   };
 }
+const smooth = (a: number, b: number, x: number) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
-interface Cell { kind: "tree" | "rock" | "ore"; top: number; node?: OreNode }
+// ------------------------------------------------------------------ zones
+
+/**
+ * How much of each zone a point belongs to (0..1 each), from its distance to the
+ * landing site and its direction, with wobbly edges so the zones feel grown, not
+ * drawn with a compass. The rift wastes lie in one direction (north-west, where the
+ * rifts are); the highlands take the far ring everywhere else.
+ */
+interface Zones { clearing: number; forest: number; highlands: number; wastes: number }
+let edgeNoise = noise(1);
+const WASTES_DIR = Math.atan2(-1, -1); // north-west on the grid (x east, y south)
+function zonesAt(x: number, y: number): Zones {
+  const wob = (edgeNoise(x / 18, y / 18) - 0.5) * 16;
+  const d = Math.hypot(x, y) + wob;
+  const clearing = 1 - smooth(9, 13, d);
+  const far = smooth(42, 52, d);
+  let da = Math.abs(Math.atan2(y, x) - WASTES_DIR);
+  if (da > Math.PI) da = 2 * Math.PI - da;
+  const toward = 1 - smooth(0.7, 1.05, da + (edgeNoise(x / 25 + 9, y / 25) - 0.5) * 0.5);
+  const wastes = far * toward * smooth(58, 70, d);
+  const highlands = far * (1 - wastes / Math.max(1e-6, far));
+  const forest = Math.max(0, 1 - clearing - highlands - wastes);
+  return { clearing, forest, highlands: Math.max(0, highlands), wastes };
+}
+
+// Ground colour per zone: fresh snow in the clearing, bluer shaded snow in the forest,
+// grey rocky ground in the highlands, and violet-stained snow in the wastes.
+const GROUND = {
+  clearing: new THREE.Color("#f1f4fa"),
+  forest: new THREE.Color("#dfe3ef"),
+  highlands: new THREE.Color("#b9bcc9"),
+  highlandsRock: new THREE.Color("#8d909e"),
+  wastes: new THREE.Color("#cbbde6"),
+  wastesDeep: new THREE.Color("#9c86c9"),
+};
+
+// ------------------------------------------------------------------ the world
+
+interface Cell { kind: "tree" | "rock" | "ore" | "crystal"; top: number; node?: OreNode }
 const cells = new Map<string, Cell>();
+/** Ground kept clear of scenery (around the rifts). */
+const reserved = new Set<string>();
 const worldGroup = new THREE.Group();
 scene.add(worldGroup);
+const animated: THREE.Object3D[] = [];
 let seed = 1;
 try { seed = Number(localStorage.getItem("risen.world.seed")) || 1; } catch { /* storage blocked */ }
 
@@ -76,68 +127,138 @@ function clearWorld(): void {
   worldGroup.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).geometry.dispose(); });
   worldGroup.clear();
   cells.clear();
+  reserved.clear();
+  animated.length = 0;
 }
 
-/**
- * Today's world, bigger: a clearing in the middle (where a ship would land), pine
- * groves and rock outcrops where the noise says so, a few stone and metal nodes
- * out in the open, and snow drifts everywhere.
- */
+/** Ground for one chunk: a grid of vertices coloured by zone, with patchy variation. */
+function groundChunk(cx: number, cy: number, detail: (x: number, y: number) => number): THREE.Mesh {
+  const g = new THREE.PlaneGeometry(CHUNK, CHUNK, CHUNK, CHUNK).rotateX(-Math.PI / 2);
+  g.translate(cx + CHUNK / 2, 0, cy + CHUNK / 2);
+  const pos = g.attributes.position!, col = new Float32Array(pos.count * 3), c = new THREE.Color(), t = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getZ(i), z = zonesAt(x, y), p = detail(x, y);
+    c.copy(GROUND.clearing).multiplyScalar(z.clearing);
+    c.add(t.copy(GROUND.forest).multiplyScalar(z.forest));
+    c.add(t.copy(GROUND.highlands).lerp(GROUND.highlandsRock, smooth(0.55, 0.75, p)).multiplyScalar(z.highlands));
+    c.add(t.copy(GROUND.wastes).lerp(GROUND.wastesDeep, smooth(0.5, 0.8, p)).multiplyScalar(z.wastes));
+    col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+  }
+  g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  const m = new THREE.Mesh(g, groundMat);
+  m.receiveShadow = true;
+  return m;
+}
+
 function generate(): void {
   clearWorld();
-  const rand = rng(seed), grove = noise(seed * 3 + 1), rocky = noise(seed * 7 + 2);
+  edgeNoise = noise(seed * 5 + 3);
+  const rand = rng(seed), grove = noise(seed * 3 + 1), rocky = noise(seed * 7 + 2), detail = noise(seed * 11 + 4);
+  /** Scenery goes into the chunk it stands in; each chunk is merged at the end. */
+  const chunks = new Map<string, THREE.Group>();
+  const put = (o: THREE.Object3D, x: number, y: number) => {
+    const k = `${Math.floor(x / CHUNK)},${Math.floor(y / CHUNK)}`;
+    let g = chunks.get(k);
+    if (!g) chunks.set(k, g = new THREE.Group());
+    o.position.set(x, 0, y);
+    g.add(o);
+  };
   const free = (x: number, y: number, pad = 0) => {
-    for (let dy = -pad; dy <= pad; dy++) for (let dx = -pad; dx <= pad; dx++) if (cells.has(cellKey(x + dx, y + dy))) return false;
+    for (let dy = -pad; dy <= pad; dy++) for (let dx = -pad; dx <= pad; dx++) {
+      const k = cellKey(x + dx, y + dy);
+      if (cells.has(k) || reserved.has(k)) return false;
+    }
     return true;
   };
-  const clearing = (x: number, y: number) => Math.hypot(x, y) < 7;
-  // Ore nodes first: open ground, away from the clearing and from each other.
+  const tree = (x: number, y: number, s: number) => {
+    cells.set(cellKey(x, y), { kind: "tree", top: TREE_HURDLE });
+    put(models.create("tree", { scale: s, seed: x * 17 + y + seed }), x + 0.5, y + 0.5);
+  };
+  const rock = (x: number, y: number, h: number) => {
+    cells.set(cellKey(x, y), { kind: "rock", top: rockTop(h) });
+    put(models.create("rock", { scale: h, seed: x * 31 + y + seed }), x + 0.5, y + 0.5);
+  };
+  const crystal = (x: number, y: number, s: number) => {
+    cells.set(cellKey(x, y), { kind: "crystal", top: TREE_HURDLE });
+    put(crystalCluster(x * 13 + y + seed, s), x + 0.5, y + 0.5);
+  };
+
+  // Two rifts deep in the wastes: landmarks you can see the glow of from afar,
+  // with open ground around them and a ring of large crystals.
+  for (let i = 0; i < 2; i++) {
+    const a = WASTES_DIR + (i ? 0.35 : -0.3), d = 88 + i * 10;
+    const x = Math.round(Math.cos(a) * d), y = Math.round(Math.sin(a) * d);
+    const r = models.create("rift");
+    r.position.set(x + 0.5, 0, y + 0.5);
+    worldGroup.add(r);
+    animated.push(r);
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) reserved.add(cellKey(x + dx, y + dy));
+    for (let k = 0; k < 9; k++) {
+      const ca = rand() * Math.PI * 2, cd = 3 + rand() * 2.5;
+      const cx = Math.floor(x + Math.cos(ca) * cd), cy = Math.floor(y + Math.sin(ca) * cd);
+      if (free(cx, cy)) crystal(cx, cy, 1.2 + rand() * 0.4);
+    }
+  }
+
+  // Ore where it belongs: stone in the forest belt and highland outcrops, metal up
+  // in the highlands. The wastes hold none (yet), only crystal.
   const nodes: OreNode[] = [];
-  for (let tries = 0; tries < 400 && nodes.length < 14; tries++) {
+  for (let tries = 0; tries < 3000 && nodes.length < 40; tries++) {
     const x = Math.floor((rand() * 2 - 1) * (R - 4)), y = Math.floor((rand() * 2 - 1) * (R - 4));
-    if (Math.hypot(x + 1.5, y + 1.5) < 11) continue;
-    if (nodes.some(n => Math.hypot(n.x - x, n.y - y) < 9)) continue;
-    const kind: OreKind = rand() < 0.35 ? "metal" : "stone";
+    const z = zonesAt(x + 1.5, y + 1.5);
+    if (z.clearing > 0.05 || z.wastes > 0.3 || !free(x + 1, y + 1, 2)) continue;
+    if (nodes.some(n => Math.hypot(n.x - x, n.y - y) < 10)) continue;
+    let kind: OreKind;
+    if (z.highlands > 0.6) kind = rand() < 0.6 ? "metal" : "stone";
+    else if (z.forest > 0.6) kind = "stone";
+    else continue;
     const n: OreNode = { id: nodes.length + 1, kind, x, y, amount: nodeMax(kind), max: nodeMax(kind) };
     nodes.push(n);
     for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) cells.set(cellKey(x + dx, y + dy), { kind: "ore", top: nodeCellTop(n, x + dx, y + dy), node: n });
-    const m = createOreNode(3, seed * 131 + n.id * 17, kind);
-    m.object.position.set(x + 1.5, 0, y + 1.5);
-    worldGroup.add(m.object);
+    put(createOreNode(3, seed * 131 + n.id * 17, kind).object, x + 1.5, y + 1.5);
   }
+
   for (let y = -R; y < R; y++) for (let x = -R; x < R; x++) {
-    if (clearing(x, y) || !free(x, y)) continue;
-    const g = grove(x / 7, y / 7), r = rocky(x / 5, y / 5);
-    if (g > 0.62 && rand() < (g - 0.55) * 1.6) {
-      const s = 0.85 + rand() * 0.35;
-      cells.set(cellKey(x, y), { kind: "tree", top: TREE_HURDLE });
-      const t = models.create("tree", { scale: s, seed: x * 17 + y + seed });
-      t.position.set(x + 0.5, 0, y + 0.5);
-      worldGroup.add(t);
-    } else if (r > 0.7 && rand() < (r - 0.62) * 1.4) {
-      const h = 10 + Math.floor(rand() * 7);
-      cells.set(cellKey(x, y), { kind: "rock", top: rockTop(h) });
-      const m = models.create("rock", { scale: h, seed: x * 31 + y + seed });
-      m.position.set(x + 0.5, 0, y + 0.5);
-      worldGroup.add(m);
-    } else if (rand() < 0.012) {
-      // A lone pine or boulder out in the open.
-      const tree = rand() < 0.6;
-      cells.set(cellKey(x, y), tree ? { kind: "tree", top: TREE_HURDLE } : { kind: "rock", top: rockTop(11) });
-      const m = tree ? models.create("tree", { scale: 0.9 + rand() * 0.25, seed: x * 17 + y + seed }) : models.create("rock", { scale: 11, seed: x * 31 + y });
-      m.position.set(x + 0.5, 0, y + 0.5);
-      worldGroup.add(m);
+    if (!free(x, y)) continue;
+    const z = zonesAt(x + 0.5, y + 0.5);
+    if (z.clearing > 0.5) continue;
+    const g = grove(x / 7, y / 7), r = rocky(x / 5, y / 5), roll = rand();
+    if (z.wastes > 0.5) {
+      // Wastes: crystal fields, and dead pines where the forest used to be.
+      if (r > 0.62 && roll < (r - 0.55) * 0.9 * z.wastes) crystal(x, y, 0.7 + rand() * 0.6);
+      else if (g > 0.6 && roll < 0.12) {
+        cells.set(cellKey(x, y), { kind: "tree", top: TREE_HURDLE });
+        put(deadTree(x * 7 + y + seed, 0.9 + rand() * 0.3), x + 0.5, y + 0.5);
+      } else if (roll < 0.004) rock(x, y, 10 + Math.floor(rand() * 4));
+    } else if (z.highlands > 0.5) {
+      // Highlands: rock outcrops and boulder fields, only a few hardy pines.
+      if (r > 0.6 && roll < (r - 0.55) * 1.1) rock(x, y, 11 + Math.floor(rand() * 6));
+      else if (g > 0.72 && roll < 0.12) tree(x, y, 0.8 + rand() * 0.25);
+      else if (roll < 0.01) rock(x, y, 10 + Math.floor(rand() * 3));
+    } else {
+      // Forest belt: dense groves with open glades between them.
+      if (g > 0.5 && roll < (g - 0.42) * 1.5) tree(x, y, 0.85 + rand() * 0.35);
+      else if (r > 0.78 && roll < 0.25) rock(x, y, 10 + Math.floor(rand() * 5));
+      else if (roll < 0.01) tree(x, y, 0.9 + rand() * 0.25);
     }
   }
-  // Snow drifts: decoration only, never in anyone's way.
-  for (let i = 0; i < 260; i++) {
-    const x = (rand() * 2 - 1) * (R + 6), z = (rand() * 2 - 1) * (R + 6);
-    if (!free(Math.floor(x), Math.floor(z), 1)) continue;
-    const m = models.create("snowMound", { scale: 0.3 + rand() * 0.45 });
-    m.position.set(x, 0, z);
-    worldGroup.add(m);
+
+  // Snow drifts, mostly in the open snowy parts, never in anyone's way.
+  for (let i = 0; i < 1400; i++) {
+    const x = (rand() * 2 - 1) * R, y = (rand() * 2 - 1) * R;
+    if (!free(Math.floor(x), Math.floor(y), 1)) continue;
+    const z = zonesAt(x, y);
+    if (rand() > z.clearing + z.forest + z.highlands * 0.3) continue;
+    put(models.create("snowMound", { scale: 0.3 + rand() * 0.45 }), x, y);
   }
-  bakeStatic(worldGroup);
+
+  // Merge each chunk's scenery, and give it its own patch of ground.
+  for (let cy = -R; cy < R; cy += CHUNK) for (let cx = -R; cx < R; cx += CHUNK) {
+    const g = chunks.get(`${Math.floor(cx / CHUNK)},${Math.floor(cy / CHUNK)}`) ?? new THREE.Group();
+    bakeStatic(g);
+    g.add(groundChunk(cx, cy, (x, y) => detail(x / 6, y / 6)));
+    worldGroup.add(g);
+  }
 }
 
 // ------------------------------------------------------------------ avatar
@@ -145,7 +266,7 @@ function generate(): void {
 const T = defaultAvatarTuning();
 const avatar = new Avatar(0.5, 0.5);
 const heightAt = (x: number, y: number) => cells.get(cellKey(x, y))?.top ?? 0;
-const standable = (x: number, y: number) => cells.get(cellKey(x, y))?.kind !== "tree";
+const standable = (x: number, y: number) => { const k = cells.get(cellKey(x, y))?.kind; return k !== "tree" && k !== "crystal"; };
 const rig = createRig();
 scene.add(rig.object);
 const anim = new RigAnimator(rig);
@@ -154,14 +275,24 @@ const anim = new RigAnimator(rig);
 
 const keys = new Set<string>();
 let jumpQueued = false;
+const stats = document.getElementById("stats")!;
+let showStats = false;
+try { showStats = localStorage.getItem("risen.world.stats") === "1"; } catch { /* storage blocked */ }
+stats.hidden = !showStats;
 addEventListener("keydown", e => {
   const k = e.key.toLowerCase();
   if (k === " ") { e.preventDefault(); if (!e.repeat) jumpQueued = true; return; }
+  // The key left of 1 (backquote; on some layouts it arrives as a dead key or §).
+  if (e.code === "Backquote" || k === "`" || k === "§") {
+    showStats = !showStats; stats.hidden = !showStats;
+    try { localStorage.setItem("risen.world.stats", showStats ? "1" : "0"); } catch { /* storage blocked */ }
+    return;
+  }
   keys.add(k);
 });
 addEventListener("keyup", e => keys.delete(e.key.toLowerCase()));
 addEventListener("blur", () => keys.clear());
-renderer.domElement.addEventListener("wheel", e => { e.preventDefault(); wantZoom = Math.min(24, Math.max(2.5, wantZoom * Math.exp(e.deltaY * 0.0012))); }, { passive: false });
+renderer.domElement.addEventListener("wheel", e => { e.preventDefault(); wantZoom = Math.min(OVERVIEW_ZOOM, Math.max(2.5, wantZoom * Math.exp(e.deltaY * 0.0012))); }, { passive: false });
 addEventListener("resize", () => renderer.setSize(container.clientWidth, container.clientHeight));
 renderer.setSize(container.clientWidth, container.clientHeight);
 const K = Math.SQRT1_2;
@@ -209,12 +340,14 @@ const wrap = (v: number, c: number) => ((((v - c + H) % (2 * H)) + 2 * H) % (2 *
 const TICK = 1 / 60;
 const prev = { x: avatar.x, y: avatar.y, z: avatar.z, facing: avatar.facing };
 const target = new THREE.Vector3(avatar.x, 0, avatar.y);
-let acc = 0, last = performance.now(), zoom = 5, wantZoom = 5;
+let acc = 0, last = performance.now(), zoom = 5, wantZoom = 5, time = 0;
+let fpsFrames = 0, fpsTime = 0, fps = 0;
 const tmp = new THREE.Vector3();
 
 function frame(now: number): void {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
+  time += dt;
   acc += dt;
   let landed = false;
   while (acc >= TICK) {
@@ -231,13 +364,15 @@ function frame(now: number): void {
   const df = Math.atan2(Math.sin(avatar.facing - prev.facing), Math.cos(avatar.facing - prev.facing));
   rig.object.rotation.y = prev.facing + df * alpha;
   anim.update(dt, { speed: avatar.speed, topSpeed: T.speed, grounded: avatar.grounded, vz: avatar.vz, jumpSpeed: (2 * T.jumpHeight) / T.jumpRise, landed, ready: false, mining: false });
+  for (const a of animated) (a.userData.update as ((t: number, dt: number) => void) | undefined)?.(time, dt);
 
   const k = 1 - Math.exp(-dt * 4);
   target.x += (rx - target.x) * k; target.z += (ry - target.z) * k;
   zoom += (wantZoom - zoom) * (1 - Math.exp(-dt * 8));
   // Snow always falls the same way; zoom only changes how many flakes are drawn,
   // fewer when zoomed out, so the snow looks equally dense on screen.
-  const n = Math.min(N, Math.round(SNOW_DENSITY * (SNOW_ZOOM / zoom) ** 2 * (2 * H) ** 2));
+  const fade = 1 - smooth(22, 30, zoom); // the overview is for looking at the land
+  const n = Math.round(Math.min(N, SNOW_DENSITY * (SNOW_ZOOM / zoom) ** 2 * (2 * H) ** 2) * fade);
   sg.setDrawRange(0, n);
   for (let i = 0; i < n; i++) {
     snowPos[i * 3 + 1]! -= snowSpeed[i]! * dt;
@@ -253,7 +388,7 @@ function frame(now: number): void {
   camera.position.copy(target).addScaledVector(CAM_OFFSET, 4);
   camera.lookAt(target.x, 0, target.z);
   // Shadows cover the view, snapped to the shadow map's texels so they don't shimmer.
-  const sc = Math.max(14, zoom * 2.6);
+  const sc = Math.max(14, Math.min(zoom, 30) * 2.6);
   Object.assign(sun.shadow.camera, { left: -sc, right: sc, top: sc, bottom: -sc, near: 0.5, far: 80 });
   sun.shadow.camera.updateProjectionMatrix();
   const texel = (2 * sc) / sun.shadow.mapSize.x, p = tmp.set(target.x, 0, target.z);
@@ -262,6 +397,13 @@ function frame(now: number): void {
   sun.target.position.copy(snapped);
   sun.position.copy(snapped).addScaledVector(LIGHT_DIR, -LIGHT_DIST);
   renderer.render(scene, camera);
+
+  // Performance numbers (the ` key): frames per second, draw calls and triangles this frame.
+  fpsFrames++; fpsTime += dt;
+  if (fpsTime >= 0.5) { fps = fpsFrames / fpsTime; fpsFrames = 0; fpsTime = 0; }
+  const info = renderer.info.render;
+  if (showStats) stats.textContent = `${fps.toFixed(0)} fps · ${info.calls} draws · ${(info.triangles / 1000).toFixed(0)}k tris · zoom ${zoom.toFixed(1)}`;
+  (window as unknown as { perf: object }).perf = { fps, calls: info.calls, tris: info.triangles };
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

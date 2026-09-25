@@ -27,3 +27,5 @@ button { font: inherit; color: inherit; }
 .wheel .it svg { position: static; transform: none; width: 40px; height: 40px; display: block; }
 .wheel .it b { font-size: 14px; line-height: 1; margin-top: -2px; text-shadow: 0 1px 3px rgba(20,18,40,.9); }
 .wheel .it.off { opacity: .35; filter: grayscale(1); }
+.stats { position: absolute; left: 16px; bottom: 16px; font: 600 13px ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: var(--text); background: rgba(28,26,52,.7); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-variant-numeric: tabular-nums; }
+.stats[hidden] { display: none; }
