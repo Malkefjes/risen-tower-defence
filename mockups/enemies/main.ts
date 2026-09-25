@@ -52,7 +52,7 @@ scene.add(rig.object);
 const anim = new RigAnimator(rig);
 
 // Leapers climb out of the cave mouth one after another, walk out in a line, and
-// die about 7 tiles out: they simply burst into dark bits.
+// die about 7 tiles out: they simply burst in a small spray of red.
 let look: EnemyLook = "C";
 const OUT = new THREE.Vector3(Math.SQRT1_2, 0, Math.SQRT1_2); // the way the cave mouth faces
 const START = cave.object.position.clone().addScaledVector(OUT, 0.55);
@@ -61,9 +61,8 @@ interface Walker { e: Enemy; d: number; t: number; dying: number }
 let walkers: Walker[] = [];
 let spawnT = 0;
 const bits: { m: THREE.Mesh; v: THREE.Vector3; life: number }[] = [];
-const bitGeo = new THREE.IcosahedronGeometry(0.035, 0);
-const boneMat = new THREE.MeshStandardMaterial({ color: "#e9e1cf", roughness: 0.7 });
-const bitMat = new THREE.MeshStandardMaterial({ color: "#2a0f44", roughness: 0.8, emissive: "#160626", emissiveIntensity: 0.3 });
+const bitGeo = new THREE.IcosahedronGeometry(0.025, 1);
+const bitMat = new THREE.MeshStandardMaterial({ color: "#b3152a", roughness: 0.6, emissive: "#5a0612", emissiveIntensity: 0.4 });
 function spawn(): void {
   const e = enemyLook(look);
   e.object.rotation.y = Math.atan2(OUT.x, OUT.z);
@@ -121,14 +120,14 @@ function frame(now: number): void {
     w.e.object.position.copy(p);
     w.e.update(w.t, true);
     if (w.d >= DIE_AT) {
-      // Death: it simply bursts into dark bits (and a few bone ones) and is gone.
+      // Death: it simply bursts into a small spray of red and is gone.
       w.dying = 1;
-      for (let i = 0; i < 16; i++) {
-        const m = new THREE.Mesh(bitGeo, i < 3 ? boneMat : bitMat);
+      for (let i = 0; i < 10; i++) {
+        const m = new THREE.Mesh(bitGeo, bitMat);
         m.position.copy(p).setY(0.12);
         scene.add(m);
-        const a = Math.random() * Math.PI * 2, sp = 0.9 + Math.random() * 1.6;
-        bits.push({ m, v: new THREE.Vector3(Math.cos(a) * sp, 1.2 + Math.random() * 1.5, Math.sin(a) * sp), life: 0.8 });
+        const a = Math.random() * Math.PI * 2, sp = 0.4 + Math.random() * 0.8;
+        bits.push({ m, v: new THREE.Vector3(Math.cos(a) * sp, 0.8 + Math.random() * 1.0, Math.sin(a) * sp), life: 0.6 });
       }
     }
   }
