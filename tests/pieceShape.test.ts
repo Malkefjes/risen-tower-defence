@@ -28,7 +28,14 @@ describe("piece outline", () => {
     expect(bb.x1).toBeCloseTo(1.9);
   });
 
-  it("a separate piece next door keeps a seam", () => {
+  it("fuses with a neighbouring wall from another piece", () => {
+    const [left] = pieceOutline([[0, 0]], (x, y) => x === 1 && y === 0);
+    const [right] = pieceOutline([[1, 0]], (x, y) => x === 0 && y === 0);
+    expect(cellBounds(left!, 0.05).x1).toBe(1);
+    expect(cellBounds(right!, 0.05).x0).toBe(1);
+  });
+
+  it("without neighbours, a separate piece next door keeps a seam", () => {
     const [left] = pieceOutline([[0, 0]]);
     const [right] = pieceOutline([[1, 0]]);
     expect(cellBounds(right!, 0.05).x0 - cellBounds(left!, 0.05).x1).toBeCloseTo(0.1);

@@ -21,6 +21,8 @@ export interface ModelParams {
   seed?: number;
   /** World cells of a whole piece, for models built per piece. */
   cells?: readonly Cell[];
+  /** For wall pieces: is there a wall at this cell to fuse with? */
+  joins?: (x: number, y: number) => boolean;
 }
 export type ModelFactory = (p: ModelParams) => THREE.Object3D;
 
@@ -195,7 +197,7 @@ export function createDefaultModels(mat: Materials, glow: Glows): ModelLibrary {
    * keep a seam. The orange armor is one mesh named "body" (the view swaps its
    * material for hover and pick-up states).
    */
-  lib.register("wallPiece", ({ cells = [], variant = 0 }) => armoredPiece(mat, cells, variant));
+  lib.register("wallPiece", ({ cells = [], joins }) => armoredPiece(mat, cells, joins));
 
   lib.register("rock", ({ scale = 13, seed = 0 }) => {
     const g = new THREE.Group(), k = scale / 13;
@@ -300,7 +302,7 @@ export function createDefaultModels(mat: Materials, glow: Glows): ModelLibrary {
   return lib;
 }
 
-function armoredPiece(mat: Materials, cells: readonly Cell[], variant: number): THREE.Object3D {
+function armoredPiece(mat: Materials, cells: readonly Cell[], joins?: (x: number, y: number) => boolean): THREE.Object3D {
   const parts = new Map<THREE.Material, THREE.BufferGeometry[]>();
   const add = (m: THREE.Material, x0: number, x1: number, y0: number, y1: number, z0: number, z1: number) => {
     const g = new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0);
@@ -321,8 +323,8 @@ function armoredPiece(mat: Materials, cells: readonly Cell[], variant: number): 
     else if (side === "w") add(m, b.x0 - d, b.x0 + d, y0, y1, b.z0, b.z1);
     else add(m, b.x1 - d, b.x1 + d, y0, y1, b.z0, b.z1);
   };
-  const body = variant ? mat.wallB : mat.wallA;
-  for (const c of pieceOutline(cells)) {
+  const body = mat.wallA;
+  for (const c of pieceOutline(cells, joins)) {
     box(mat.gunDark, c, 0.03, 0, 0.12);
     box(body, c, 0.07, 0.1, 0.5);
     box(mat.deck, c, 0.05, 0.5, DECK_TOP);

@@ -70,6 +70,7 @@ export class GameView {
   private models: ModelLibrary;
   private sun: THREE.DirectionalLight;
   private pieces = new Map<number, PieceView>();
+  private wallSig = "";
   private walkers = new Map<number, THREE.Object3D>();
   private towers = new Map<number, TowerView>();
   private bolts: Bolt[] = [];
@@ -416,7 +417,8 @@ export class GameView {
   }
 
   private buildPiece(p: PlacedPiece): PieceView {
-    const group = this.models.create("wallPiece", { cells: p.cells, variant: p.id % 2 });
+    const walls = this.game.world.walls;
+    const group = this.models.create("wallPiece", { cells: p.cells, joins: (x, y) => walls.has(`${x},${y}`) });
     const bodies: THREE.Mesh[] = [];
     group.traverse(c => { if (c.name === "body") bodies.push(c as THREE.Mesh); });
     this.scene.add(group);
@@ -424,18 +426,29 @@ export class GameView {
   }
 
   private syncPieces(hoverId: number | null): void {
-    const alive = new Set<number>();
+    // Walls fuse with their neighbours, so when the set of walls changes, rebuild every piece.
+    const sig = this.game.pieces.map(p => p.id).join(",");
+    if (sig !== this.wallSig) {
+      this.wallSig = sig;
+      for (const [id, v] of this.pieces) {
+        this.scene.remove(v.group);
+        v.group.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).geometry.dispose(); });
+        const p = this.game.pieces.find(q => q.id === id);
+        if (!p) { this.pieces.delete(id); continue; }
+        const fresh = this.buildPiece(p);
+        fresh.drop = v.drop;
+        fresh.group.position.y = v.group.position.y;
+        this.pieces.set(id, fresh);
+      }
+    }
     for (const p of this.game.pieces) {
-      alive.add(p.id);
       let v = this.pieces.get(p.id);
       if (!v) { v = this.buildPiece(p); this.pieces.set(p.id, v); }
-      const variant = p.id % 2;
-      const m = p.id === hoverId ? this.mat.wallHover : p.locked ? (variant ? this.mat.wallB : this.mat.wallA) : (variant ? this.mat.wallLooseB : this.mat.wallLooseA);
+      const m = p.id === hoverId ? this.mat.wallHover : p.locked ? this.mat.wallA : this.mat.wallLooseA;
       for (const b of v.bodies) b.material = m;
     }
-    for (const [id, v] of this.pieces) if (!alive.has(id)) { this.scene.remove(v.group); this.pieces.delete(id); }
     const pulse = 0.12 + 0.1 * (0.5 + 0.5 * Math.sin(this.time * 3));
-    this.mat.wallLooseA.emissiveIntensity = this.mat.wallLooseB.emissiveIntensity = pulse;
+    this.mat.wallLooseA.emissiveIntensity = pulse;
   }
 
   private syncWalkers(simDt: number): void {

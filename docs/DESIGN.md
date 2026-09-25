@@ -87,7 +87,7 @@ The first world, Frostfall, is a snowy planet with a cozy mood: cold world, warm
 Locked: clean low-poly 3D, rendered with three.js through a fixed isometric-style camera. The base should read as a stronghold: a high-tech colony holding ground on a hostile planet.
 
 - **Palette:** colony orange, cyan power, dark steel, and white (snow and light accents). Violet belongs to the aliens.
-- **Walls: Armored deck** (from `mockups/stronghold/`): cells of a piece fuse into one hull and neighbouring pieces keep a seam. Dark steel plinth, orange armor, steel gun deck on top, a thin cyan power line along the outside. The power line is dim until power exists, then lights on powered walls.
+- **Walls: Armored deck** (from `mockups/stronghold/`): walls fuse with every neighbouring wall, whatever piece it came from, so a wall line is one continuous structure. One orange for all walls. Dark steel plinth, orange armor, steel gun deck on top, a thin cyan power line along the outside. The power line is dim until power exists, then lights on powered walls.
 - **Ship:** gets its own mockup, with its engine core based on the Reactor core (nexus A in `mockups/stronghold/`).
 - **Turret:** Twin / Gatling (design B from `mockups/turrets/`).
 - **Style:** simple low-poly shapes, soft light and shadows. Lighting carries much of the mood.
@@ -121,7 +121,7 @@ Not locked yet: zoom range, final model shapes.
 | Power | Through walls, from generators and the ship |
 | Visual style | Clean low-poly 3D, fixed iso-style camera, evening light |
 | Palette | Colony orange, cyan power, dark steel, white; violet aliens |
-| Walls look | Armored deck |
+| Walls look | Armored deck; neighbouring walls fuse seamlessly; one orange |
 | Map | No edge; enemies can always go around |
 | Movement | 8 directions, no corner cutting |
 | Tower sizes | Multiple footprints on wall blocks; a footprint may span several wall pieces |

@@ -7,12 +7,13 @@ export const SIDES: readonly Side[] = ["n", "s", "w", "e"];
 export interface OutlineCell { x: number; y: number; open: Record<Side, boolean> }
 
 /**
- * Which side of each cell faces outside its piece. Cells of one piece fuse
- * along shared sides; open sides get an inset, so neighbouring pieces keep a seam.
+ * Which side of each cell faces open ground. A side fuses (no inset) when the
+ * neighbouring cell is part of this piece, or any other wall if `joins` says so,
+ * so walls placed side by side snap into one continuous structure.
  */
-export function pieceOutline(cells: readonly Cell[]): OutlineCell[] {
+export function pieceOutline(cells: readonly Cell[], joins?: (x: number, y: number) => boolean): OutlineCell[] {
   const own = new Set(cells.map(([x, y]) => `${x},${y}`));
-  const has = (x: number, y: number) => own.has(`${x},${y}`);
+  const has = (x: number, y: number) => own.has(`${x},${y}`) || (joins?.(x, y) ?? false);
   return cells.map(([x, y]) => ({
     x, y,
     open: { n: !has(x, y - 1), s: !has(x, y + 1), w: !has(x - 1, y), e: !has(x + 1, y) },
