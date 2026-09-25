@@ -4,8 +4,8 @@ import { refineryLook, type Refinery, type RefineryLook } from "../../src/render
 import { createRig, RigAnimator } from "../../src/render/rig";
 import "./style.css";
 
-// The refinery (3×3): raw metal in, metal alloy out. Three looks, A, B, C, on a 3×3
-// footprint (the faint grid), with the rig and pines for scale. Drag to pan, scroll to zoom.
+// The refinery: raw metal in, metal alloy out. A (picked) is the furnace on a 2×2
+// footprint (the faint grid); B and C are the 3×3 alternatives, with the rig and pines for scale. Drag to pan, scroll to zoom.
 
 THREE.ColorManagement.enabled = false;
 
@@ -36,7 +36,7 @@ ground.receiveShadow = true;
 scene.add(ground);
 
 // Cell grid around the footprint, so the 3×3 reads.
-const grid = new THREE.GridHelper(9, 9, "#b9b6d6", "#b9b6d6");
+const grid = new THREE.GridHelper(10, 10, "#b9b6d6", "#b9b6d6");
 (grid.material as THREE.Material).transparent = true;
 (grid.material as THREE.Material).opacity = 0.35;
 grid.position.y = 0.004;

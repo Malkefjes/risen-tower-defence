@@ -3,16 +3,16 @@ import { roundedBox } from "./models";
 import { colonyOrange } from "./palette";
 
 /**
- * The refinery (3×3): takes raw metal in and puts metal alloy out. Three looks for
+ * The refinery: takes raw metal in and puts metal alloy out. Erik picked A, trimmed to
+ * just the furnace on a 2×2 footprint (B and C stay 3×3 for reference). Three looks for
  * Erik to pick from (mockups/refinery), all in the colony palette: deck greys, dark
  * steel, colony orange, cyan power, with a warm molten glow where the metal melts.
- *   A  Smelter stack: a round furnace with a molten window and a tall chimney; a
- *      hopper of raw metal feeds it, alloy bars stack up on a tray beside it.
+ *   A  Smelter stack (picked, 2×2): a round furnace with a molten window and a tall chimney.
  *   B  Arc line: a low hall with a snowy roof and a conveyor in front of it; raw
  *      chunks ride in, pass under a cyan arc gantry and come out as bars.
  *   C  Crucible tanks: three tanks round a caged crucible of molten metal with a
  *      spinning cyan ring; pipes feed it, a chute drops bars at the front.
- * Built facing +z (the front), standing on y = 0, inside -1.5..1.5 on x and z.
+ * Built facing +z (the front), standing on y = 0, centred on its footprint.
  */
 export type RefineryLook = "A" | "B" | "C";
 
@@ -127,38 +127,19 @@ function smoke(g: THREE.Group, x: number, y: number, z: number): (t: number) => 
 
 function lookA(): Refinery {
   const m = mats(), g = new THREE.Group();
-  plinth(g);
-  const fx = -0.15, fz = -0.2;
-  // Furnace: a squat round body with an orange band, a hot window at the front.
-  g.add(cyl(0.72, 0.28, m.hullShade, fx, 0.14, fz, 24));
-  g.add(cyl(0.64, 1.0, m.hull, fx, 0.42, fz, 24));
-  g.add(cyl(0.66, 0.12, m.orange, fx, 0.95, fz, 24));
-  g.add(cyl(0.5, 0.22, m.hullShade, fx, 1.42, fz, 24, 0.36));
-  const win = rbox(0.42, 0.26, 0.1, 0.03, m.molten, fx, 0.56, fz + 0.6);
-  g.add(win, rbox(0.54, 0.36, 0.06, 0.03, m.steelDark, fx, 0.51, fz + 0.575));
-  // Chimney with an orange tip, puffing.
-  g.add(cyl(0.16, 0.95, m.hullShade, fx + 0.1, 1.64, fz - 0.1, 14));
-  g.add(cyl(0.18, 0.1, m.orange, fx + 0.1, 2.52, fz - 0.1, 14));
-  const puff = smoke(g, fx + 0.1, 2.7, fz - 0.1);
-  // Hopper of raw metal (front-left) with a chute into the furnace.
-  const hx = -1.0, hz = 0.72;
-  for (const [dx, dz] of [[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2]] as const) g.add(box(0.05, 0.62, 0.05, m.steelDark, hx + dx, 0.14, hz + dz));
-  const hop = cyl(0.2, 0.42, m.hull, hx, 0.62, hz, 4, 0.46);
-  hop.rotation.y = Math.PI / 4;
-  g.add(hop, box(0.62, 0.05, 0.62, m.orange, hx, 1.02, hz));
-  g.add(chunks(9, hx, 0.98, hz, 0.4, 7));
-  const chute = box(0.14, 0.1, 0.62, m.steelDark, hx + 0.36, 0.7, hz - 0.36);
-  chute.rotation.y = -Math.PI / 4;
-  g.add(chute);
-  // Tray of alloy bars (front-right).
-  g.add(rbox(0.72, 0.1, 0.62, 0.03, m.steelDark, 0.95, 0.14, 0.9));
-  g.add(ingotStack(0.95, 0.24, 0.9));
-  // A pour spout from the furnace down to the tray.
-  const spout = box(0.12, 0.08, 0.5, m.hullShade, 0.55, 0.62, 0.45);
-  spout.rotation.y = Math.PI / 4;
-  g.add(spout);
+  // Just the building, standing on the snow in the middle of its 2×2: a round furnace
+  // with an orange band, a hot window at the front, and a chimney puffing smoke.
+  g.add(cyl(0.86, 0.3, m.hullShade, 0, 0, 0, 24));
+  g.add(cyl(0.77, 1.2, m.hull, 0, 0.3, 0, 24));
+  g.add(cyl(0.79, 0.14, m.orange, 0, 0.93, 0, 24));
+  g.add(cyl(0.6, 0.26, m.hullShade, 0, 1.5, 0, 24, 0.43));
+  const win = rbox(0.5, 0.31, 0.1, 0.03, m.molten, 0, 0.5, 0.73);
+  g.add(win, rbox(0.65, 0.43, 0.06, 0.03, m.steelDark, 0, 0.44, 0.7));
+  g.add(cyl(0.19, 1.1, m.hullShade, 0.12, 1.76, -0.12, 14));
+  g.add(cyl(0.21, 0.12, m.orange, 0.12, 2.8, -0.12, 14));
+  const puff = smoke(g, 0.12, 3.0, -0.12);
   // Snow settled on the furnace's shoulder, round the chimney.
-  g.add(mesh(new THREE.TorusGeometry(0.47, 0.07, 6, 24).rotateX(Math.PI / 2), m.snow, fx, 1.43, fz));
+  g.add(mesh(new THREE.TorusGeometry(0.56, 0.08, 6, 24).rotateX(Math.PI / 2), m.snow, 0, 1.52, 0));
   shadowAll(g);
   return {
     object: g,
