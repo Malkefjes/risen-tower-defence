@@ -18,7 +18,9 @@ let M: ReturnType<typeof palette> | undefined;
 // so it reads as living tissue, not ice or glass; a faint glow keeps it purple at dusk.
 const palette = () => {
   const flesh = new THREE.MeshStandardMaterial({ color: "#2a0f44", roughness: 0.8, metalness: 0, emissive: "#160626", emissiveIntensity: 0.3 });
-  return { chitin: flesh, chitinDark: flesh, hide: flesh, bone: flesh, eye: new THREE.MeshBasicMaterial({ color: "#0d1a2a" }) };
+  // Blades and the stinger are bone white (Erik), matte like the body.
+  const bone = new THREE.MeshStandardMaterial({ color: "#e9e1cf", roughness: 0.7, metalness: 0 });
+  return { chitin: flesh, chitinDark: flesh, hide: flesh, bone, eye: new THREE.MeshBasicMaterial({ color: "#0d1a2a" }) };
 };
 void std;
 
