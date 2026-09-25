@@ -38,9 +38,10 @@ scene.add(ground);
 
 // ------------------------------------------------------------------ ore nodes
 
+const NODE_YIELD: Record<NodeKind, number> = { stone: 1000, metal: 500 };
 interface Node { x: number; y: number; n: number; kind: NodeKind; amount: number; max: number; model: OreNodeModel; emptyFor: number }
 const node = (x: number, y: number, n: number, kind: NodeKind, seed: number): Node => {
-  const max = n === 2 ? 40 : 100;
+  const max = NODE_YIELD[kind];
   return { x, y, n, kind, amount: max, max, model: createOreNode(n, seed, kind), emptyFor: 0 };
 };
 // One node size (3×3), like Rust. Stone on the left, metal on the right.
@@ -79,7 +80,8 @@ const rig = createRig();
 scene.add(rig.object);
 const anim = new RigAnimator(rig);
 
-const MINE_RATE = 12; // ore per second
+/** Yield per node, and mining rate per second: a node takes the same time to mine out either way. */
+const MINE_TIME = 25 / 3; // seconds per node (about 2.8 s per break stage)
 const RESPAWN = 20; // seconds an empty node stays gone
 const carried: Record<NodeKind, number> = { stone: 0, metal: 0 };
 
@@ -186,7 +188,7 @@ function frame(now: number): void {
     jumpQueued = false;
     landed ||= avatar.landed;
     if (mining && target_) {
-      const got = Math.min(target_.amount, MINE_RATE * TICK);
+      const got = Math.min(target_.amount, (target_.max / MINE_TIME) * TICK);
       target_.amount -= got;
       carried[target_.kind] += got;
       for (const p of target_.model.setAmount(target_.amount / target_.max)) breakBurst(p, target_.kind);
