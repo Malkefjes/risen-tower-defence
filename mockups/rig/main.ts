@@ -66,9 +66,9 @@ const rbox = (w: number, h: number, d: number, r: number, m: THREE.Material, x =
 // ------------------------------------------------------------------ the rig
 
 /** A limb hanging from a pivot: upper segment, joint, lower segment. */
-function limb(parent: THREE.Object3D, x: number, y: number, upper: number, lower: number, w: number) {
-  const top = new THREE.Group(); top.position.set(x, y, 0); parent.add(top);
-  top.add(mesh(new THREE.SphereGeometry(w * 0.6, 10, 8), M.steel));
+function limb(parent: THREE.Object3D, x: number, y: number, upper: number, lower: number, w: number, z = 0, joint = 0.6) {
+  const top = new THREE.Group(); top.position.set(x, y, z); parent.add(top);
+  top.add(mesh(new THREE.SphereGeometry(w * joint, 10, 8), M.steel));
   top.add(rbox(w, upper, w, w * 0.25, M.suit, 0, -upper, 0));
   const mid = new THREE.Group(); mid.position.y = -upper; top.add(mid);
   mid.add(mesh(new THREE.SphereGeometry(w * 0.55, 10, 8), M.steel));
@@ -90,7 +90,7 @@ function buildRig() {
   root.add(body);
 
   // Waist and torso: the torso is exactly as wide as the hips and legs.
-  body.add(rbox(TORSO_W * 0.85, WAIST_H, TORSO_D * 0.85, 0.02, M.steelDark, 0, HIP_Y - WAIST_H * 0.5, 0));
+  body.add(rbox(TORSO_W * 0.8, WAIST_H, TORSO_D * 0.7, 0.02, M.steelDark, 0, HIP_Y - WAIST_H * 0.5, -0.008));
   body.add(rbox(TORSO_W, TORSO_H, TORSO_D, 0.045, M.suit, 0, TORSO_Y, 0));
   const chestZ = TORSO_D / 2 + bulge(0.045, TORSO_H);
   body.add(box(TORSO_W * 0.62, 0.1, 0.02, M.orange, 0, TORSO_Y + 0.12, chestZ));
@@ -110,23 +110,35 @@ function buildRig() {
   const packFace = backZ - PACK_D / 2 - bulge(0.025, PACK_H);
   body.add(rbox(TORSO_W * 0.95, PACK_H, PACK_D, 0.025, M.steel, 0, TORSO_TOP - PACK_H, backZ));
   body.add(mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.015, 14).rotateX(Math.PI / 2), M.power, 0, TORSO_TOP - 0.065, packFace - 0.005));
-  const load = [-1, 0, 1].map(i => { const c = box(0.04, 0.055, 0.02, M.ore, i * 0.05, TORSO_TOP - PACK_H + 0.035, packFace - 0.008); body.add(c); return c; });
+  const load: THREE.Object3D[] = [];
 
   // Legs with boots.
   const legs = [-1, 1].map(sx => {
-    const l = limb(root, sx * HIP_W, HIP_Y, THIGH, SHIN, LEG_W);
+    // Hips sit slightly behind the torso's centre line with small joints, so they don't jut out in front.
+    const l = limb(root, sx * HIP_W, HIP_Y, THIGH, SHIN, LEG_W, -0.012, 0.5);
     l.end.add(rbox(LEG_W * 1.1, FOOT_H, 0.14, 0.015, M.steelDark, 0, -FOOT_H, 0.025));
     l.end.add(box(LEG_W * 1.12, FOOT_H * 0.55, 0.04, M.orange, 0, -FOOT_H, 0.08));
     return l;
   });
   // Arms from the top corners of the torso.
   const arms = [-1, 1].map(sx => limb(body, sx * (TORSO_W / 2 + ARM_W / 2), TORSO_TOP - 0.03, UPPER_ARM, FOREARM, ARM_W));
-  const bit = mesh(new THREE.ConeGeometry(ARM_W * 0.5, 0.12, 8), M.steelLight, 0, -0.1, 0);
-  bit.rotation.x = Math.PI;
-  arms[1]!.end.add(box(ARM_W * 1.2, ARM_W, ARM_W * 1.2, M.orange, 0, -ARM_W * 0.8, 0), bit);
-  for (const dx of [-1, 0, 1]) arms[0]!.end.add(box(0.014, 0.05, 0.02, M.steelDark, dx * 0.019, -0.05, 0.01));
+  // Multitool: a blocky prefab tool gun held in the right hand, kept level in the body's frame.
+  const tool = new THREE.Group();
+  tool.position.y = -0.02;
+  arms[1]!.end.add(tool);
+  tool.add(box(0.03, 0.06, 0.035, M.steelDark, 0, -0.035, -0.015));            // grip, in the hand
+  tool.add(rbox(0.05, 0.055, 0.16, 0.012, M.suit, 0, 0.015, 0.035));            // body
+  for (const sx of [-1, 1]) tool.add(box(0.004, 0.028, 0.08, M.orange, sx * (0.025 + bulge(0.012, 0.055)), 0.028, 0.03)); // side panels
+  tool.add(box(0.034, 0.034, 0.06, M.steelDark, 0, 0.025, 0.14));               // barrel
+  const emitter = box(0.024, 0.024, 0.012, M.power, 0, 0.03, 0.175);            // cyan emitter
+  tool.add(emitter);
+  const beam = mesh(new THREE.CylinderGeometry(0.007, 0.007, 1, 6).rotateX(Math.PI / 2).translate(0, 0, 0.5), M.power, 0, 0.042, 0.18);
+  beam.scale.z = 0.3;
+  beam.visible = false;
+  tool.add(beam);
+  const bit = beam;
 
-  return { root, body, legs, arms, bit, load };
+  return { root, body, legs, arms, bit, load, tool, beam, emitter };
 }
 
 const rig = buildRig();
@@ -166,17 +178,17 @@ function animate(t: number): void {
       poseLeg(legs[i]!, -swing, lift + 0.08);
     });
     poseArm(arms[0]!, Math.sin(s) * 0.45, -0.35);
-    poseArm(arms[1]!, Math.sin(s + Math.PI) * 0.45, -0.35);
+    poseArm(arms[1]!, -0.25 + Math.sin(s + Math.PI) * 0.15, -0.9);
     body.position.y = -0.012 + Math.abs(Math.sin(s)) * 0.02;
     body.rotation.set(0.04, Math.sin(s) * 0.05, 0);
   } else if (pose === "idle") {
     poseLeg(legs[0]!, 0, 0.06); poseLeg(legs[1]!, 0, 0.06);
-    poseArm(arms[0]!, 0.05, -0.2); poseArm(arms[1]!, 0.05, -0.2);
+    poseArm(arms[0]!, 0.05, -0.2); poseArm(arms[1]!, -0.2, -0.9);
     body.position.y = Math.sin(t * 2) * 0.004;
     body.rotation.set(0, 0, 0);
   } else {
     poseLeg(legs[0]!, -0.3, 0.3); poseLeg(legs[1]!, 0.25, 0.1);
-    poseArm(arms[1]!, -1.3 + Math.sin(t * 14) * 0.05, -0.2);
+    poseArm(arms[1]!, -1.25 + Math.sin(t * 14) * 0.02, -0.25);
     poseArm(arms[0]!, -0.6, -0.7);
     body.position.y = -0.02;
     body.rotation.set(0.14, -0.1, 0);
@@ -189,8 +201,12 @@ function animate(t: number): void {
     }));
     rig.root.position.y = -planted * SCALE;
   } else rig.root.position.y = 0;
-  bit.rotation.y = pose === "mine" ? t * 40 : 0;
-  rig.load.forEach((c, i) => { c.visible = pose === "mine" ? i < Math.floor((t % 3) / 0.75) : true; });
+  // Keep the multitool level whatever the arm does; fire the beam while mining.
+  const arm = arms[1]!;
+  rig.tool.rotation.x = -(arm.top.rotation.x + arm.mid.rotation.x);
+  rig.beam.visible = pose === "mine";
+  rig.beam.scale.z = 0.28 + Math.sin(t * 40) * 0.02;
+  void bit;
 }
 
 // Rocket nearby for scale.
@@ -249,7 +265,7 @@ function frame(): void {
 
   if (pose === "mine" && Math.random() < dt * 30) {
     rig.root.updateMatrixWorld(true);
-    rig.bit.getWorldPosition(tip);
+    rig.beam.localToWorld(tip.set(0, 0, 1));
     const m = new THREE.Mesh(sparkGeo, sparkMat);
     m.position.copy(tip);
     scene.add(m);
