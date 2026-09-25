@@ -205,7 +205,7 @@ export class RigAnimator {
     }
     this.apply(p);
     this.rig.beam.visible = m.mining;
-    this.rig.beam.scale.z = 0.55 + Math.sin(t * 40) * 0.03;
+    this.rig.beam.scale.z = 1.1 + Math.sin(t * 40) * 0.06;
 
     // Keep the lower foot on the ground while grounded; add the run's flight bounce.
     const drops = this.rig.legs.map(l => {

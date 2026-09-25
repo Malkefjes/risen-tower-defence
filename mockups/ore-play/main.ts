@@ -81,7 +81,7 @@ const heightAt = (x: number, y: number) => (nodeAt(x, y) ? Infinity : 0);
  * 30°, so ground distance toward or away from it looks half as long; measuring in
  * screen space makes the reach look the same on every side, at every stage.
  */
-const REACH = 1.2;
+const REACH = 1.5;
 const SQUASH = Math.sin(Math.atan2(CAM_OFFSET.y, Math.hypot(CAM_OFFSET.x, CAM_OFFSET.z)));
 function toScreen(x: number, y: number): [number, number] {
   return [(x - y) / Math.SQRT2, ((x + y) / Math.SQRT2) * SQUASH];
