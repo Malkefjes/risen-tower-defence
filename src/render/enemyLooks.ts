@@ -6,7 +6,7 @@ import * as THREE from "three";
  * All face +z, stand on y = 0, and animate a walk from `update(t, walking)`.
  *   A: a gaunt, a hunched biped on digitigrade legs with two scything blades.
  *   B: a crawler, low and six-legged, a segmented back and mantis blades held high.
- *   C: a leaper, long springing hind legs, a spined ridge, blades and small claws.
+ *   C: a leaper, long springing hind legs, blades and small claws (Erik's pick: no eyes, no horns).
  */
 export type EnemyLook = "A" | "B" | "C";
 
@@ -148,15 +148,11 @@ export function enemyLook(look: EnemyLook): Enemy {
     // Leaper: long springing hind legs, torso leaning forward, spines down the back, a long tail.
     body.position.y = 0.52;
     const torso = plate(0.28, 0.26, 0.46, m.hide); torso.rotation.x = 0.3; body.add(torso);
-    for (let i = 0; i < 5; i++) {
-      const sp = new THREE.ConeGeometry(0.035, 0.14 - i * 0.015, 4);
-      const o = mesh(sp, i % 2 ? m.bone : m.chitinDark, 0, 0.15 - i * 0.03, 0.16 - i * 0.1); o.rotation.x = -0.5; body.add(o);
-    }
     const back = plate(0.3, 0.1, 0.46, m.chitin); back.position.set(0, 0.1, 0); back.rotation.x = 0.25; body.add(back);
-    head = joint(body, 0, 0.12, 0.28);
+    // The head carries on the downward slope of the back.
+    head = joint(body, 0, 0.06, 0.29);
+    head.rotation.x = 0.45;
     const skull = plate(0.17, 0.14, 0.3, m.chitin); skull.position.z = 0.08; head.add(skull);
-    const horn = new THREE.ConeGeometry(0.03, 0.2, 4); horn.rotateX(-1.1);
-    head.add(mesh(horn, m.bone, 0, 0.1, -0.02));
     for (const s of [-1, 1]) {
       const l = legChain(body, s * 0.12, -0.08, -0.14, 0.26, 0.3, 0.2, 0.05, s > 0 ? 0 : Math.PI);
       l.lift = 0.45; l.swing = 0.55;
