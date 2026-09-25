@@ -26,7 +26,7 @@ Whether it ends up feeling more like tower defense or more like survival should 
 - **Arrive:** a drop pod lands you on the planet. Explore on foot and find ore nodes.
 - **Settle:** call the ship down where you think you can hold it. The ship is your core: it holds your cargo, prints walls, and is how you leave. Losing it ends the run.
 - **Mine:** by hand at first (carry ore home), then extractors on nodes, then a rover and drones to haul.
-- **Build:** walls bought with stone, towers, refinery, generators.
+- **Build:** walls bought with stone, towers, the smelter, generators.
 - **Defend:** raids are telegraphed (a threat meter, warnings with direction). They come from burrows around the map.
 - **Launch:** you choose when to leave. Launching triggers a final siege. The ship carries over to the next planet.
 
@@ -115,7 +115,9 @@ Not locked yet: zoom range, final model shapes.
 | Core | The ship replaces the nexus; losing it ends the run |
 | Player | Avatar builder; hand mining, then extractors, rover, drones |
 | Building range | Only near the avatar (later drones) |
-| Resources | Ore, alloy, power; physical up to the ship |
+| Resources | Stone, raw metal, alloy, power; physical up to the ship |
+| Smelter | 2×2 building on open ground (E → Buildings → Smelter), 500 stone + 300 raw metal; holds 2 stacks of raw metal in and 2 of alloy out, smelts 1:1 at 5/s like a Rust furnace; blocks enemies like a wall; enemies will attack it (next step) |
+| Alloy | Pays for towers and metal plating. Raw metal is only good for the smelter. Runs start with 400 stone, 0 raw metal, 150 alloy |
 | Threat | Grows with extraction and base size; raids are telegraphed |
 | Attack targets | Every building; walls are walked around (wall breakers excepted) |
 | Wall supply | Buy any shape with stone from the Q wheel (no supply drops) |

@@ -23,6 +23,16 @@ export function platingIcon(): string {
   return `<svg viewBox="0 0 44 44" aria-hidden="true"><rect x="6" y="20" width="32" height="14" rx="2" fill="#d9573a" stroke="#f08a66"/><rect x="5" y="14" width="34" height="7" rx="2" fill="#4a5266"/><rect x="8" y="26" width="28" height="2" fill="#7ff5e6"/><rect x="6" y="33" width="32" height="3" fill="#2c3142"/></svg>`;
 }
 
+/** The smelter, front on: a round furnace with an orange band, a framed glowing window and a chimney. */
+export function smelterIcon(): string {
+  return `<svg viewBox="0 0 44 44" aria-hidden="true"><rect x="24" y="3" width="6" height="12" fill="#3d4457"/><rect x="23" y="2" width="8" height="3" rx="1" fill="#d9573a"/><path d="M9 16 Q22 11 35 16 L35 38 Q22 42 9 38 Z" fill="#4a5266"/><path d="M9 21 Q22 17 35 21 L35 24 Q22 20 9 24 Z" fill="#d9573a"/><rect x="15" y="27" width="14" height="9" fill="#2c3142"/><rect x="17" y="29" width="10" height="5" fill="#ffb347"/><path d="M7 37 Q22 43 37 37 L37 40 Q22 45 7 40 Z" fill="#3d4457"/></svg>`;
+}
+
+/** Buildings, on the tower wheel: a small colony block with a lit door. */
+export function buildingsIcon(): string {
+  return `<svg viewBox="0 0 44 44" aria-hidden="true"><path d="M6 20 L22 9 L38 20 Z" fill="#3d4457"/><rect x="9" y="20" width="26" height="17" fill="#4a5266"/><rect x="9" y="20" width="26" height="3" fill="#d9573a"/><rect x="19" y="27" width="7" height="10" fill="#ffd79a"/><rect x="11" y="27" width="5" height="4" fill="#7ff5e6"/><rect x="29" y="27" width="4" height="4" fill="#7ff5e6"/><rect x="6" y="37" width="32" height="3" fill="#2c3142"/></svg>`;
+}
+
 /** Small SVG of a tower seen from above, for build cards. */
 export function towerIcon(kind: TowerKind): string {
   const hex = (r: number) => Array.from({ length: 6 }, (_, i) => {
@@ -56,8 +66,11 @@ const GAIN_HOLD = 1, GAIN_FADE = 0.5;
 
 /** DOM overlay: status, hotbar, wave button, notices. Re-renders only on change. */
 export class Hud {
+  /** The smelter whose panel is open, set by the input layer each frame. */
+  smelterId: number | null = null;
   private lastSig = "";
   private barSig = "";
+  private smelterSig = "";
   private toastTimer = 0;
   private icons = itemIcons();
   /** "+N" over the node a stage just broke off (adds up if stages break close together). */
@@ -66,6 +79,17 @@ export class Hud {
   constructor(private game: Game, private h: HudHandlers) {
     $("waveBtn").addEventListener("click", () => h.startWave());
     $("restartBtn").addEventListener("click", () => h.restart());
+    // With a smelter open, click a raw metal stack in the hotbar to put it in, and
+    // click a smelter slot to take what's in it.
+    $("hotbar").addEventListener("click", e => {
+      const i = Number((e.target as HTMLElement).closest<HTMLElement>(".slot")?.dataset.i);
+      if (this.smelterId !== null && Number.isInteger(i)) this.game.smelterPut(this.smelterId, i);
+    });
+    $("smelter").addEventListener("click", e => {
+      const el = (e.target as HTMLElement).closest<HTMLElement>(".slot");
+      if (this.smelterId === null || !el?.dataset.from) return;
+      this.game.smelterTake(this.smelterId, el.dataset.from as "input" | "output", Number(el.dataset.i));
+    });
   }
 
   /** React to this frame's game events (notices, HP flash). */
@@ -84,6 +108,14 @@ export class Hud {
     }
   }
 
+  /** One inventory slot. `mode`: "take" can be clicked, "dim" can't be used here. */
+  private slotHtml(s: { kind: keyof typeof STACK_MAX; count: number } | null, i: number, on: boolean, mode: "" | "take" | "dim", from?: "input" | "output"): string {
+    const cls = `slot${on ? " on" : ""}${mode ? ` ${mode}` : ""}`;
+    const data = `data-i="${i}"${from ? ` data-from="${from}"` : ""}`;
+    const inner = s ? `<img alt="" src="${this.icons[s.kind]}">` + (STACK_MAX[s.kind] > 1 ? `<b>x${s.count}</b>` : "") : "";
+    return `<div class="${cls}" ${data}>${inner}</div>`;
+  }
+
   toast(msg: string, kind: "error" | "info" = "error"): void {
     const t = $("toast");
     t.textContent = msg;
@@ -95,12 +127,35 @@ export class Hud {
   /** Per frame: the hotbar, and the "+N" popup. `dt` in real seconds. */
   frame(dt: number, project: Projector): void {
     const g = this.game, bar = g.hotbar;
-    const sig = bar.selected + "|" + bar.slots.map(s => (s ? s.kind + s.count : "")).join(",");
+    const open = g.smelters.find(s => s.id === this.smelterId);
+    const sig = bar.selected + "|" + bar.slots.map(s => (s ? s.kind + s.count : "")).join(",") + "|" + !!open;
     if (sig !== this.barSig) {
       this.barSig = sig;
-      $("hotbar").innerHTML = bar.slots.map((s, i) =>
-        `<div class="slot${i === bar.selected ? " on" : ""}">${s ? `<img alt="" src="${this.icons[s.kind]}">` + (STACK_MAX[s.kind] > 1 ? `<b>x${s.count}</b>` : "") : ""}</div>`).join("");
+      const hb = $("hotbar");
+      hb.classList.toggle("open", !!open);
+      hb.innerHTML = bar.slots.map((s, i) => this.slotHtml(s, i, i === bar.selected, open ? (s?.kind === "metal" ? "take" : "dim") : "")).join("");
     }
+    // The open smelter: raw metal in, a progress arrow, alloy out.
+    const panel = $("smelter");
+    panel.hidden = !open;
+    if (open) {
+      // Built once per smelter; after that only what's inside each slot changes, so a
+      // click never lands on a slot that was replaced mid-press (it smelts several a second).
+      if (this.smelterSig !== String(open.id)) {
+        this.smelterSig = String(open.id);
+        const empty = (from: string) => [0, 1].map(i => `<div class="slot" data-i="${i}" data-from="${from}"></div>`).join("");
+        panel.innerHTML = `<h3>Smelter</h3><div class="row"><div class="slots">${empty("input")}</div><div class="arrow"><i></i></div><div class="slots">${empty("output")}</div></div>`;
+      }
+      for (const el of panel.querySelectorAll<HTMLElement>(".slot")) {
+        const s = open[el.dataset.from as "input" | "output"].slots[Number(el.dataset.i)] ?? null;
+        const sig = s ? s.kind + s.count : "";
+        if (el.dataset.sig === sig) continue;
+        el.dataset.sig = sig;
+        el.classList.toggle("take", !!s);
+        el.innerHTML = s ? `<img alt="" src="${this.icons[s.kind]}"><b>x${s.count}</b>` : "";
+      }
+      panel.classList.toggle("working", open.working);
+    } else this.smelterSig = "";
 
     // "+N" over the node, or "Full" while the hotbar can't take the next chunk.
     const gn = this.gain, full = g.mining.full ? g.mining.node : null;
@@ -150,7 +205,7 @@ export class Hud {
       inspect.innerHTML = `
         <h3>${info.name} <span>${info.size}×${info.size}</span></h3>
         <dl><dt>Damage</dt><dd>${s.damage}</dd><dt>Shots/s</dt><dd>${s.rate}</dd><dt>Range</dt><dd>${s.range}</dd></dl>
-        <button class="sell" id="sellBtn" ${g.phase === "over" ? "disabled" : ""}>Sell for <img alt="" src="${this.icons.metal}">${value}</button>`;
+        <button class="sell" id="sellBtn" ${g.phase === "over" ? "disabled" : ""}>Sell for <img alt="" src="${this.icons.alloy}">${value}</button>`;
       $("sellBtn").addEventListener("click", () => this.h.sell());
     }
 

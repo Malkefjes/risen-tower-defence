@@ -4,6 +4,7 @@ import type { GeneratedWorld } from "../sim/worldgen";
 import { caveLook, type Cave } from "./caveLooks";
 import { enemyLook, type Enemy } from "./enemyLooks";
 import { MiningView } from "./mining";
+import { refineryLook, type Refinery } from "./refineryLooks";
 import { buildScenery } from "./scenery";
 import { stoneWallMaterials, stoneWallPiece } from "./stoneWall";
 import { createRig, RigAnimator, type Rig } from "./rig";
@@ -28,6 +29,8 @@ export interface Overlay {
   showGrid: boolean;
   /** Tower being placed: footprint, validity and reach. */
   towerGhost: { kind: TowerKind; cells: Cell[]; valid: boolean; cx: number; cy: number; range: number } | null;
+  /** Smelter being placed: footprint and whether it fits. */
+  smelterGhost: { cells: Cell[]; valid: boolean; cx: number; cy: number } | null;
   /** Reach of the selected tower. */
   selectedTower: { cx: number; cy: number; range: number } | null;
   /** The avatar has its tool raised (holding a wall or tower to place). */
@@ -44,6 +47,8 @@ interface TowerView { obj: THREE.Object3D; rig: TurretRig; recoil: number[]; gun
 interface Bolt { mesh: THREE.Mesh; from: THREE.Vector3; to: THREE.Vector3; walkerId: number; t: number; dur: number }
 interface Flash { sprite: THREE.Sprite; life: number; max: number; size: number }
 
+/** Smelters turn their window to face the camera. */
+const SMELTER_TURN = Math.PI / 4;
 const CAM_OFFSET = new THREE.Vector3(20, 16.33, 20); // ~30° elevation, 45° around: classic iso
 /** How tightly the camera follows the avatar (Erik's playground tuning). */
 const FOLLOW = 4;
@@ -108,6 +113,8 @@ export class GameView {
   private barBgMat = new THREE.MeshBasicMaterial({ color: "#241f3d" });
   private barFillMat = new THREE.MeshBasicMaterial({ color: "#e0262b" });
   private towerGhosts: Record<TowerKind, THREE.Object3D>;
+  private smelterGhost: THREE.Object3D;
+  private smelters = new Map<number, Refinery>();
   private rangeRing: THREE.Mesh;
   private rangeDisc: THREE.Mesh;
   private animated: THREE.Object3D[] = [];
@@ -172,6 +179,11 @@ export class GameView {
       return o;
     };
     this.towerGhosts = { twin: ghost("twin"), gatling: ghost("gatling") };
+    this.smelterGhost = refineryLook("A").object;
+    this.smelterGhost.rotation.y = SMELTER_TURN;
+    this.smelterGhost.traverse(c => { if ((c as THREE.Mesh).isMesh) { const m = c as THREE.Mesh; m.castShadow = false; m.material = this.mat.ghostOk; } });
+    this.smelterGhost.visible = false;
+    this.scene.add(this.smelterGhost);
     this.rangeRing = new THREE.Mesh(new THREE.RingGeometry(0.97, 1, 72).rotateX(-Math.PI / 2),
       new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.6, depthWrite: false }));
     this.rangeDisc = new THREE.Mesh(new THREE.CircleGeometry(1, 72).rotateX(-Math.PI / 2),
@@ -400,6 +412,7 @@ export class GameView {
     // Sync first so shots from this frame find their towers and targets.
     this.syncPieces(o.hoverPieceId);
     this.syncTowers();
+    this.syncSmelters(t);
     for (const ev of events) {
       if (ev.type === "placed" || ev.type === "plated") this.onPlaced(ev.piece);
       else if (ev.type === "walker-arrived") (this.nexus.userData.flash as () => void)();
@@ -610,6 +623,26 @@ export class GameView {
     b.getObjectByName("fill")!.scale.x = Math.max(0.001, frac);
   }
 
+  // ------------------------------------------------------------------ smelters
+
+  /** Smelters: the furnace model, glowing and smoking only while it smelts. */
+  private syncSmelters(t: number): void {
+    const alive = new Set<number>();
+    for (const s of this.game.smelters) {
+      alive.add(s.id);
+      let v = this.smelters.get(s.id);
+      if (!v) {
+        v = refineryLook("A");
+        v.object.position.set(s.cx, 0, s.cy);
+        v.object.rotation.y = SMELTER_TURN;
+        this.scene.add(v.object);
+        this.smelters.set(s.id, v);
+      }
+      v.update(t, s.working);
+    }
+    for (const [id, v] of this.smelters) if (!alive.has(id)) { this.scene.remove(v.object); this.smelters.delete(id); }
+  }
+
   // ------------------------------------------------------------------ towers
 
   private syncTowers(): void {
@@ -719,6 +752,19 @@ export class GameView {
   }
 
   private updateTowerGhost(o: Overlay): void {
+    const sg = o.smelterGhost;
+    this.smelterGhost.visible = !!sg;
+    if (sg) {
+      this.smelterGhost.position.set(sg.cx, 0.12 + Math.sin(this.time * 4) * 0.03, sg.cy);
+      const m = sg.valid ? this.mat.ghostOk : this.mat.ghostBad;
+      this.smelterGhost.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).material = m; });
+      for (let i = 0; i < 4; i++) {
+        const c = sg.cells[i]!, foot = this.ghostFeet[i]!;
+        foot.visible = true;
+        foot.position.set(c[0] + 0.5, 0.012, c[1] + 0.5);
+        foot.material = sg.valid ? this.mat.footOk : this.mat.footBad;
+      }
+    }
     const g = o.towerGhost;
     for (const [kind, obj] of Object.entries(this.towerGhosts)) {
       obj.visible = !!g && g.kind === kind;

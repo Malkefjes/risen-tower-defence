@@ -18,8 +18,8 @@ export type RefineryLook = "A" | "B" | "C";
 
 export interface Refinery {
   object: THREE.Group;
-  /** Animate: `t` in seconds. */
-  update(t: number): void;
+  /** Animate: `t` in seconds; `working` lights the window and the chimney (default on). */
+  update(t: number, working?: boolean): void;
 }
 
 const std = (color: string, o: THREE.MeshStandardMaterialParameters = {}) =>
@@ -144,20 +144,32 @@ function lookA(): Refinery {
   // A proper window into the furnace: the molten glow set back inside a frame of dark
   // bars, top and bottom running the full width, the sides fitted between them.
   const W = 0.5, H = 0.32, T = 0.07, D = 0.18, wy = 0.5, wz = 0.78;
-  g.add(box(W, H, 0.02, m.molten, 0, wy, wz + 0.02));
+  // Its own glow, so each smelter lights up only while it's smelting.
+  const molten = m.molten.clone();
+  g.add(box(W, H, 0.02, molten, 0, wy, wz + 0.02));
   for (const y of [wy - T, wy + H]) g.add(box(W + 2 * T, T, D, m.steelDark, 0, y, wz));
   for (const x of [-(W + T) / 2, (W + T) / 2]) g.add(box(T, H, D, m.steelDark, x, wy, wz));
   g.add(cyl(0.19, 1.1, m.hullShade, 0.12, 1.76, -0.12, 14));
   g.add(cyl(0.21, 0.12, m.orange, 0.12, 2.8, -0.12, 14));
   const puff = smoke(g, 0.12, 3.0, -0.12);
+  const puffs = g.children.slice(-5) as THREE.Mesh[];
   // Snow settled on the furnace's shoulder, round the chimney.
   g.add(mesh(new THREE.TorusGeometry(0.56, 0.08, 6, 24).rotateX(Math.PI / 2), m.snow, 0, 1.52, 0));
   shadowAll(g);
+  for (const p of puffs) p.castShadow = false;
+  // Heat eases up when smelting starts and dies down after it stops.
+  let heat = 1, lastT = -1;
+  const cold = new THREE.Color("#3a2a24"), hot = new THREE.Color("#ffb347");
   return {
     object: g,
-    update(t) {
-      m.molten.emissiveIntensity = 1.0 + Math.sin(t * 3.1) * 0.15 + Math.sin(t * 7.3) * 0.08;
+    update(t, working = true) {
+      const dt = lastT < 0 ? 0 : Math.min(0.1, Math.max(0, t - lastT));
+      lastT = t;
+      heat += ((working ? 1 : 0) - heat) * Math.min(1, dt * 1.5);
+      molten.color.copy(cold).lerp(hot, heat);
+      molten.emissiveIntensity = heat * (1.0 + Math.sin(t * 3.1) * 0.15 + Math.sin(t * 7.3) * 0.08);
       puff(t);
+      for (const p of puffs) (p.material as THREE.MeshStandardMaterial).opacity *= heat;
     },
   };
 }

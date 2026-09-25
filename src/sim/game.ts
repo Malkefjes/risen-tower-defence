@@ -120,6 +120,17 @@ export const REASON_TEXT: Record<BlockReason, string> = {
   "stone": "Not enough stone",
 };
 
+export const SMELTER_REASON_TEXT: Record<SmelterBlockReason, string> = {
+  "occupied": "Something is already there",
+  "walker": "An enemy is in the way",
+  "avatar": "You're standing there",
+  "cuts-off-rift": "Enemies must always have a path to the ship",
+  "traps-walker": "That would trap an enemy",
+  "stone": "Not enough stone",
+  "metal": "Not enough raw metal",
+  "run-over": "The run is over",
+};
+
 export const TOWER_REASON_TEXT: Record<TowerBlockReason, string> = {
   "no-wall": "Towers go on top of walls",
   "stone-wall": "Needs metal plating",

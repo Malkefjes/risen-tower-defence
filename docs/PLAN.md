@@ -94,7 +94,7 @@ Brings the ore playground into the game, plus the build wheel.
 - **Answers:** is choosing what to fortify and what to risk the fun we hope for?
 
 ### M3: Industry
-- **Refinery:** turns ore at the ship into alloy. Walls and towers move to alloy; ore alone buys early basics.
+- **Smelter (done 2026-09-25, was "refinery"):** a 2×2 building you build (stone + raw metal) and feed by hand; turns raw metal into alloy 1:1. Towers and metal plating cost alloy; walls stay stone.
 - **Generators and power:** towers and the refinery draw power. Power flows through connected walls from generators and the ship. Unpowered towers don't fire.
 - **Answers:** does the economy feed the maze, or start taking it over?
 

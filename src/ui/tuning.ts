@@ -11,10 +11,16 @@ const tower = (kind: "twin" | "gatling" | "ship", key: keyof TowerStats, label: 
 const SECTIONS: { title: string; knobs: Knob[] }[] = [
   { title: "Costs and ore", knobs: [
     top("wallCost", "Stone per wall cell", 0, 100, 5),
-    top("platingCost", "Metal plating per wall piece", 0, 500, 5),
+    top("platingCost", "Alloy for metal plating per wall piece", 0, 500, 5),
     top("startStone", "Starting stone", 0, 2000, 50),
-    top("startMetal", "Starting metal", 0, 1000, 25),
+    top("startMetal", "Starting raw metal", 0, 1000, 25),
+    top("startAlloy", "Starting alloy", 0, 1000, 25),
     top("sellRefund", "Sell refund (after the wave starts)", 0, 1, 0.05, true),
+  ] },
+  { title: "Smelter", knobs: [
+    top("smelterStone", "Stone to build", 0, 2000, 25),
+    top("smelterMetal", "Raw metal to build", 0, 2000, 25),
+    top("smeltRate", "Alloy per second", 0.5, 50, 0.5),
   ] },
   { title: "Mining and moving", knobs: [
     top("mineTime", "Seconds to mine a node", 1, 30, 0.5),
@@ -38,17 +44,17 @@ const SECTIONS: { title: string; knobs: Knob[] }[] = [
     tower("ship", "range", "Range", 1, 10, 0.25),
   ] },
   { title: "Twin 1×1", knobs: [
-    tower("twin", "cost", "Metal cost", 0, 1000, 10), tower("twin", "damage", "Damage", 0.5, 10, 0.5),
+    tower("twin", "cost", "Alloy cost", 0, 1000, 10), tower("twin", "damage", "Damage", 0.5, 10, 0.5),
     tower("twin", "rate", "Shots per second", 0.5, 12, 0.5), tower("twin", "range", "Range", 1, 8, 0.25),
   ] },
   { title: "Gatling 2×2", knobs: [
-    tower("gatling", "cost", "Metal cost", 0, 2000, 10), tower("gatling", "damage", "Damage", 0.5, 10, 0.5),
+    tower("gatling", "cost", "Alloy cost", 0, 2000, 10), tower("gatling", "damage", "Damage", 0.5, 10, 0.5),
     tower("gatling", "rate", "Shots per second", 0.5, 20, 0.5), tower("gatling", "range", "Range", 1, 10, 0.25),
   ] },
 ];
 
-// v3: metal prices doubled and the ship got a gun, so older saved tuning is dropped.
-const STORE = "risen.tuning.v3";
+// v4: towers and plating cost alloy, and "starting metal" became raw metal, so older saved tuning is dropped.
+const STORE = "risen.tuning.v4";
 
 /** Tuning saved in this browser, if any. Never throws. */
 export function loadTuning(): Partial<Tuning> | undefined {

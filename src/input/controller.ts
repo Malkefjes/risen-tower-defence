@@ -1,10 +1,12 @@
-import { REASON_TEXT, TOWER_REASON_TEXT, type Game, type PlacedPiece, type PlacementCheck } from "../sim/game";
+import { REASON_TEXT, SMELTER_REASON_TEXT, TOWER_REASON_TEXT, type Game, type PlacedPiece, type PlacementCheck } from "../sim/game";
+import type { FlowField } from "../sim/pathfinding";
+import { SMELTER_SIZE, type Smelter } from "../sim/smelter";
 import { WALL_DECK } from "../sim/world";
 import { SHAPE_IDS, type ShapeId } from "../sim/pieces";
 import { TOWER_INFO, TOWER_KINDS, type Tower, type TowerKind } from "../sim/towers";
 import type { Cell } from "../sim/types";
 import { BuildWheel, type WheelItem } from "../ui/buildWheel";
-import { pieceIcon, platingIcon, towerIcon, type Hud } from "../ui/hud";
+import { buildingsIcon, pieceIcon, platingIcon, smelterIcon, towerIcon, type Hud } from "../ui/hud";
 import type { GameView, Overlay } from "../render/view";
 
 const DRAG_THRESHOLD = 5;
@@ -13,12 +15,17 @@ const CLICK_TIME = 250;
 const sized = (svg: string) => svg.replace("<svg ", '<svg width="40" height="40" ');
 const PAN_SPEED = 1.1; // screen heights per second at current zoom
 
+/** What can be placed from the E wheel: a tower, or a building. */
+type BuildKind = TowerKind | "smelter";
+
 /** Turns mouse and keyboard into game actions, and describes what to draw on top. */
 export class Controller {
   /** Held wall shape, bought with stone as each piece goes down. */
   heldShape: ShapeId | null = null;
-  /** Tower type being placed. */
-  buildKind: TowerKind | null = null;
+  /** Tower type (or building) being placed. */
+  buildKind: BuildKind | null = null;
+  /** The smelter whose panel is open (you're next to it). */
+  openSmelterId: number | null = null;
   /** Placed tower picked for inspecting and selling. */
   selectedTowerId: number | null = null;
   /** The ship picked for inspecting (its gun's range and stats). */
@@ -35,6 +42,10 @@ export class Controller {
   private check: PlacementCheck | null = null;
   private checkSig = "";
   private checkAge = 0;
+  /** The smelter placement check, redone only when something it depends on changes. */
+  private smelterCheck: ReturnType<Game["checkSmelter"]> | null = null;
+  private smelterSig = "";
+  private smelterAge = 0;
   private keys = new Set<string>();
   private drag: { id: number; x: number; y: number; moved: boolean; button: number; mining: boolean } | null = null;
   private lastPointer: { x: number; y: number } | null = null;
@@ -43,7 +54,7 @@ export class Controller {
   private pressedAt = 0;
   /** The build wheel, and which one is open (Q walls, E towers). */
   private wheel!: BuildWheel;
-  private wheelKind: "walls" | "towers" | "mods" | null = null;
+  private wheelKind: "walls" | "towers" | "buildings" | "mods" | null = null;
   /** The wall whose modification wheel is open (right mouse held on it). */
   private modTarget: PlacedPiece | null = null;
 
@@ -108,7 +119,7 @@ export class Controller {
     window.addEventListener("keyup", e => {
       const k = e.key.toLowerCase();
       this.keys.delete(k);
-      if ((k === "q" && this.wheelKind === "walls") || (k === "e" && this.wheelKind === "towers")) this.closeWheel();
+      if ((k === "q" && this.wheelKind === "walls") || (k === "e" && (this.wheelKind === "towers" || this.wheelKind === "buildings"))) this.closeWheel();
     });
     window.addEventListener("blur", () => { this.keys.clear(); this.toolDown = false; if (this.wheelKind) { this.wheel.hide(); this.wheelKind = null; } });
   }
@@ -118,9 +129,11 @@ export class Controller {
   private wheelItems(): WheelItem[] {
     const g = this.game;
     if (this.wheelKind === "mods") return [{ icon: sized(platingIcon()), off: !g.canPlate(this.modTarget ?? undefined) }];
-    return this.wheelKind === "walls"
-      ? SHAPE_IDS.map(sh => ({ icon: sized(pieceIcon(sh)), off: !g.canAffordShape(sh) }))
-      : TOWER_KINDS.map(k => ({ icon: sized(towerIcon(k)), off: g.ore("metal") < g.towerCost(k) }));
+    if (this.wheelKind === "walls") return SHAPE_IDS.map(sh => ({ icon: sized(pieceIcon(sh)), off: !g.canAffordShape(sh) }));
+    // Buildings: the smelter, for now (stone and raw metal).
+    if (this.wheelKind === "buildings") return [{ icon: sized(smelterIcon()), off: g.ore("stone") < g.tuning.smelterStone || g.ore("metal") < g.tuning.smelterMetal }];
+    // Towers, then the Buildings slice, which opens the buildings wheel when pointed at.
+    return [...TOWER_KINDS.map(k => ({ icon: sized(towerIcon(k)), off: g.ore("alloy") < g.towerCost(k) })), { icon: sized(buildingsIcon()), off: false }];
   }
 
   private openWheel(kind: "walls" | "towers"): void {
@@ -136,6 +149,17 @@ export class Controller {
       const p = this.view.pickAtHeight(this.lastPointer.x, this.lastPointer.y, y);
       const t = p && this.game.towerAt(Math.floor(p.x), Math.floor(p.z));
       if (t) return t;
+    }
+    return undefined;
+  }
+
+  /** The smelter under the cursor: look along its height, so you click what you see. */
+  private smelterUnderCursor(): Smelter | undefined {
+    if (!this.lastPointer) return undefined;
+    for (const y of [1.2, 0.6, 0]) {
+      const p = this.view.pickAtHeight(this.lastPointer.x, this.lastPointer.y, y);
+      const s = p && this.game.smelterAt(Math.floor(p.x), Math.floor(p.z));
+      if (s) return s;
     }
     return undefined;
   }
@@ -173,7 +197,10 @@ export class Controller {
       this.clearSelection();
       this.heldShape = shape;
       this.checkSig = "";
-    } else {
+    } else if (kind === "buildings") {
+      this.clearSelection();
+      this.buildKind = "smelter";
+    } else if (i < TOWER_KINDS.length) {
       this.clearSelection();
       this.buildKind = TOWER_KINDS[i]!;
     }
@@ -196,7 +223,7 @@ export class Controller {
       case "q": if (!e.repeat) this.openWheel("walls"); break;
       case "e": if (!e.repeat) this.openWheel("towers"); break;
       case "x": case "delete": case "backspace": this.sellSelected(); break;
-      case "escape": this.clearSelection(); break;
+      case "escape": this.clearSelection(); this.openSmelterId = null; break;
       case "z": this.undo(); break;
       case "enter": this.startWave(); break;
       case " ": e.preventDefault(); if (!e.repeat) this.game.avatarInput.jump = true; break;
@@ -220,7 +247,7 @@ export class Controller {
   }
 
   /** Pick a tower type to place; picking it again puts it away. */
-  selectBuild(kind: TowerKind | null): void {
+  selectBuild(kind: BuildKind | null): void {
     if (kind !== null && !this.game.canPlaceNow()) return;
     const same = kind === this.buildKind;
     this.clearSelection();
@@ -234,7 +261,7 @@ export class Controller {
     const refund = this.game.sellTower(id);
     if (refund === null) return;
     this.selectedTowerId = null;
-    this.hud.toast(`Sold for ${refund} metal`, "info");
+    this.hud.toast(`Sold for ${refund} alloy`, "info");
   }
 
   rotate(): void {
@@ -257,16 +284,25 @@ export class Controller {
   toggleSpeed(): void { this.speed = this.speed === 1 ? 2 : this.speed === 2 ? 3 : 1; }
   toggleWalkers(): void { this.game.setTestWalkers(!this.game.testWalkers); }
 
-  /** Footprint corner for a tower under the cursor: a 2×2 snaps to the nearest grid corner. */
-  private towerAnchor(kind: TowerKind): Cell | null {
+  /** Footprint corner for a tower or building under the cursor: a 2×2 snaps to the nearest grid corner. */
+  private towerAnchor(kind: BuildKind): Cell | null {
     const p = this.hoverPoint;
     if (!p) return null;
-    const n = TOWER_INFO[kind].size;
+    const n = kind === "smelter" ? SMELTER_SIZE : TOWER_INFO[kind].size;
     return n === 1 ? [Math.floor(p.x), Math.floor(p.z)] : [Math.round(p.x - n / 2), Math.round(p.z - n / 2)];
   }
 
   private click(): void {
     if (!this.hoverCell) return;
+    if (this.buildKind === "smelter") {
+      const at = this.towerAnchor("smelter");
+      if (!at) return;
+      const r = this.game.buildSmelter(at);
+      if (r.ok) this.buildKind = null;
+      else this.hud.toast(SMELTER_REASON_TEXT[r.reason]);
+      this.updateHover();
+      return;
+    }
     if (this.buildKind) {
       const at = this.towerAnchor(this.buildKind);
       if (!at) return;
@@ -282,6 +318,14 @@ export class Controller {
       if (r.ok) { if (!this.game.canAffordShape(this.heldShape)) this.heldShape = null; this.checkSig = ""; }
       else this.hud.toast(REASON_TEXT[r.reason]);
       this.updateHover();
+      return;
+    }
+    // Clicking a smelter next to you opens its panel; clicking it again closes it.
+    const smelter = this.smelterUnderCursor();
+    if (smelter) {
+      if (this.openSmelterId === smelter.id) this.openSmelterId = null;
+      else if (this.game.canUseSmelter(smelter)) { this.openSmelterId = smelter.id; this.selectedTowerId = null; this.selectedShip = false; }
+      else this.hud.toast("Too far away");
       return;
     }
     // Clicking a tower (or the ship) shows its range and stats; clicking it again hides them.
@@ -346,7 +390,17 @@ export class Controller {
         ? this.view.screenOf(t.cells.reduce((a, q) => a + q[0] + 0.5, 0) / t.cells.length, WALL_DECK, t.cells.reduce((a, q) => a + q[1] + 0.5, 0) / t.cells.length)
         : this.view.avatarScreen();
       this.wheel.update(this.wheelItems(), c.x, c.y, this.lastPointer.x, this.lastPointer.y);
+      // Pointing at Buildings on the tower wheel swaps it for the buildings wheel.
+      if (this.wheelKind === "towers" && this.wheel.hover === TOWER_KINDS.length) {
+        this.wheelKind = "buildings";
+        this.wheel.show(this.wheelItems());
+        this.wheel.update(this.wheelItems(), c.x, c.y, this.lastPointer.x, this.lastPointer.y);
+      }
     }
+    // The smelter panel closes when you walk away (or the smelter is gone).
+    const open = this.game.smelters.find(s => s.id === this.openSmelterId);
+    if (!open || !this.game.canUseSmelter(open)) this.openSmelterId = null;
+    this.hud.smelterId = this.openSmelterId;
     if (ml) this.updateHover();
 
     // Arrow keys pan the camera away from the avatar.
@@ -368,9 +422,20 @@ export class Controller {
 
     const check = this.currentCheck(dt);
     const current = this.game.routes();
-    let towerGhost: Overlay["towerGhost"] = null;
+    let towerGhost: Overlay["towerGhost"] = null, smelterGhost: Overlay["smelterGhost"] = null;
     const at = this.buildKind ? this.towerAnchor(this.buildKind) : null;
-    if (this.buildKind && at) {
+    // A smelter blocks enemies like a wall, so its preview shows the new route too.
+    let smelterField: FlowField | null = null;
+    if (this.buildKind === "smelter" && at) {
+      const sig = `${at[0]},${at[1]}|${this.game.pieces.length}|${this.game.smelters.length}|${this.game.ore("stone")}|${this.game.ore("metal")}`;
+      if (sig !== this.smelterSig || (this.game.phase === "wave" && (this.smelterAge += dt) > 0.12)) {
+        this.smelterSig = sig; this.smelterAge = 0;
+        this.smelterCheck = this.game.checkSmelter(at);
+      }
+      const sc = this.smelterCheck!;
+      if (sc.ok) smelterField = sc.field;
+      smelterGhost = { cells: sc.cells, valid: sc.ok, cx: at[0] + SMELTER_SIZE / 2, cy: at[1] + SMELTER_SIZE / 2 };
+    } else if (this.buildKind && this.buildKind !== "smelter" && at) {
       const tc = this.game.checkTower(this.buildKind, at), n = TOWER_INFO[this.buildKind].size;
       towerGhost = { kind: this.buildKind, cells: tc.cells, valid: tc.ok, cx: at[0] + n / 2, cy: at[1] + n / 2, range: this.game.tuning[this.buildKind].range };
     }
@@ -378,12 +443,13 @@ export class Controller {
     const ship = this.selectedShip ? this.game.shipCenter() : null;
     return {
       towerGhost,
+      smelterGhost,
       toolReady: this.heldShape !== null || this.buildKind !== null,
       selectedTower: sel ? { cx: sel.cx, cy: sel.cy, range: this.game.tuning[sel.kind].range }
         : ship ? { cx: ship.x, cy: ship.y, range: this.game.tuning.ship.range } : null,
       ghost: check ? { cells: check.cells, valid: check.ok } : null,
-      route: check?.ok ? this.game.routes(check.field) : current,
-      faintRoute: check?.ok ? current : null,
+      route: check?.ok ? this.game.routes(check.field) : smelterField ? this.game.routes(smelterField) : current,
+      faintRoute: check?.ok || smelterField ? current : null,
       hoverCell: this.hoverCell,
       hoverPieceId: this.hoverPieceId,
       showPath: this.showPath,
