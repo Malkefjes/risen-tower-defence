@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Frostfall Rocket Landing</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&display=swap" />
+  </head>
+  <body>
+    <div id="app">
+      <div id="view"></div>
+      <div class="vignette"></div>
+      <div id="labels"></div>
+      <header class="top">
+        <div class="brand">RISEN <span>Rocket landing</span></div>
+        <p class="sub">The Rocket on its 3×3 footprint: four fins, cargo door shut on the way down, opening into a ramp after touchdown.</p>
+      </header>
+      <div class="bottom">
+        <div class="picker" role="group" aria-label="Controls">
+          <button id="land" class="chip land">Land again</button>
+          <button id="door" class="chip">Door</button>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
