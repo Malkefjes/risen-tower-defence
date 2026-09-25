@@ -6,6 +6,8 @@ If the two disagree, ask Erik which is current, then update both.
 
 Last synced: 2026-09-24.
 
+> **Direction change (2026-09-25):** Risen is becoming a survival tower defense: explore a planet, mine, build a base around your ship, defend it by mazing. See `docs/PLAN.md` for the agreed decisions and milestones. Sections below that conflict with it (rounds, credits, supply drops, the TFT-style shop and roadmap) will be marked retired in M0.
+
 ## Vision
 
 A browser tower defense game where you shape the enemy's path with Tetris-shaped walls and mount towers on top of them. Every piece is a choice between lengthening the maze and building a platform for firepower. It's made purely for Erik's own enjoyment, so fun and depth come before polish, onboarding or broad appeal.
