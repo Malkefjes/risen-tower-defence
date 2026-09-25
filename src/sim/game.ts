@@ -1,5 +1,5 @@
 import { Avatar, defaultAvatarTuning, type AvatarInput, type AvatarTuning } from "./avatar";
-import { Hotbar, type ItemKind } from "./inventory";
+import { Hotbar, Inventory, type ItemKind } from "./inventory";
 import { gapTo, newSmelter, smelt, smelterCells, type Smelter } from "./smelter";
 import { nodeArea, nodeCellTop, nodeFootprint, nodeMax, ORE_STAGES, stagesLeft, viewGap, type OreNode } from "./ore";
 import { computeField, keysOf, type FlowField } from "./pathfinding";
@@ -104,6 +104,7 @@ export type GameEvent =
   | { type: "tower-built"; tower: Tower }
   | { type: "tower-sold"; tower: Tower; refund: number }
   | { type: "smelter-built"; smelter: Smelter }
+  | { type: "smelter-removed"; smelter: Smelter }
   | { type: "shot"; shot: Shot }
   | { type: "hit"; walker: Walker }
   | { type: "killed"; walker: Walker }
@@ -472,9 +473,8 @@ export class Game {
   buildSmelter(at: Cell): SmelterCheck & { smelter?: Smelter } {
     const check = this.checkSmelter(at);
     if (!check.ok) return check;
-    this.hotbar.remove("stone", this.tuning.smelterStone);
-    this.hotbar.remove("metal", this.tuning.smelterMetal);
-    const s = newSmelter(this.nextId++, at);
+    const paid = { stone: this.hotbar.remove("stone", this.tuning.smelterStone), metal: this.hotbar.remove("metal", this.tuning.smelterMetal) };
+    const s = newSmelter(this.nextId++, at, paid);
     this.smelters.push(s);
     for (const [x, y] of s.cells) this.world.buildings.set(cellKey(x, y), s.id);
     this.field = computeField(this.world);
@@ -490,6 +490,26 @@ export class Game {
   /** Is the player close enough to use this smelter? */
   canUseSmelter(s: Smelter): boolean {
     return this.phase !== "over" && gapTo(s, this.avatar.x, this.avatar.y) <= SMELTER_REACH;
+  }
+
+  /**
+   * Take a smelter down: its full price back, plus everything inside it. Only when
+   * you're next to it, and only if the hotbar can hold all of it, so nothing is lost.
+   */
+  removeSmelter(id: number): "ok" | "far" | "full" {
+    const s = this.smelters.find(x => x.id === id);
+    if (!s || !this.canUseSmelter(s)) return "far";
+    const back: [ItemKind, number][] = [["stone", s.paid.stone], ["metal", s.paid.metal],
+      ...[...s.input.slots, ...s.output.slots].filter(x => !!x).map(x => [x!.kind, x!.count] as [ItemKind, number])];
+    const trial = new Inventory(this.hotbar.slots.length);
+    this.hotbar.slots.forEach((x, i) => { trial.slots[i] = x ? { ...x } : null; });
+    for (const [kind, n] of back) if (trial.add(kind, n) < n) return "full";
+    for (const [kind, n] of back) this.hotbar.add(kind, n);
+    this.smelters.splice(this.smelters.indexOf(s), 1);
+    for (const [x, y] of s.cells) this.world.buildings.delete(cellKey(x, y));
+    this.field = computeField(this.world);
+    this.events.push({ type: "smelter-removed", smelter: s });
+    return "ok";
   }
 
   /** Put a hotbar slot's raw metal into a smelter (as much as fits). Only raw metal goes in. Returns how much moved. */

@@ -116,7 +116,7 @@ Not locked yet: zoom range, final model shapes.
 | Player | Avatar builder; hand mining, then extractors, rover, drones |
 | Building range | Only near the avatar (later drones) |
 | Resources | Stone, raw metal, alloy, power; physical up to the ship |
-| Smelter | 2×2 building on open ground (E → Buildings → Smelter), 500 stone + 300 raw metal; holds 2 stacks of raw metal in and 2 of alloy out, smelts 1:1 at 5/s like a Rust furnace; blocks enemies like a wall; enemies will attack it (next step) |
+| Smelter | 2×2 building on open ground (E → Buildings → Smelter), 500 stone + 300 raw metal; holds 2 stacks of raw metal in and 2 of alloy out, smelts 1:1 at 5/s like a Rust furnace; blocks enemies like a wall; Remove (in its panel) gives back its full price and its contents; enemies will attack it (next step) |
 | Alloy | Pays for towers and metal plating. Raw metal is only good for the smelter. Runs start with 400 stone, 0 raw metal, 150 alloy |
 | Threat | Grows with extraction and base size; raids are telegraphed |
 | Attack targets | Every building; walls are walked around (wall breakers excepted) |

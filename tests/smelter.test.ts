@@ -87,4 +87,31 @@ describe("the smelter in the game", () => {
     expect(g.smelterTake(s.id, "input", 0)).toBe(650);
     expect(g.ore("metal")).toBe(650);
   });
+
+  it("can be removed for its full price and everything in it, only when you're next to it", () => {
+    const g = new Game(open(), { seed: 1, tuning: rich });
+    const s = g.buildSmelter([8, 6]).smelter!;
+    g.avatar.place(7.5, 6.5);
+    g.smelterPut(s.id, g.hotbar.slots.findIndex(x => x?.kind === "metal"));
+    run(g, 4);
+    g.tuning.smelterStone = 1; // a price change later doesn't change the refund
+    g.avatar.place(20.5, 20.5);
+    expect(g.removeSmelter(s.id)).toBe("far");
+    g.avatar.place(7.5, 6.5);
+    expect(g.removeSmelter(s.id)).toBe("ok");
+    expect(g.smelters).toHaveLength(0);
+    expect(g.world.isBlocked(8, 6)).toBe(false);
+    expect(g.ore("stone")).toBe(1000);
+    expect(g.ore("metal") + g.ore("alloy")).toBe(1000);
+    expect(g.ore("alloy")).toBeGreaterThan(0);
+  });
+
+  it("won't be removed if the hotbar can't hold what it gives back", () => {
+    const g = new Game(open(), { seed: 1, tuning: rich });
+    const s = g.buildSmelter([8, 6]).smelter!;
+    g.avatar.place(7.5, 6.5);
+    for (let i = 1; i < g.hotbar.slots.length; i++) g.hotbar.slots[i] = { kind: "alloy", count: 1000 };
+    expect(g.removeSmelter(s.id)).toBe("full");
+    expect(g.smelters).toHaveLength(1);
+  });
 });

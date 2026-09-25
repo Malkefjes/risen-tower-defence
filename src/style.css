@@ -82,7 +82,9 @@ button:focus-visible { outline: 2px solid var(--warm); outline-offset: 2px; }
 .slot.take:hover { border-color: rgba(255,180,90,.8); }
 .slot.dim > * { opacity: .35; }
 .smelter { margin-bottom: 8px; padding: 8px 10px 10px; background: rgba(28,26,52,.72); border: 1px solid var(--line); border-radius: 10px; backdrop-filter: blur(6px); pointer-events: auto; }
-.smelter h3 { margin: 0 0 6px; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.smelter h3 { margin: 0 0 6px; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.smelter .remove { font: inherit; font-size: 12px; letter-spacing: .04em; text-transform: none; color: var(--text); background: rgba(61,68,87,.85); border: 1px solid var(--line); border-radius: 7px; padding: 2px 10px; cursor: pointer; }
+.smelter .remove:hover { border-color: #d9573a; }
 .smelter .row { display: flex; align-items: center; gap: 10px; }
 .smelter .slots { display: flex; gap: 5px; }
 .smelter .arrow { position: relative; width: 44px; height: 8px; border-radius: 4px; background: rgba(61,68,87,.85); overflow: hidden; }

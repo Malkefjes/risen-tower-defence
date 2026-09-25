@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { EVENING } from "./models";
 import { createOreNode, type NodeKind } from "./ore";
-import { alloyBars } from "./refineryLooks";
+import { alloyIngot } from "./refineryLooks";
 import { createMultitool } from "./rig";
 
 /**
@@ -80,25 +80,27 @@ export function itemIcons(size = 96): Record<IconKind, string> {
       if (kind === "metal") (m.material as THREE.Material).dispose();
     });
   }
-  // Alloy: bars lying on the snow, framed like the ore, with the polished shine.
+  // Alloy: one plain ingot lying on the snow, framed like the ore, no shine.
   {
-    const bars = alloyBars();
+    const bars = alloyIngot();
     scene.add(bars);
     bars.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(bars);
     const centre = box.getCenter(new THREE.Vector3());
-    const r = box.getSize(new THREE.Vector3()).length() / 2 * 0.62;
+    // The whole ingot in frame, with room to spare so the edge fade doesn't touch it.
+    const r = box.getSize(new THREE.Vector3()).length() / 2 * 1.0;
     Object.assign(camera, { left: -r, right: r, top: r, bottom: -r });
     camera.updateProjectionMatrix();
     camera.position.copy(centre).add(new THREE.Vector3(20, 16.33, 20));
     camera.lookAt(centre);
     sun.target.position.copy(centre);
     sun.position.copy(centre).add(new THREE.Vector3(...EVENING.sunOffset));
-    scene.environment = shine;
+    scene.environment = null;
     renderer.render(scene, camera);
     out.alloy = fadeEdges(renderer.domElement, size);
     scene.remove(bars);
-    bars.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).geometry.dispose(); });
+    bars.geometry.dispose();
+    (bars.material as THREE.Material).dispose();
   }
   // The multitool, side on, in the same light; it's held, not lying on the snow.
   scene.environment = null;

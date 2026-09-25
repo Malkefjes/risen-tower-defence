@@ -86,6 +86,11 @@ export class Hud {
       if (this.smelterId !== null && Number.isInteger(i)) this.game.smelterPut(this.smelterId, i);
     });
     $("smelter").addEventListener("click", e => {
+      // Remove: the smelter's full price back, and everything in it.
+      if ((e.target as HTMLElement).closest("#smelterRemove") && this.smelterId !== null) {
+        if (this.game.removeSmelter(this.smelterId) === "full") this.toast("Not enough room in the hotbar");
+        return;
+      }
       const el = (e.target as HTMLElement).closest<HTMLElement>(".slot");
       if (this.smelterId === null || !el?.dataset.from) return;
       this.game.smelterTake(this.smelterId, el.dataset.from as "input" | "output", Number(el.dataset.i));
@@ -144,7 +149,7 @@ export class Hud {
       if (this.smelterSig !== String(open.id)) {
         this.smelterSig = String(open.id);
         const empty = (from: string) => [0, 1].map(i => `<div class="slot" data-i="${i}" data-from="${from}"></div>`).join("");
-        panel.innerHTML = `<h3>Smelter</h3><div class="row"><div class="slots">${empty("input")}</div><div class="arrow"><i></i></div><div class="slots">${empty("output")}</div></div>`;
+        panel.innerHTML = `<h3>Smelter <button class="remove" id="smelterRemove">Remove</button></h3><div class="row"><div class="slots">${empty("input")}</div><div class="arrow"><i></i></div><div class="slots">${empty("output")}</div></div>`;
       }
       for (const el of panel.querySelectorAll<HTMLElement>(".slot")) {
         const s = open[el.dataset.from as "input" | "output"].slots[Number(el.dataset.i)] ?? null;

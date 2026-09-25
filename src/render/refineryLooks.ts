@@ -82,12 +82,13 @@ function ingot(): THREE.Mesh {
   return new THREE.Mesh(g, mats().alloy);
 }
 
-/** Alloy as an item: two bars with one across them, standing on y = 0, centred. */
-export function alloyBars(): THREE.Group {
-  const g = new THREE.Group();
-  for (const z of [-0.09, 0.09]) { const b = ingot(); b.position.set(0, 0.035, z); g.add(b); }
-  const top = ingot(); top.position.set(0, 0.105, 0); top.rotation.y = Math.PI / 2; g.add(top);
-  return shadowAll(g);
+/** Alloy as an item: one plain ingot lying on y = 0, centred (no glow, no sheen). */
+export function alloyIngot(): THREE.Mesh {
+  const b = ingot();
+  b.material = std("#9ea8ba", { roughness: 0.55 });
+  b.position.y = 0.035;
+  b.castShadow = true;
+  return b;
 }
 
 /** A neat stack of bars: rows of 3, 2, 1. */

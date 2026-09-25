@@ -24,6 +24,8 @@ export interface Smelter {
   progress: number;
   /** Smelted something this tick (the view lights the window and the chimney). */
   working: boolean;
+  /** What it cost, given back in full when it's removed (tuning may change meanwhile). */
+  paid: { stone: number; metal: number };
 }
 
 export function smelterCells(at: Cell): Cell[] {
@@ -32,10 +34,10 @@ export function smelterCells(at: Cell): Cell[] {
   return out;
 }
 
-export function newSmelter(id: number, at: Cell): Smelter {
+export function newSmelter(id: number, at: Cell, paid = { stone: 0, metal: 0 }): Smelter {
   return {
     id, at: [at[0], at[1]], cells: smelterCells(at), cx: at[0] + SMELTER_SIZE / 2, cy: at[1] + SMELTER_SIZE / 2,
-    input: new Inventory(SMELTER_SLOTS), output: new Inventory(SMELTER_SLOTS), progress: 0, working: false,
+    input: new Inventory(SMELTER_SLOTS), output: new Inventory(SMELTER_SLOTS), progress: 0, working: false, paid,
   };
 }
 
