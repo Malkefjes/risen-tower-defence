@@ -52,8 +52,8 @@ scene.add(rig.object);
 const anim = new RigAnimator(rig);
 
 // Close up: one standing still, big, to see the model; the pack walks the loop.
-let look: EnemyLook = "A";
-try { const l = localStorage.getItem("risen.enemies.look"); if (l === "A" || l === "B" || l === "C") look = l; } catch { /* storage blocked */ }
+let look: EnemyLook = "C";
+try { const l = localStorage.getItem("risen.enemies.look"); void l; } catch { /* storage blocked */ }
 let pack: Enemy[] = [];
 let still: Enemy | null = null;
 function build(): void {
@@ -70,7 +70,7 @@ build();
 
 const looksEl = document.getElementById("looks")!;
 function drawLooks(): void {
-  looksEl.innerHTML = (["A", "B", "C"] as EnemyLook[]).map(l => `<button class="chip" data-look="${l}" aria-pressed="${look === l}">${l}</button>`).join("");
+  looksEl.innerHTML = (["C"] as EnemyLook[]).map(l => `<button class="chip" data-look="${l}" aria-pressed="${look === l}">${l}</button>`).join("");
 }
 looksEl.addEventListener("click", e => {
   const b = (e.target as HTMLElement).closest("button");

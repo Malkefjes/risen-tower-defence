@@ -157,7 +157,6 @@ export function enemyLook(look: EnemyLook): Enemy {
     const skull = plate(0.17, 0.14, 0.3, m.chitin); skull.position.z = 0.08; head.add(skull);
     const horn = new THREE.ConeGeometry(0.03, 0.2, 4); horn.rotateX(-1.1);
     head.add(mesh(horn, m.bone, 0, 0.1, -0.02));
-    for (const s of [-1, 1]) head.add(mesh(new THREE.SphereGeometry(0.022, 5, 4), m.eye, s * 0.055, 0.02, 0.2));
     for (const s of [-1, 1]) {
       const l = legChain(body, s * 0.12, -0.08, -0.14, 0.26, 0.3, 0.2, 0.05, s > 0 ? 0 : Math.PI);
       l.lift = 0.45; l.swing = 0.55;
