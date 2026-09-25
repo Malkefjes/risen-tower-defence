@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { createDefaultModels, createGlows, createMaterials, EVENING, roundedBox } from "../../src/render/models";
+import { createDefaultModels, createGlows, createMaterials, DECK_TOP, EVENING, roundedBox } from "../../src/render/models";
 import "./style.css";
 
 // Player rig B2, revised: no shoulder pads, torso as wide as the hips, backpack
@@ -145,7 +145,11 @@ rig.root.traverse(c => { if ((c as THREE.Mesh).isMesh) { c.castShadow = true; c.
 // In the game the rig would be shown about 30% larger than life, so it reads at the default zoom.
 const SCALE = 1.3;
 rig.root.scale.setScalar(SCALE);
-scene.add(rig.root);
+// The mover places the rig in the world (position, heading, jump height);
+// rig.root inside it only carries the small foot-planting correction.
+const mover = new THREE.Group();
+mover.add(rig.root);
+scene.add(mover);
 
 /** Stance and swing for one leg: hip swing, knee bend (backwards), foot kept level. */
 function poseLeg(l: ReturnType<typeof limb>, swing: number, bend: number): void {
@@ -158,7 +162,7 @@ function poseArm(l: ReturnType<typeof limb>, swing: number, bend: number): void 
   l.mid.rotation.x = bend;
 }
 
-type Pose = "walk" | "idle" | "mine" | "build";
+type Pose = "walk" | "idle" | "mine" | "build" | "jump" | "hop";
 let pose: Pose = "walk";
 
 /**
@@ -170,10 +174,44 @@ let rootY = 0;
 /** Smooth minimum: like Math.min, but eases between the two instead of switching with a jolt. */
 const softMin = (a: number, b: number, k = 40) => -Math.log(Math.exp(-k * a) + Math.exp(-k * b)) / k;
 
+/** Jump timing, as fractions of JUMP_TIME: crouch, then air, then the landing crouch. */
+const JUMP_TIME = 0.8, CROUCH_END = 0.2, LAND_START = 0.78;
+/** Height of the arc above the straight line between take-off and landing. */
+const JUMP_ARC = 0.42;
+const smooth = (x: number) => { const c = Math.min(1, Math.max(0, x)); return c * c * (3 - 2 * c); };
+
+/** Jump pose for k in 0..1. Returns how far through the airborne part it is (0..1), for the arc. */
+function jumpPose(k: number): number {
+  const { legs, arms, body } = rig;
+  let crouch = 0, air = 0;
+  if (k < CROUCH_END) crouch = smooth(k / CROUCH_END);
+  else if (k < LAND_START) air = (k - CROUCH_END) / (LAND_START - CROUCH_END);
+  else crouch = 0.75 * (1 - smooth((k - LAND_START) / (1 - LAND_START)));
+  if (k < CROUCH_END || k >= LAND_START) {
+    // Crouch: thighs forward, knees bent, lean in, arms swing back.
+    poseLeg(legs[0]!, -0.55 * crouch, 1.1 * crouch); poseLeg(legs[1]!, -0.55 * crouch, 1.1 * crouch);
+    poseArm(arms[0]!, 0.7 * crouch, -0.3); poseArm(arms[1]!, 0.7 * crouch, -0.3);
+    body.rotation.set(0.28 * crouch, 0, 0);
+  } else {
+    // Airborne: legs tuck up, then reach down for the landing; arms swing up and forward.
+    const tuck = Math.sin(Math.PI * Math.min(1, air * 1.15));
+    poseLeg(legs[0]!, -0.2 - 0.5 * tuck, 0.25 + 1.0 * tuck);
+    poseLeg(legs[1]!, -0.1 - 0.45 * tuck, 0.2 + 0.9 * tuck);
+    poseArm(arms[0]!, -0.9 * tuck - 0.1, -0.4); poseArm(arms[1]!, -0.9 * tuck - 0.1, -0.4);
+    body.rotation.set(0.1, 0, 0);
+  }
+  body.position.y = 0;
+  return k < CROUCH_END ? 0 : k < LAND_START ? air : 1;
+}
+
+let jumpK = -1;
+
 function animate(t: number, dt: number): void {
   const s = t * 6;
   const { legs, arms, body } = rig;
-  if (pose === "walk") {
+  if (jumpK >= 0) {
+    jumpPose(jumpK);
+  } else if (pose === "walk" || pose === "hop") {
     [0, 1].forEach(i => {
       const ph = s + i * Math.PI;
       const swing = Math.sin(ph) * 0.38;
@@ -211,8 +249,10 @@ function animate(t: number, dt: number): void {
     const a = l.top.rotation.x, b = a + l.mid.rotation.x;
     return HIP_Y - FOOT_H - (THIGH * Math.cos(a) + SHIN * Math.cos(b));
   });
-  const target = pose === "idle" || pose === "build" ? 0 : -softMin(drops[0]!, drops[1]!) * SCALE;
-  rootY += (target - rootY) * Math.min(1, dt * 14);
+  const airborne = jumpK >= CROUCH_END && jumpK < LAND_START;
+  const grounded = jumpK >= 0 ? !airborne : pose !== "idle" && pose !== "build";
+  const target = grounded ? -softMin(drops[0]!, drops[1]!) * SCALE : 0;
+  rootY += (target - rootY) * Math.min(1, dt * (jumpK >= 0 ? 40 : 14));
   rig.root.position.y = rootY;
   // At the ready (mining, building) the tool is held level; relaxed it hangs, tipped down in the hand.
   const arm = arms[1]!;
@@ -227,7 +267,7 @@ function animate(t: number, dt: number): void {
 const ship = models.create("ship");
 ship.position.set(-3.5, 0, -2.5);
 scene.add(ship);
-for (const [name, x, z, s] of [["tree", -6, 3, 1.0], ["tree", 4, -5, 1.1], ["rock", 3, 3, 12], ["tree", 6, 2, 0.9]] as const) {
+for (const [name, x, z, s] of [["tree", -6, 3, 1.0], ["tree", 4, -5, 1.1], ["rock", -1, 6, 12], ["tree", 6, 2, 0.9]] as const) {
   const m = models.create(name, name === "tree" ? { scale: s, seed: x * 7 + z } : { scale: s, seed: x * 5 + z });
   m.position.set(x + 0.5, 0, z + 0.5);
   scene.add(m);
@@ -241,9 +281,9 @@ const sparks: { m: THREE.Mesh; v: THREE.Vector3; life: number }[] = [];
 
 let spinning = true, closeUp = true;
 const press = (ids: string[], on: string) => ids.forEach(id => document.getElementById(id)!.setAttribute("aria-pressed", String(id === on)));
-(["walk", "idle", "mine", "build"] as Pose[]).forEach(p => {
+(["walk", "idle", "mine", "build", "jump", "hop"] as Pose[]).forEach(p => {
   const id = `p${p[0]!.toUpperCase()}${p.slice(1)}`;
-  document.getElementById(id)!.addEventListener("click", () => { pose = p; press(["pWalk", "pIdle", "pMine", "pBuild"], id); });
+  document.getElementById(id)!.addEventListener("click", () => { pose = p; hopT = 0; inPlaceT = 0; press(["pWalk", "pIdle", "pMine", "pBuild", "pJump", "pHop"], id); });
 });
 document.getElementById("zClose")!.addEventListener("click", () => { closeUp = true; press(["zClose", "zGame"], "zClose"); });
 document.getElementById("zGame")!.addEventListener("click", () => { closeUp = false; press(["zClose", "zGame"], "zGame"); });
@@ -264,6 +304,58 @@ const sg = new THREE.BufferGeometry();
 sg.setAttribute("position", new THREE.BufferAttribute(snowPos, 3));
 scene.add(Object.assign(new THREE.Points(sg, new THREE.PointsMaterial({ color: "#ffffff", size: 3, sizeAttenuation: false, transparent: true, opacity: 0.9 })), { frustumCulled: false }));
 
+// ------------------------------------------------------------------ wall hop
+
+// An Armored deck wall to jump on: an I piece at cells (0..3, 0).
+const hopWall = models.create("wallPiece", { cells: [[0, 0], [1, 0], [2, 0], [3, 0]], variant: 0 });
+hopWall.position.set(4, 0, 3);
+scene.add(hopWall);
+const W = (x: number, z: number) => new THREE.Vector3(4 + x, 0, 3 + z);
+type Leg = { kind: "walk" | "jump"; from: THREE.Vector3; to: THREE.Vector3; h0: number; h1: number; dur: number };
+const WALK_SPEED = 0.8;
+const hopPath: Leg[] = (() => {
+  const g = 0, d = DECK_TOP;
+  const pts: [string, THREE.Vector3, THREE.Vector3, number, number][] = [
+    ["walk", W(-1.2, 2.0), W(0.4, 1.45), g, g],
+    ["jump", W(0.4, 1.45), W(0.8, 0.5), g, d],
+    ["walk", W(0.8, 0.5), W(3.3, 0.5), d, d],
+    ["jump", W(3.3, 0.5), W(4.2, 1.2), d, g],
+    ["walk", W(4.2, 1.2), W(3.2, 2.4), g, g],
+    ["walk", W(3.2, 2.4), W(-1.2, 2.0), g, g],
+  ];
+  return pts.map(([kind, from, to, h0, h1]) => ({
+    kind: kind as Leg["kind"], from, to, h0, h1,
+    dur: kind === "jump" ? JUMP_TIME : from.distanceTo(to) / WALK_SPEED,
+  }));
+})();
+const hopTotal = hopPath.reduce((a, l) => a + l.dur, 0);
+let hopT = 0, hopHeading = 0, inPlaceT = 0;
+
+/** Place the mover along the hop path; sets jumpK while jumping. */
+function followHop(dt: number): void {
+  hopT = (hopT + dt) % hopTotal;
+  let t = hopT, leg = hopPath[0]!;
+  for (const l of hopPath) { if (t < l.dur) { leg = l; break; } t -= l.dur; }
+  const k = t / leg.dur;
+  if (leg.kind === "walk") {
+    jumpK = -1;
+    mover.position.lerpVectors(leg.from, leg.to, k);
+    mover.position.y = leg.h0;
+  } else {
+    jumpK = k;
+    const u = jumpPose(k);
+    const e = smooth(u);
+    mover.position.lerpVectors(leg.from, leg.to, e);
+    mover.position.y = leg.h0 + (leg.h1 - leg.h0) * e + 4 * JUMP_ARC * u * (1 - u);
+  }
+  const dir = new THREE.Vector3().subVectors(leg.to, leg.from);
+  const want = Math.atan2(dir.x, dir.z);
+  let d = want - hopHeading;
+  d = Math.atan2(Math.sin(d), Math.cos(d));
+  hopHeading += d * Math.min(1, dt * 8);
+  mover.rotation.y = hopHeading;
+}
+
 const clock = new THREE.Clock();
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 let time = 0, zoom = 1.1, heading = Math.PI / 4;
@@ -274,7 +366,19 @@ function frame(): void {
   time += dt;
   (ship.userData.update as (t: number) => void)(time);
   if (spinning) heading += dt * 0.5;
-  rig.root.rotation.y = heading;
+  if (pose === "hop") {
+    followHop(dt);
+  } else {
+    mover.position.set(0, 0, 0);
+    mover.rotation.y = heading;
+    if (pose === "jump") {
+      // Jump in place, then stand for a moment.
+      inPlaceT = (inPlaceT + dt) % (JUMP_TIME + 0.6);
+      jumpK = inPlaceT < JUMP_TIME ? inPlaceT / JUMP_TIME : -1;
+      const u = jumpK >= 0 ? jumpPose(jumpK) : 0;
+      mover.position.y = 4 * JUMP_ARC * u * (1 - u);
+    } else jumpK = -1;
+  }
   animate(time, dt);
 
   if (pose === "mine" && Math.random() < dt * 30) {
@@ -296,12 +400,12 @@ function frame(): void {
     sg.attributes.position!.needsUpdate = true;
   }
 
-  zoom += ((closeUp ? 1.3 : 6.2) - zoom) * (1 - Math.exp(-dt * 4));
+  zoom += ((closeUp ? (pose === "hop" ? 2.6 : 1.3) : 6.2) - zoom) * (1 - Math.exp(-dt * 4));
   const a = container.clientWidth / Math.max(1, container.clientHeight);
   const z = a < 1.2 ? zoom * (1.35 / Math.max(0.5, a)) : zoom;
   Object.assign(camera, { left: -z * a, right: z * a, top: z, bottom: -z });
   camera.updateProjectionMatrix();
-  const look = new THREE.Vector3(0, closeUp ? 0.6 : 0, 0);
+  const look = pose === "hop" ? new THREE.Vector3(5.6, closeUp ? 0.4 : 0, 4.4) : new THREE.Vector3(0, closeUp ? 0.6 : 0, 0);
   camera.position.copy(look).add(CAM_OFFSET);
   camera.lookAt(look);
   sun.position.set(EVENING.sunOffset[0], EVENING.sunOffset[1], EVENING.sunOffset[2]);
