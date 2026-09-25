@@ -26,6 +26,8 @@ export class Controller {
   buildKind: BuildKind | null = null;
   /** The smelter whose panel is open (you're next to it). */
   openSmelterId: number | null = null;
+  /** The ship's inventory panel is open (you're next to it). */
+  shipOpen = false;
   /** Placed tower picked for inspecting and selling. */
   selectedTowerId: number | null = null;
   /** The ship picked for inspecting (its gun's range and stats). */
@@ -227,7 +229,7 @@ export class Controller {
       case "q": if (!e.repeat) this.openWheel("walls"); break;
       case "e": if (!e.repeat) this.openWheel("towers"); break;
       case "x": case "delete": case "backspace": this.sellSelected(); break;
-      case "escape": this.clearSelection(); this.openSmelterId = null; break;
+      case "escape": this.clearSelection(); this.openSmelterId = null; this.shipOpen = false; break;
       case "z": this.undo(); break;
       case " ": e.preventDefault(); if (!e.repeat) this.game.avatarInput.jump = true; break;
       case "p": this.togglePause(); break;
@@ -323,7 +325,7 @@ export class Controller {
     const smelter = this.smelterUnderCursor();
     if (smelter) {
       if (this.openSmelterId === smelter.id) this.openSmelterId = null;
-      else if (this.game.canUseSmelter(smelter)) { this.openSmelterId = smelter.id; this.selectedTowerId = null; this.selectedShip = false; }
+      else if (this.game.canUseSmelter(smelter)) { this.openSmelterId = smelter.id; this.shipOpen = false; this.selectedTowerId = null; this.selectedShip = false; }
       else this.hud.toast("Too far away");
       return;
     }
@@ -331,7 +333,12 @@ export class Controller {
     const tower = this.towerUnderCursor();
     if (tower) { this.selectedShip = false; this.selectedTowerId = this.selectedTowerId === tower.id ? null : tower.id; return; }
     this.selectedTowerId = null;
-    if (this.lastPointer && this.view.shipAt(this.lastPointer.x, this.lastPointer.y)) { this.selectedShip = !this.selectedShip; return; }
+    // The ship: next to it, its inventory opens (clicking again closes it); from further off, its gun's range and stats.
+    if (this.lastPointer && this.view.shipAt(this.lastPointer.x, this.lastPointer.y)) {
+      if (this.game.canUseShip()) { this.shipOpen = !this.shipOpen; this.openSmelterId = null; this.selectedShip = false; }
+      else this.selectedShip = !this.selectedShip;
+      return;
+    }
     this.selectedShip = false;
     const piece = this.lastPointer ? this.wallAt(this.lastPointer.x, this.lastPointer.y) : undefined;
     if (!piece) return;
@@ -400,6 +407,8 @@ export class Controller {
     const open = this.game.smelters.find(s => s.id === this.openSmelterId);
     if (!open || !this.game.canUseSmelter(open)) this.openSmelterId = null;
     this.hud.smelterId = this.openSmelterId;
+    if (this.shipOpen && !this.game.canUseShip()) this.shipOpen = false;
+    this.hud.shipOpen = this.shipOpen;
     if (ml) this.updateHover();
 
     // Arrow keys pan the camera away from the avatar.

@@ -89,6 +89,8 @@ export type SmelterCheck =
 
 /** How close the player must be to a smelter to use it: the gap to its footprint, in cells. */
 export const SMELTER_REACH = 1.6;
+/** Slots in the ship's inventory. */
+export const SHIP_SLOTS = 24;
 
 export type TowerCheck =
   | { ok: true; cells: Cell[] }
@@ -196,6 +198,12 @@ export class Game {
    * to it through walls or buildings (touching counts, corners too).
    */
   supplied = new Set<string>();
+  /** The ship's own inventory (24 slots): storage, and what it takes upkeep from. Lost if the ship is destroyed. */
+  shipStore = new Inventory(SHIP_SLOTS);
+  /** Upkeep owed but not yet taken (whole pieces are taken as they add up), per resource. */
+  private owed = { stone: 0, alloy: 0 };
+  /** The ship could pay its last upkeep. When it can't, everything it supplies decays. */
+  upkeepPaid = true;
   field: FlowField;
   events: GameEvent[] = [];
   /** Spawn practice walkers during planning so rerouting can be watched. */
@@ -310,6 +318,10 @@ export class Game {
     this.shipDown = false;
     for (const k of this.world.nexus) this.world.targets.add(k);
     this.raidIn = this.tuning.raidGrace;
+    this.shipStore = new Inventory(SHIP_SLOTS);
+    this.shipStore.add("stone", this.tuning.shipStartStone);
+    this.owed = { stone: 0, alloy: 0 };
+    this.upkeepPaid = true;
   }
 
   /** The last stretch before a raid: fixed, the caves stir and show where it comes from. */
@@ -626,6 +638,91 @@ export class Game {
     this.supplied = out;
   }
 
+  // ---------------------------------------------------------------- the ship's inventory and upkeep
+
+  /** Is the player close enough to use the ship's inventory (the gap to its footprint)? */
+  canUseShip(): boolean {
+    if (this.shipDown || this.phase === "over") return false;
+    const xs = [...this.world.nexus].map(k => parseKey(k));
+    const x0 = Math.min(...xs.map(c => c[0])), x1 = Math.max(...xs.map(c => c[0])) + 1;
+    const y0 = Math.min(...xs.map(c => c[1])), y1 = Math.max(...xs.map(c => c[1])) + 1;
+    const { x, y } = this.avatar;
+    return Math.hypot(Math.max(x0 - x, 0, x - x1), Math.max(y0 - y, 0, y - y1)) <= SMELTER_REACH;
+  }
+
+  /** Put a hotbar stack into the ship (as much as fits; anything but the multitool). Returns how much moved. */
+  shipPut(hotbarSlot: number): number {
+    const stack = this.hotbar.slots[hotbarSlot];
+    if (!stack || stack.kind === "multitool" || !this.canUseShip()) return 0;
+    const n = this.shipStore.add(stack.kind, Math.min(stack.count, this.shipStore.room(stack.kind)));
+    stack.count -= n;
+    if (!stack.count) this.hotbar.slots[hotbarSlot] = null;
+    return n;
+  }
+
+  /** Take one of the ship's slots into the hotbar (as much as fits). Returns how much moved. */
+  shipTake(slot: number): number {
+    const stack = this.shipStore.slots[slot];
+    if (!stack || !this.canUseShip()) return 0;
+    const n = this.hotbar.add(stack.kind, Math.min(stack.count, this.hotbar.room(stack.kind)));
+    stack.count -= n;
+    if (!stack.count) this.shipStore.slots[slot] = null;
+    return n;
+  }
+
+  /**
+   * Upkeep per minute: a share of each supplied thing's build price, in what it was
+   * paid with. Stone walls and smelters cost stone; plating and towers cost alloy.
+   */
+  upkeepPerMinute(): { stone: number; alloy: number } {
+    const r = this.tuning.upkeepRate;
+    let stone = 0, alloy = 0;
+    for (const p of this.pieces) if (this.pieceSupplied(p)) { stone += p.paid || this.wallCost(p.cells.length); alloy += p.plated; }
+    for (const t of this.towers) if (t.cells.some(([x, y]) => this.supplied.has(cellKey(x, y)))) alloy += t.paid;
+    for (const s of this.smelters) if (s.cells.some(([x, y]) => this.supplied.has(cellKey(x, y)))) stone += s.paid.stone;
+    return { stone: stone * r, alloy: alloy * r };
+  }
+
+  /** Seconds the ship's stock lasts at the current upkeep (Infinity if nothing is owed). */
+  upkeepLasts(): number {
+    const u = this.upkeepPerMinute();
+    const t = (have: number, rate: number) => (rate > 0 ? (have / rate) * 60 : Infinity);
+    return Math.min(t(this.shipStore.count("stone"), u.stone), t(this.shipStore.count("alloy"), u.alloy));
+  }
+
+  /**
+   * Take upkeep from the ship's stock as it adds up, and decay anything unsupplied, or
+   * everything supplied while the upkeep goes unpaid. Decay stops when it's paid again.
+   */
+  private stepUpkeep(dt: number): void {
+    if (!this.supplyRule) return;
+    const u = this.upkeepPerMinute();
+    let paid = true;
+    for (const kind of ["stone", "alloy"] as const) {
+      this.owed[kind] += (u[kind] * dt) / 60;
+      const whole = Math.floor(this.owed[kind]);
+      if (whole <= 0) continue;
+      const took = this.shipStore.remove(kind, whole);
+      this.owed[kind] -= took;
+      if (took < whole) { paid = false; this.owed[kind] = Math.min(this.owed[kind], 1); }
+    }
+    this.upkeepPaid = paid;
+    const rate = dt / Math.max(1, this.tuning.decayTime);
+    const broken: number[] = [];
+    for (const p of this.pieces) {
+      if (this.upkeepPaid && this.pieceSupplied(p)) continue;
+      const max = this.wallMaxHp(p), hp = (this.world.pieceHp.get(p.id) ?? max) - max * rate;
+      if (hp > 0) this.world.pieceHp.set(p.id, hp);
+      else broken.push(p.id);
+    }
+    for (const id of broken) this.breakPiece(id);
+    for (const s of [...this.smelters]) {
+      if (this.upkeepPaid && s.cells.some(([x, y]) => this.supplied.has(cellKey(x, y)))) continue;
+      s.hp = Math.max(0, s.hp - s.maxHp * rate);
+      if (s.hp <= 0) { this.dropSmelter(s); this.events.push({ type: "smelter-destroyed", smelter: s }); }
+    }
+  }
+
   /** Is this wall piece supplied (any of its cells: a piece is one connected shape)? */
   pieceSupplied(piece: PlacedPiece): boolean { return piece.cells.some(([x, y]) => this.supplied.has(cellKey(x, y))); }
 
@@ -714,6 +811,8 @@ export class Game {
       this.hp = Math.max(0, this.hp - amount);
       if (this.hp > 0) return;
       this.shipDown = true;
+      // Its inventory goes with it.
+      this.shipStore = new Inventory(SHIP_SLOTS);
       for (const k of this.world.nexus) this.world.targets.delete(k);
       this.refresh();
       this.events.push({ type: "ship-destroyed" });
@@ -895,6 +994,7 @@ export class Game {
     // A leak may have ended the run.
     if ((this.phase as Phase) === "over") return;
     for (const s of this.smelters) smelt(s, dt, this.tuning.smeltRate);
+    this.stepUpkeep(dt);
     this.updateTowers(dt);
     this.updateShots(dt);
     if (this.phase === "wave" && this.waveLeft === 0 && this.packQueue.length === 0 && this.walkers.length === 0) {

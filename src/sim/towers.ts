@@ -62,6 +62,12 @@ export interface Tuning {
   enemyDamage: number;
   /** How far the ship's supply reaches, in cells from its centre. Walls and buildings need it (and a wall connection). */
   supplyRadius: number;
+  /** Upkeep: the share of each supplied thing's build price the ship takes per minute (0.03 = 3%). */
+  upkeepRate: number;
+  /** Stone the ship's inventory starts a run with, so the first walls don't decay straight away. */
+  shipStartStone: number;
+  /** Seconds for something unsupplied or unpaid to decay from full HP to broken. */
+  decayTime: number;
   /** HP of a stone wall piece (it breaks as a whole); plating multiplies it. At most `wallClawers` enemies claw one piece at a time. */
   wallHp: number;
   platedHpMult: number;
@@ -112,6 +118,9 @@ export const defaultTuning = (): Tuning => ({
   smelterHp: 150,
   enemyDamage: 2,
   supplyRadius: 40,
+  upkeepRate: 0.03,
+  shipStartStone: 200,
+  decayTime: 300,
   wallHp: 600,
   platedHpMult: 3,
   wallClawers: 2,

@@ -72,6 +72,9 @@ const GAIN_HOLD = 1, GAIN_FADE = 0.5;
 export class Hud {
   /** The smelter whose panel is open, set by the input layer each frame. */
   smelterId: number | null = null;
+  /** The ship's inventory panel is open (you're next to it), set by the input layer each frame. */
+  shipOpen = false;
+  private shipSig = "";
   private lastSig = "";
   private barSig = "";
   private smelterSig = "";
@@ -87,7 +90,13 @@ export class Hud {
     // click a smelter slot to take what's in it.
     $("hotbar").addEventListener("click", e => {
       const i = Number((e.target as HTMLElement).closest<HTMLElement>(".slot")?.dataset.i);
-      if (this.smelterId !== null && Number.isInteger(i)) this.game.smelterPut(this.smelterId, i);
+      if (!Number.isInteger(i)) return;
+      if (this.shipOpen) this.game.shipPut(i);
+      else if (this.smelterId !== null) this.game.smelterPut(this.smelterId, i);
+    });
+    $("shipStore").addEventListener("click", e => {
+      const el = (e.target as HTMLElement).closest<HTMLElement>(".slot");
+      if (this.shipOpen && el) this.game.shipTake(Number(el.dataset.i));
     });
     $("smelter").addEventListener("click", e => {
       // Remove: the smelter's full price back, and everything in it.
@@ -109,6 +118,31 @@ export class Hud {
         if (g.node !== e.node || g.idle > GAIN_HOLD + GAIN_FADE) { g.node = e.node; g.amount = 0; }
         g.amount += e.added; g.idle = 0;
       }
+    }
+  }
+
+  /** The ship's inventory: 24 slots, with the upkeep per minute and how long the stock lasts. */
+  private shipPanel(): void {
+    const g = this.game, panel = $("shipStore");
+    panel.hidden = !this.shipOpen;
+    if (!this.shipOpen) { this.shipSig = ""; return; }
+    if (!this.shipSig) {
+      this.shipSig = "built";
+      panel.innerHTML = `<h3>Ship <small></small></h3><div class="grid">${g.shipStore.slots.map((_, i) => `<div class="slot" data-i="${i}"></div>`).join("")}</div>`;
+    }
+    const u = g.upkeepPerMinute(), lasts = g.upkeepLasts();
+    const parts = [u.stone > 0 ? `${Math.ceil(u.stone)} stone` : "", u.alloy > 0 ? `${Math.ceil(u.alloy)} alloy` : ""].filter(Boolean);
+    const mm = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+    const text = !parts.length ? "No upkeep" : !g.upkeepPaid ? `Upkeep ${parts.join(" · ")} / min · unpaid` : `Upkeep ${parts.join(" · ")} / min · lasts ${isFinite(lasts) ? mm(lasts) : "–"}`;
+    const small = panel.querySelector("small")!;
+    if (small.textContent !== text) small.textContent = text;
+    small.classList.toggle("bad", !!parts.length && (!g.upkeepPaid || lasts < 60));
+    for (const el of panel.querySelectorAll<HTMLElement>(".slot")) {
+      const s = g.shipStore.slots[Number(el.dataset.i)] ?? null, sig = s ? s.kind + s.count : "";
+      if (el.dataset.sig === sig) continue;
+      el.dataset.sig = sig;
+      el.classList.toggle("take", !!s);
+      el.innerHTML = s ? `<img alt="" src="${this.icons[s.kind]}">` + (STACK_MAX[s.kind] > 1 ? `<b>x${s.count}</b>` : "") : "";
     }
   }
 
@@ -155,14 +189,17 @@ export class Hud {
   /** Per frame: the hotbar, and the "+N" popup. `dt` in real seconds. */
   frame(dt: number, project: Projector): void {
     const g = this.game, bar = g.hotbar;
-    const open = g.smelters.find(s => s.id === this.smelterId);
-    const sig = bar.selected + "|" + bar.slots.map(s => (s ? s.kind + s.count : "")).join(",") + "|" + !!open;
+    const open = g.smelters.find(s => s.id === this.smelterId), ship = this.shipOpen;
+    const sig = bar.selected + "|" + bar.slots.map(s => (s ? s.kind + s.count : "")).join(",") + "|" + !!open + ship;
     if (sig !== this.barSig) {
       this.barSig = sig;
       const hb = $("hotbar");
-      hb.classList.toggle("open", !!open);
-      hb.innerHTML = bar.slots.map((s, i) => this.slotHtml(s, i, i === bar.selected, open ? (s?.kind === "metal" ? "take" : "dim") : "")).join("");
+      hb.classList.toggle("open", !!open || ship);
+      // With a panel open, the stacks that can go in are clickable, the rest dimmed.
+      const mode = (k?: string) => ship ? (k && k !== "multitool" ? "take" : "dim") : open ? (k === "metal" ? "take" : "dim") : "";
+      hb.innerHTML = bar.slots.map((s, i) => this.slotHtml(s, i, i === bar.selected, mode(s?.kind))).join("");
     }
+    this.shipPanel();
     // The open smelter: raw metal in, a progress arrow, alloy out.
     const panel = $("smelter");
     panel.hidden = !open;
@@ -218,7 +255,7 @@ export class Hud {
     const hpNow = Math.ceil(g.hp);
     if (hpNow < this.lastHp && !g.shipDown) { const el = $("hp"); el.classList.remove("hurt"); void el.offsetWidth; el.classList.add("hurt"); }
     this.lastHp = hpNow;
-    const sig = JSON.stringify([g.phase, g.round, sel.selectedTowerId, sel.selectedShip, g.waveRemaining, hpNow, g.shipDown,
+    const sig = JSON.stringify([g.phase, g.round, sel.selectedTowerId, sel.selectedShip, g.waveRemaining, hpNow, g.shipDown, g.upkeepPaid,
       g.tuning.twin, g.tuning.gatling, g.tuning.ship, g.tuning.sellRefund, tower?.fresh]);
     if (sig === this.lastSig) return;
     this.lastSig = sig;
@@ -228,6 +265,7 @@ export class Hud {
     pill.textContent = g.phase === "planning" ? "Calm" : g.phase === "wave" ? "Raid" : "Run over";
     pill.className = `pill ${g.phase}`;
     $("hp").innerHTML = g.shipDown ? "Ship <b>destroyed</b>" : `Ship <b>${hpNow}</b>`;
+    $("upkeep").hidden = g.upkeepPaid || g.shipDown;
 
     // Run over: a notice, not a popup. The map stays visible behind it.
     const over = $("over");

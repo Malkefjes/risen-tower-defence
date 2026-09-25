@@ -98,6 +98,11 @@ button:focus-visible { outline: 2px solid var(--warm); outline-offset: 2px; }
 .smelter .remove:hover { border-color: #d9573a; }
 .smelter .row { display: flex; align-items: center; gap: 10px; }
 .smelter .slots { display: flex; gap: 5px; }
+/* The ship's inventory: 24 slots in rows of 8, the upkeep line in the header. */
+.shipstore .grid { display: grid; grid-template-columns: repeat(8, 52px); gap: 5px; }
+.shipstore h3 small { font-size: 12px; font-weight: 600; letter-spacing: .02em; text-transform: none; color: var(--muted); }
+.shipstore h3 small.bad { color: #ff9c92; }
+@media (max-width: 520px) { .shipstore .grid { grid-template-columns: repeat(6, 44px); } }
 .smelter .arrow { position: relative; width: 44px; height: 8px; border-radius: 4px; background: rgba(61,68,87,.85); overflow: hidden; }
 /* Smelting is quick (several pieces a second), so a flowing glow shows it working rather than a bar per piece. */
 .smelter .arrow i { position: absolute; inset: 0; opacity: 0; background: repeating-linear-gradient(90deg, #ffb347 0 8px, #ff8a2a 8px 16px); background-size: 32px 100%; }
