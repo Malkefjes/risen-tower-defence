@@ -2,9 +2,9 @@ import * as THREE from "three";
 import { createDefaultModels, createGlows, createMaterials, DECK_TOP, EVENING, roundedBox, type TurretRig } from "../../src/render/models";
 import "./style.css";
 
-// The chosen ship, the Rocket, on its own: four grid-aligned fins, the engine
+// The chosen ship, the Rocket, on its own: three fins (one front-centre), the engine
 // core in an open cage mid-body, and a cargo door that is also the ramp. It
-// lands with the door shut, then the door swings down and the colonist walks out.
+// lands with the door shut, then the door swings down into a ramp.
 THREE.ColorManagement.enabled = false;
 
 const CAM_OFFSET = new THREE.Vector3(20, 16.33, 20);
@@ -73,48 +73,59 @@ const shadowAll = <T extends THREE.Object3D>(o: T): T => {
 // ------------------------------------------------------------------ the rocket
 
 /**
- * Built with its front (cargo door) facing local +z. The whole group is turned
- * 45° so the door faces the camera and the four fins line up with the grid.
+ * Built with its front facing local +z; the whole group is turned 45° so the
+ * front faces the camera. Three fins: one in the middle of the front, two
+ * behind. The cargo bay sits front-left of the front fin, the fabricator with
+ * its console front-right, both at walking height.
  */
 function buildRocket() {
   const g = new THREE.Group();
   const R = 0.72;
+  /** Direction on the hull at local angle `a` (0 = +x, 90° = +z, the front). */
+  const facing = (a: number) => { const o = new THREE.Group(); o.rotation.y = Math.PI / 2 - a; g.add(o); return o; };
+  const deg = Math.PI / 180;
 
-  // Fins double as landing legs, at the local diagonals (grid axes once turned).
-  for (let i = 0; i < 4; i++) {
-    const a = Math.PI / 4 + (i * Math.PI) / 2;
+  // Three fins double as landing legs: front centre, back-left, back-right.
+  [90, 210, 330].forEach((d, i) => {
+    const a = d * deg;
     const s = new THREE.Shape();
     [[R - 0.05, 0.55], [R + 0.62, 0], [R + 0.74, 0], [R + 0.52, 0.9], [R - 0.05, 1.7]].forEach(([x, y], k) => (k ? s.lineTo(x!, y!) : s.moveTo(x!, y!)));
-    const fg = new THREE.ExtrudeGeometry(s, { depth: 0.1, bevelEnabled: false });
-    fg.translate(0, 0, -0.05);
-    const f = new THREE.Mesh(fg, i % 2 ? M.orangeDark : M.orange);
+    // The front fin faces the camera end-on, so it's built heavier to keep its mass.
+    const t = i === 0 ? 0.2 : 0.12;
+    const fg = new THREE.ExtrudeGeometry(s, { depth: t, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 1 });
+    fg.translate(0, 0, -t / 2);
+    const f = new THREE.Mesh(fg, i === 0 ? M.orange : M.orangeDark);
     f.rotation.y = -a;
     g.add(f);
-    const pad = mesh(new THREE.CylinderGeometry(0.1, 0.13, 0.05, 8), M.steelDark, Math.cos(a) * (R + 0.68), 0.025, Math.sin(a) * (R + 0.68));
-    g.add(pad);
-  }
+    // A steel leading edge so the front fin reads as a fin when seen end-on.
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.05, 0.14), M.steel);
+    edge.position.set(Math.cos(a) * (R + 0.68), 0.025, Math.sin(a) * (R + 0.68));
+    g.add(edge);
+  });
 
-  // Engine bells underneath.
-  for (const [x, z] of [[0.26, 0.26], [-0.26, -0.26], [0.26, -0.26], [-0.26, 0.26]] as const) {
+  // Engine bells underneath, between the fins.
+  for (const d of [30, 150, 270]) { // under the hull, between the fins
     const b = new THREE.Group();
     b.add(mesh(new THREE.CylinderGeometry(0.13, 0.28, 0.36, 12, 1, true), M.steelDark, 0, 0.18, 0));
     b.add(mesh(new THREE.CircleGeometry(0.25, 12).rotateX(Math.PI / 2), M.power, 0, 0.02, 0));
-    b.position.set(x, 0.1, z);
+    b.position.set(Math.cos(d * deg) * 0.3, 0.1, Math.sin(d * deg) * 0.3);
     g.add(b);
   }
 
-  // Lower body with the cargo bay.
+  // Lower body.
   g.add(cyl(R * 0.9, R, 0.12, M.steelDark, 0.28));
   g.add(cyl(R, R, 1.0, M.hull, 0.4));
   g.add(cyl(R + 0.02, R + 0.02, 0.1, M.orange, 1.12));
-  // Bay: a dark recess in an orange frame, with a warm interior light.
-  const bayW = 0.52, bayY0 = 0.4, bayH = 0.64, face = R - 0.03;
-  g.add(box(bayW, bayH, 0.1, M.steelDark, 0, bayY0, face - 0.02));
-  g.add(box(bayW - 0.08, 0.04, 0.05, M.bayLight, 0, bayY0 + bayH - 0.1, face + 0.02));
-  g.add(box(bayW + 0.12, 0.07, 0.1, M.orange, 0, bayY0 + bayH, face + 0.03));
-  for (const sx of [-1, 1]) g.add(box(0.07, bayH, 0.1, M.orange, sx * (bayW / 2 + 0.03), bayY0, face + 0.03));
+  const face = R - 0.03;
 
-  // The door is the ramp: hinged at the bay's sill, it swings out and down to the snow.
+  // Cargo bay, front-left: a dark recess in an orange frame with a warm light inside.
+  const bay = facing(135 * deg);
+  const bayW = 0.5, bayY0 = 0.4, bayH = 0.64;
+  bay.add(box(bayW, bayH, 0.1, M.steelDark, 0, bayY0, face - 0.02));
+  bay.add(box(bayW - 0.08, 0.04, 0.05, M.bayLight, 0, bayY0 + bayH - 0.1, face + 0.02));
+  bay.add(box(bayW + 0.12, 0.07, 0.1, M.orange, 0, bayY0 + bayH, face + 0.03));
+  for (const sx of [-1, 1]) bay.add(box(0.07, bayH, 0.1, M.orange, sx * (bayW / 2 + 0.03), bayY0, face + 0.03));
+  // The door is the ramp: hinged at the sill, it swings out and down to the snow.
   const door = new THREE.Group();
   door.position.set(0, bayY0, face + 0.06);
   const panel = box(bayW, bayH, 0.06, M.hullShade, 0, 0, 0);
@@ -122,16 +133,30 @@ function buildRocket() {
   door.add(panel);
   for (let k = 0; k < 4; k++) door.add(box(bayW * 0.8, 0.02, 0.02, M.steelLight, 0, 0.1 + k * 0.13, 0.065));
   for (const sx of [-1, 1]) door.add(box(0.04, bayH, 0.03, M.orange, sx * (bayW / 2 - 0.02), 0, 0.07));
-  g.add(door);
-  // Open: the door lies along the ramp, its far end on the ground.
+  bay.add(door);
   const openAngle = Math.PI / 2 + Math.asin(Math.min(1, bayY0 / bayH));
+
+  // Fabricator, front-right: print hatch with a pulsing plate, a console screen and a gantry arm.
+  const fab = facing(45 * deg);
+  fab.add(box(0.5, 0.6, 0.1, M.steelDark, 0, 0.42, face - 0.02));
+  fab.add(box(0.56, 0.07, 0.1, M.orange, 0, 1.02, face + 0.03));
+  fab.add(box(0.56, 0.05, 0.1, M.orange, 0, 0.38, face + 0.03));
+  fab.add(box(0.34, 0.2, 0.03, M.print, 0, 0.5, face + 0.04));
+  const screen = box(0.3, 0.18, 0.03, M.visor, 0, 0.78, face + 0.04);
+  fab.add(screen);
+  for (let k = 0; k < 3; k++) fab.add(box(0.2 - k * 0.05, 0.015, 0.01, M.power, -0.03 + k * 0.025, 0.82 + k * 0.035, face + 0.06));
+  const arm = new THREE.Group();
+  arm.add(box(0.05, 0.05, 0.34, M.steelLight, 0, 0, 0.17));
+  arm.add(box(0.05, 0.14, 0.05, M.steelLight, 0, -0.12, 0.32));
+  arm.position.set(0.16, 1.1, face);
+  fab.add(arm);
 
   // Open core section: the Reactor cage.
   g.add(cyl(R + 0.03, R + 0.03, 0.08, M.steel, 1.22));
   const core = new THREE.Group();
   core.add(mesh(new THREE.CylinderGeometry(0.62, 0.66, 0.12, 12), M.steel, 0, 0.06, 0));
   for (let i = 0; i < 4; i++) {
-    const a = (i * Math.PI) / 2;
+    const a = (i * Math.PI) / 2 + Math.PI / 4;
     core.add(mesh(roundedBox(0.12, 0.95, 0.12, 0.03), M.steelLight, Math.cos(a) * 0.5, 0.1, Math.sin(a) * 0.5));
     core.add(box(0.16, 0.06, 0.16, M.orange, Math.cos(a) * 0.5, 1.02, Math.sin(a) * 0.5));
   }
@@ -144,25 +169,17 @@ function buildRocket() {
   core.position.y = 1.3;
   g.add(core);
 
-  // Upper body with the fabricator hatch facing front, then the nose.
+  // Upper body with a porthole, then the nose.
   g.add(cyl(R + 0.03, R + 0.03, 0.08, M.steel, 2.38));
   g.add(cyl(R, R, 0.78, M.hull, 2.46));
   g.add(cyl(R + 0.02, R + 0.02, 0.1, M.orange, 3.0));
-  g.add(box(0.46, 0.34, 0.08, M.steelDark, 0, 2.56, face));
-  g.add(box(0.3, 0.2, 0.03, M.print, 0, 2.63, face + 0.05));
-  g.add(box(0.52, 0.05, 0.1, M.orange, 0, 2.9, face + 0.02));
-  const arm = new THREE.Group();
-  arm.add(box(0.05, 0.05, 0.36, M.steelLight, 0, 0, 0.18));
-  arm.add(box(0.05, 0.14, 0.05, M.steelLight, 0, -0.12, 0.34));
-  arm.position.set(0.18, 2.95, face);
-  g.add(arm);
-  g.add(mesh(new THREE.CircleGeometry(0.12, 12), M.visor, -0.45, 3.1, 0.56).rotateY(-0.7));
+  facing(90 * deg).add(mesh(new THREE.CircleGeometry(0.13, 14), M.visor, 0, 2.78, R + 0.01));
   g.add(mesh(new THREE.ConeGeometry(R, 1.05, 20), M.hull, 0, 3.24 + 0.525, 0));
   g.add(mesh(new THREE.ConeGeometry(0.2, 0.3, 20), M.orange, 0, 4.2, 0));
 
   shadowAll(g);
   return {
-    group: g, door, openAngle, bayY0, face,
+    group: g, bay, door, openAngle, bayY0, face,
     /** How far from the hull the open ramp touches the snow. */
     reach: Math.sqrt(Math.max(0, bayH ** 2 - bayY0 ** 2)),
     update(t: number) {
@@ -225,7 +242,10 @@ for (const [name, x, z, s] of deco) {
   scene.add(m);
 }
 
+// The colonist arrives by drop pod earlier; here it just stands by the console for scale.
 const guy = colonist();
+guy.position.set(CENTER.x + 1.45, 0, CENTER.z + 1.0);
+guy.rotation.y = -Math.PI * 0.6;
 scene.add(guy);
 
 // ------------------------------------------------------------------ the landing sequence
@@ -244,20 +264,19 @@ function burst(x: number, z: number, r: number, n: number, speed: number): void 
   }
 }
 
-const DROP = 10, DESCENT = 2.6, HOLD = 0.5, OPEN = 1.0, WALK = 1.8;
+const DROP = 10, DESCENT = 2.6, HOLD = 0.5, OPEN = 1.0;
 let t0 = 0, time = 0, shake = 0, touched = false, clunked = false;
 let doorManual: number | null = null;
 
-/** Door opening 0..1 and the colonist's walk 0..1, from the time since landing began. */
-function sequence(since: number): { y: number; door: number; walk: number; thrust: boolean } {
+/** Height and door opening 0..1, from the time since landing began. */
+function sequence(since: number): { y: number; door: number; thrust: boolean } {
   if (since < DESCENT) {
     const k = since / DESCENT, e = 1 - (1 - k) ** 3;
-    return { y: DROP * (1 - e), door: 0, walk: -1, thrust: true };
+    return { y: DROP * (1 - e), door: 0, thrust: true };
   }
   const after = since - DESCENT - HOLD;
   const door = Math.min(1, Math.max(0, after / OPEN));
-  const walk = Math.min(1, Math.max(-1, (after - OPEN - 0.2) / WALK));
-  return { y: 0, door, walk, thrust: false };
+  return { y: 0, door, thrust: false };
 }
 
 function land(): void {
@@ -272,7 +291,8 @@ document.getElementById("door")!.addEventListener("click", () => {
 
 const tmp = new THREE.Vector3();
 /** Point in the rocket's local space to world space. */
-const local = (x: number, y: number, z: number) => rocket.group.localToWorld(tmp.set(x, y, z)).clone();
+/** Point in the cargo bay's local space to world space. */
+const local = (x: number, y: number, z: number) => rocket.bay.localToWorld(tmp.set(x, y, z)).clone();
 
 // ------------------------------------------------------------------ snow, camera, loop
 
@@ -319,29 +339,6 @@ function frame(): void {
     clunked = true; shake = 0.1;
     const tip = local(0, 0.02, rocket.face + 0.06 + rocket.reach);
     burst(tip.x, tip.z, 0.15, 8, 0.8);
-  }
-
-  // Colonist: hidden in the bay until the ramp is down, then walks down and out.
-  const legs = guy.userData.legs as THREE.Mesh[];
-  if (s.walk < 0) {
-    guy.visible = false;
-  } else {
-    guy.visible = true;
-    const reach = rocket.reach;
-    const w = s.walk;
-    // Three stretches: bay floor to the top of the ramp, down the ramp, out onto the snow.
-    const top = local(0, rocket.bayY0, rocket.face - 0.1);
-    const bottom = local(0, 0, rocket.face + 0.06 + reach);
-    const out = local(0, 0, rocket.face + 0.06 + reach + 0.9);
-    const p = w < 0.15 ? top.clone().lerp(local(0, rocket.bayY0, rocket.face + 0.06), w / 0.15)
-      : w < 0.55 ? local(0, rocket.bayY0, rocket.face + 0.06).lerp(bottom, (w - 0.15) / 0.4)
-      : bottom.clone().lerp(out, (w - 0.55) / 0.45);
-    guy.position.copy(p);
-    guy.rotation.y = Math.PI / 4;
-    const stepping = w < 1;
-    legs[0]!.position.z = stepping ? Math.sin(time * 14) * 0.04 : 0;
-    legs[1]!.position.z = stepping ? -Math.sin(time * 14) * 0.04 : 0;
-    guy.children[0]!.position.y = stepping ? Math.abs(Math.sin(time * 14)) * 0.02 : 0;
   }
 
   // Fabricator pulse and idle turrets.
