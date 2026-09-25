@@ -174,16 +174,19 @@ describe("avatar in the game", () => {
     const h = new Game(open({ start: [3, 5], trees: [{ x: 6, y: 5, s: 1 }] }), { seed: 1 });
     h.avatarInput = { x: 1, y: 0, jump: false };
     for (let i = 0; i < 120; i++) h.stepAvatar();
-    expect(h.avatar.x).toBeLessThan(6);
+    // (only the trunk blocks: the middle half of the cell)
+    expect(h.avatar.x + h.avatarTuning.radius).toBeLessThanOrEqual(6.25 + 1e-3);
   });
 
-  it("slides off a tree it comes down on", () => {
+  it("slides off a tree trunk it comes down on", () => {
     const g = new Game(open({ start: [6, 5], trees: [{ x: 6, y: 5, s: 1 }] }), { seed: 1 });
     g.avatar.place(6.4, 5.5, 2);
     g.avatar.grounded = false;
     for (let i = 0; i < 90; i++) g.stepAvatar();
     expect(g.avatar.grounded).toBe(true);
     expect(g.avatar.z).toBe(0);
-    expect(Math.floor(g.avatar.x) === 6 && Math.floor(g.avatar.y) === 5).toBe(false);
+    // Out of the trunk (the middle half of the cell), not on top of it.
+    const inTrunk = (v: number, c: number) => v + g.avatarTuning.radius > c + 0.25 && v - g.avatarTuning.radius < c + 0.75;
+    expect(inTrunk(g.avatar.x, 6) && inTrunk(g.avatar.y, 5)).toBe(false);
   });
 });

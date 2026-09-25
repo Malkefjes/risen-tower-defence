@@ -15,6 +15,8 @@ export const TICK = 1 / 60;
 export const SHIP_SHOOTER = 0;
 /** The avatar collides with the world in eighths of a cell (for the rim around towers). */
 export const AVATAR_SUB = 8;
+/** A tree's trunk, in eighths of its cell: the part that blocks the player. */
+const TRUNK_LO = 2, TRUNK_HI = 6;
 /** Width of the wall rim left around a tower, in eighths of a cell. */
 const RIM = 1;
 
@@ -204,6 +206,12 @@ export class Game {
    */
   readonly heightAtFine = (sx: number, sy: number): number => {
     const S = AVATAR_SUB, cx = Math.floor(sx / S), cy = Math.floor(sy / S);
+    // Trees and crystal block you only at the trunk (the middle half of the cell), so
+    // you can weave through a forest; enemies still treat the whole cell as blocked.
+    if (this.world.isTree(cx, cy)) {
+      const lx = sx - cx * S, ly = sy - cy * S;
+      return lx >= TRUNK_LO && lx < TRUNK_HI && ly >= TRUNK_LO && ly < TRUNK_HI ? this.heightAt(cx, cy) : 0;
+    }
     const tower = this.towerAt(cx, cy);
     if (tower) {
       const lx = sx - cx * S, ly = sy - cy * S;
@@ -505,7 +513,7 @@ export class Game {
 
   private spawnWalker(practice: boolean): void {
     const hp = this.enemyHp();
-    for (const [sx, sy] of this.world.spawners) {
+    for (const [sx, sy] of this.activeSpawners()) {
       this.walkers.push({
         id: this.nextId++, x: sx + 0.5, y: sy + 0.5, cx: sx, cy: sy, tx: sx, ty: sy,
         speed: (1.35 + this.rng.next() * 0.25) * this.tuning.enemySpeed,
@@ -668,9 +676,19 @@ export class Game {
     this.events.push({ type: "phase", phase: p });
   }
 
-  /** Current route from each rift to the nexus. */
+  /**
+   * The caves that send enemies: the few nearest the ship by walking distance
+   * (`tuning.activeCaves`). A big world has caves everywhere; the far ones stay quiet.
+   */
+  activeSpawners(): Cell[] {
+    const n = Math.max(1, Math.round(this.tuning.activeCaves));
+    if (this.world.spawners.length <= n) return this.world.spawners;
+    return [...this.world.spawners].sort((a, b) => this.field.at(a[0], a[1]) - this.field.at(b[0], b[1])).slice(0, n);
+  }
+
+  /** Current route from each active cave to the ship. */
   routes(field: FlowField = this.field): Cell[][] {
-    return this.world.spawners.map(s => field.trace(s));
+    return this.activeSpawners().map(s => field.trace(s));
   }
 
   drainEvents(): GameEvent[] {

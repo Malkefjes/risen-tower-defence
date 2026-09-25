@@ -27,6 +27,7 @@ const SECTIONS: { title: string; knobs: Knob[] }[] = [
     top("enemyHpGrowth", "HP growth per round", 1, 1.6, 0.01),
     top("enemySpeed", "Speed", 0.4, 2.5, 0.05),
     top("startHp", "Ship HP", 1, 50, 1),
+    top("activeCaves", "Caves sending enemies", 1, 12, 1),
   ] },
   { title: "Ship's gun", knobs: [
     tower("ship", "damage", "Damage", 0, 10, 0.5), tower("ship", "rate", "Shots per second", 0, 6, 0.25),

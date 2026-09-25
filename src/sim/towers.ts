@@ -36,6 +36,8 @@ export interface Tuning {
   reach: number;
   /** Top speed multiplier while sprinting. */
   sprint: number;
+  /** How many caves (the nearest to the ship) send enemies each wave. */
+  activeCaves: number;
   startHp: number;
   enemyHp: number;
   /** Enemy HP multiplier per round after the first. */
@@ -59,6 +61,7 @@ export const defaultTuning = (): Tuning => ({
   mineTime: 25 / 3,
   reach: 1.5,
   sprint: 1.4,
+  activeCaves: 3,
   startHp: 20,
   enemyHp: 6,
   enemyHpGrowth: 1.15,

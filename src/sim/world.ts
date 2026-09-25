@@ -14,6 +14,14 @@ export const rockTop = (h: number): number => 0.64 + (h - 10) * 0.053;
  * this high (through the thin top of the crown). They can't be stood on.
  */
 export const TREE_HURDLE = 0.7;
+/** Raised ground (plateaus) and cave rock: out of jumping reach. */
+export const PLATEAU_TOP = 1.35;
+
+/**
+ * A cave exit (an enemy spawner): its rock fills the 3×3 around (x, y), and the
+ * mouth faces `dir`; enemies come out two cells that way.
+ */
+export interface CaveDef { x: number; y: number; dir: Cell }
 
 export interface MapDef {
   name: string;
@@ -26,6 +34,13 @@ export interface MapDef {
   trees: TreeDef[];
   /** Ore nodes (3×3), by north-west cell. */
   ore?: OreNodeDef[];
+  /** Raised ground: blocks, too high to jump onto. */
+  plateaus?: Cell[];
+  /** Cave exits; their mouths should also be listed as spawners. */
+  caves?: CaveDef[];
+  /** Hurdles like trees (jump over, can't stand on). */
+  deadTrees?: TreeDef[];
+  crystals?: TreeDef[];
 }
 
 export interface Bounds { x0: number; y0: number; x1: number; y1: number }
@@ -56,7 +71,12 @@ export class World {
     this.map = map;
     this.spawners = map.spawners.map(c => [c[0], c[1]] as Cell);
     for (const r of map.rocks) { const k = cellKey(r.x, r.y); this.terrain.add(k); this.terrainTop.set(k, rockTop(r.h)); }
-    for (const t of map.trees) { const k = cellKey(t.x, t.y); this.terrain.add(k); this.trees.add(k); this.terrainTop.set(k, TREE_HURDLE); }
+    for (const t of [...map.trees, ...(map.deadTrees ?? []), ...(map.crystals ?? [])]) { const k = cellKey(t.x, t.y); this.terrain.add(k); this.trees.add(k); this.terrainTop.set(k, TREE_HURDLE); }
+    for (const [x, y] of map.plateaus ?? []) { const k = cellKey(x, y); this.terrain.add(k); this.terrainTop.set(k, PLATEAU_TOP); }
+    for (const c of map.caves ?? []) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const k = cellKey(c.x + dx, c.y + dy);
+      this.terrain.add(k); this.terrainTop.set(k, PLATEAU_TOP);
+    }
     for (const [x, y] of map.nexus) this.nexus.add(cellKey(x, y));
     const oreCells = (map.ore ?? []).flatMap(o => nodeArea({ id: 0, kind: o.kind, x: o.x, y: o.y, amount: 0, max: nodeMax(o.kind) }));
     const all: Cell[] = [...map.spawners, ...map.nexus, ...[...this.terrain].map(parseKey), ...oreCells];
@@ -79,6 +99,36 @@ export class World {
   /** Can't be built on. */
   isOccupied(x: number, y: number): boolean {
     return this.isBlocked(x, y) || this.isNexus(x, y) || this.isSpawner(x, y);
+  }
+
+  /** Static terrain as a number grid, cached per bounds (terrain never changes). */
+  private terrainCache: { key: string; grid: Uint8Array } | null = null;
+
+  /**
+   * Blocked cells over `b` as a grid (row-major, 1 = blocked): terrain, walls, ore
+   * and any `extra` cells. What pathfinding searches over.
+   */
+  blockedGrid(b: Bounds, extra?: ReadonlySet<string>): Uint8Array {
+    const w = b.x1 - b.x0 + 1, h = b.y1 - b.y0 + 1, key = `${b.x0},${b.y0},${b.x1},${b.y1}`;
+    if (this.terrainCache?.key !== key) {
+      const grid = new Uint8Array(w * h);
+      for (const k of this.terrain) {
+        const [x, y] = parseKey(k);
+        if (x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1) grid[(y - b.y0) * w + (x - b.x0)] = 1;
+      }
+      this.terrainCache = { key, grid };
+    }
+    const grid = this.terrainCache.grid.slice();
+    const mark = (keys: Iterable<string>) => {
+      for (const k of keys) {
+        const [x, y] = parseKey(k);
+        if (x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1) grid[(y - b.y0) * w + (x - b.x0)] = 1;
+      }
+    };
+    mark(this.walls.keys());
+    mark(this.ore.keys());
+    if (extra) mark(extra);
+    return grid;
   }
 
   /** Walkable area: everything that exists, plus a margin. */
