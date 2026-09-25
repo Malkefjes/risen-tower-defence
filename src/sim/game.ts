@@ -1,4 +1,6 @@
 import { Avatar, defaultAvatarTuning, type AvatarInput, type AvatarTuning } from "./avatar";
+import { Hotbar } from "./inventory";
+import { nodeArea, nodeFootprint, nodeMax, ORE_STAGES, stagesLeft, viewGap, type OreKind, type OreNode } from "./ore";
 import { computeField, keysOf, type FlowField } from "./pathfinding";
 import { pieceCells, SHAPE_IDS, type ShapeId } from "./pieces";
 import { Rng } from "./rng";
@@ -22,6 +24,8 @@ export interface PlacedPiece {
   cells: Cell[];
   /** Locked pieces are permanent. Unlocked ones can be picked back up this planning phase. */
   locked: boolean;
+  /** Stone paid, returned when it's picked back up. */
+  paid: number;
 }
 
 export interface Walker {
@@ -50,13 +54,13 @@ export interface Shot {
   dur: number;
 }
 
-export type BlockReason = "occupied" | "walker" | "avatar" | "cuts-off-rift" | "traps-walker";
+export type BlockReason = "occupied" | "walker" | "avatar" | "cuts-off-rift" | "traps-walker" | "stone";
 
 export type PlacementCheck =
   | { ok: true; cells: Cell[]; field: FlowField }
   | { ok: false; cells: Cell[]; reason: BlockReason };
 
-export type TowerBlockReason = "no-wall" | "tower-there" | "avatar" | "credits" | "run-over";
+export type TowerBlockReason = "no-wall" | "tower-there" | "avatar" | "metal" | "run-over";
 
 export type TowerCheck =
   | { ok: true; cells: Cell[] }
@@ -67,7 +71,10 @@ export type GameEvent =
   | { type: "removed"; piece: PlacedPiece }
   | { type: "walker-arrived"; walker: Walker }
   | { type: "phase"; phase: Phase }
-  | { type: "supply"; pieces: HandPiece[]; credits: number }
+  | { type: "supply"; pieces: HandPiece[] }
+  /** A stage broke off a node; `added` is the ore that went into the hotbar. */
+  | { type: "node-broke"; node: OreNode; stagesLeft: number; added: number }
+  | { type: "node-grew"; node: OreNode }
   | { type: "tower-built"; tower: Tower }
   | { type: "tower-sold"; tower: Tower; refund: number }
   | { type: "shot"; shot: Shot }
@@ -83,13 +90,14 @@ export const REASON_TEXT: Record<BlockReason, string> = {
   "avatar": "You're standing there",
   "cuts-off-rift": "Enemies must always have a path to the nexus",
   "traps-walker": "That would trap an enemy",
+  "stone": "Not enough stone",
 };
 
 export const TOWER_REASON_TEXT: Record<TowerBlockReason, string> = {
   "no-wall": "Towers go on top of walls",
   "tower-there": "There's already a tower there",
   "avatar": "You're standing there",
-  "credits": "Not enough credits",
+  "metal": "Not enough metal",
   "run-over": "The run is over",
 };
 
@@ -114,7 +122,10 @@ export class Game {
   towers: Tower[] = [];
   walkers: Walker[] = [];
   shots: Shot[] = [];
-  credits = 0;
+  /** Ore nodes on the map. */
+  nodes: OreNode[] = [];
+  /** The player's inventory: the multitool and the ore that pays for walls and towers. */
+  hotbar = new Hotbar();
   hp = 0;
   field: FlowField;
   events: GameEvent[] = [];
@@ -125,6 +136,13 @@ export class Game {
   readonly avatarTuning: AvatarTuning = defaultAvatarTuning();
   /** Movement input, set by the input layer. `jump` is consumed by the next tick. */
   avatarInput: AvatarInput = { x: 0, y: 0, jump: false };
+  /**
+   * Mining input, set by the input layer: the tool is firing, and whether the
+   * cursor is on the node's hotspot (a view matter, so the view decides).
+   */
+  mineInput = { firing: false, onSpot: false };
+  /** What mining is doing this tick: the node being mined, and whether the hotbar is too full to take its next chunk. */
+  mining: { node: OreNode | null; full: boolean } = { node: null, full: false };
 
   private nextId = 1;
   private waveLeft = 0;
@@ -139,6 +157,8 @@ export class Game {
     this.waveSize = opts.waveSize ?? (r => 6 + r * 2);
     this.tuning = { ...defaultTuning(), ...opts.tuning };
     if (opts.supply !== undefined) this.tuning.supplyPerRound = opts.supply;
+    this.nodes = (map.ore ?? []).map(o => ({ id: this.nextId++, kind: o.kind, x: o.x, y: o.y, amount: nodeMax(o.kind), max: nodeMax(o.kind) }));
+    this.syncOre();
     this.field = computeField(this.world);
     const [sx, sy] = map.start ?? map.spawners[0]!;
     this.avatar = new Avatar(sx + 0.5, sy + 0.5);
@@ -151,7 +171,7 @@ export class Game {
    * everything else is snow.
    */
   readonly heightAt = (x: number, y: number): number => {
-    if (this.world.isTerrain(x, y) || this.world.isNexus(x, y)) return Infinity;
+    if (this.world.isTerrain(x, y) || this.world.isNexus(x, y) || this.world.isOre(x, y)) return Infinity;
     const tower = this.towerAt(x, y);
     if (tower) return WALL_DECK + TOWER_INFO[tower.kind].top;
     return this.world.walls.has(cellKey(x, y)) ? WALL_DECK : 0;
@@ -171,9 +191,11 @@ export class Game {
   set supplyPerRound(n: number) { this.tuning.supplyPerRound = n; }
 
   private startRun(): void {
-    this.credits = this.tuning.startCredits;
+    this.hotbar = new Hotbar();
+    this.hotbar.add("stone", this.tuning.startStone);
+    this.hotbar.add("metal", this.tuning.startMetal);
     this.hp = this.tuning.startHp;
-    this.supply(0);
+    this.supply();
   }
 
   /** Start a new run on the same map. Tuning is kept. */
@@ -186,6 +208,8 @@ export class Game {
     this.waveLeft = 0; this.spawnTimer = 0;
     const [sx, sy] = this.world.map.start ?? this.world.map.spawners[0]!;
     this.avatar.place(sx + 0.5, sy + 0.5);
+    for (const n of this.nodes) n.amount = n.max;
+    this.syncOre();
     this.field = computeField(this.world);
     this.events.push({ type: "reset" });
     this.startRun();
@@ -193,14 +217,85 @@ export class Game {
 
   // ---------------------------------------------------------------- supply
 
-  /** Deliver this round's random walls straight into the hand, plus income. */
-  private supply(credits: number): void {
+  /** Deliver this round's random walls straight into the hand. */
+  private supply(): void {
     const pieces: HandPiece[] = [];
     for (let i = 0; i < this.tuning.supplyPerRound; i++) pieces.push({ uid: this.nextId++, shape: SHAPE_IDS[this.rng.int(SHAPE_IDS.length)]! });
     this.hand.push(...pieces);
-    this.credits += credits;
-    this.events.push({ type: "supply", pieces, credits });
+    this.events.push({ type: "supply", pieces });
   }
+
+  /** Walls in the hand, per shape. */
+  handCount(shape: ShapeId): number { return this.hand.reduce((n, h) => n + (h.shape === shape ? 1 : 0), 0); }
+
+  /** Stone it costs to place a wall of `cells` cells. */
+  wallCost(cells: number): number { return cells * this.tuning.wallCost; }
+
+  // ---------------------------------------------------------------- ore
+
+  /** Rebuild which cells the nodes block, from their current stages. */
+  private syncOre(): void {
+    this.world.ore.clear();
+    for (const n of this.nodes) for (const [x, y] of nodeFootprint(n)) this.world.ore.set(cellKey(x, y), n.id);
+  }
+
+  /** The node within mining reach of the avatar (the closest, as it looks on screen). */
+  nodeInReach(): OreNode | null {
+    let best: OreNode | null = null, bestD = this.tuning.reach;
+    for (const n of this.nodes) {
+      if (n.amount <= 0) continue;
+      const d = viewGap(this.avatar.x, this.avatar.y, n);
+      if (d <= bestD) { bestD = d; best = n; }
+    }
+    return best;
+  }
+
+  /** Bonus to mining speed with the cursor on a node's hotspot. */
+  static readonly HOTSPOT_BONUS = 1.2;
+
+  /**
+   * Mine for one tick. Ore comes in whole chunks, one per stage that breaks off;
+   * if the next chunk won't fit in the hotbar, mining does nothing.
+   */
+  private stepMining(dt: number): void {
+    const n = this.mineInput.firing && this.hotbar.held === "multitool" ? this.nodeInReach() : null;
+    this.mining = { node: n, full: false };
+    if (!n) return;
+    const stage = stagesLeft(n);
+    const floor = (n.max * (stage - 1)) / ORE_STAGES;
+    const chunk = Math.round((n.max * stage) / ORE_STAGES) - Math.round(floor);
+    if (this.hotbar.room(n.kind) < chunk) { this.mining.full = true; return; }
+    const rate = (n.max / Math.max(0.1, this.tuning.mineTime)) * (this.mineInput.onSpot ? Game.HOTSPOT_BONUS : 1);
+    n.amount -= Math.min(n.amount - floor, rate * dt);
+    if (n.amount > floor + 1e-6) return;
+    n.amount = floor;
+    const added = this.hotbar.add(n.kind, chunk);
+    this.syncOre();
+    this.field = computeField(this.world);
+    this.events.push({ type: "node-broke", node: n, stagesLeft: stagesLeft(n), added });
+  }
+
+  /**
+   * Mined-out nodes grow back at the start of a planning phase, if their 3×3 is
+   * clear (no walls, not the avatar) and growing wouldn't cut off the rift.
+   */
+  private regrowNodes(): void {
+    const under = this.avatarCells();
+    for (const n of this.nodes) {
+      if (n.amount > 0) continue;
+      const area = nodeArea(n);
+      if (area.some(([x, y]) => this.world.walls.has(cellKey(x, y)) || under.has(cellKey(x, y)))) continue;
+      const field = computeField(this.world, keysOf(area), area);
+      if (this.world.spawners.some(([sx, sy]) => !isFinite(field.at(sx, sy)))) continue;
+      n.amount = n.max;
+      this.syncOre();
+      this.field = computeField(this.world);
+      this.events.push({ type: "node-grew", node: n });
+    }
+  }
+
+  /** Ore of a kind in the hotbar. */
+  ore(kind: OreKind): number { return this.hotbar.count(kind); }
 
   // ---------------------------------------------------------------- placement
 
@@ -210,6 +305,7 @@ export class Game {
   checkPlacement(shape: ShapeId, rot: number, at: Cell): PlacementCheck {
     const cells = pieceCells(shape, rot, at);
     for (const [x, y] of cells) if (this.world.isOccupied(x, y)) return { ok: false, cells, reason: "occupied" };
+    if (this.ore("stone") < this.wallCost(cells.length)) return { ok: false, cells, reason: "stone" };
     const set = keysOf(cells);
     // A wall can't be dropped on the avatar (only matters while it's below deck height).
     if (this.avatar.z < WALL_DECK) for (const k of this.avatarCells()) if (set.has(k)) return { ok: false, cells, reason: "avatar" };
@@ -230,7 +326,8 @@ export class Game {
     const check = this.checkPlacement(held.shape, rot, at);
     if (!check.ok) return check;
     this.hand.splice(hi, 1);
-    const piece: PlacedPiece = { id: this.nextId++, shape: held.shape, rot, at, cells: check.cells, locked: this.phase === "wave" };
+    const paid = this.hotbar.remove("stone", this.wallCost(check.cells.length));
+    const piece: PlacedPiece = { id: this.nextId++, shape: held.shape, rot, at, cells: check.cells, locked: this.phase === "wave", paid };
     this.pieces.push(piece);
     for (const [x, y] of piece.cells) this.world.walls.set(cellKey(x, y), piece.id);
     this.field = computeField(this.world);
@@ -248,13 +345,14 @@ export class Game {
     return !!piece && !piece.locked && this.phase === "planning" && !piece.cells.some(([x, y]) => this.towerCellsMap.has(cellKey(x, y)));
   }
 
-  /** Return an unlocked piece to the hand. Returns the new hand entry. */
+  /** Return an unlocked piece to the hand and its stone to the hotbar. Returns the new hand entry. */
   pickUp(pieceId: number): HandPiece | null {
     const piece = this.pieces.find(p => p.id === pieceId);
     if (!this.canPickUp(piece)) return null;
     this.pieces.splice(this.pieces.indexOf(piece), 1);
     for (const [x, y] of piece.cells) this.world.walls.delete(cellKey(x, y));
     this.field = computeField(this.world);
+    this.hotbar.add("stone", piece.paid);
     const entry: HandPiece = { uid: this.nextId++, shape: piece.shape };
     this.hand.push(entry);
     this.events.push({ type: "removed", piece });
@@ -282,7 +380,7 @@ export class Game {
     for (const [x, y] of cells) if (this.towerCellsMap.has(cellKey(x, y))) return { ok: false, cells, reason: "tower-there" };
     const under = this.avatarCells();
     for (const [x, y] of cells) if (under.has(cellKey(x, y))) return { ok: false, cells, reason: "avatar" };
-    if (this.credits < this.towerCost(kind)) return { ok: false, cells, reason: "credits" };
+    if (this.ore("metal") < this.towerCost(kind)) return { ok: false, cells, reason: "metal" };
     return { ok: true, cells };
   }
 
@@ -294,7 +392,7 @@ export class Game {
       id: this.nextId++, kind, at: [at[0], at[1]], cells: check.cells, cx: at[0] + n / 2, cy: at[1] + n / 2,
       paid: cost, fresh: this.phase === "planning", cooldown: 0, targetId: null,
     };
-    this.credits -= cost;
+    this.hotbar.remove("metal", cost);
     this.towers.push(tower);
     for (const [x, y] of tower.cells) this.towerCellsMap.set(cellKey(x, y), tower.id);
     this.events.push({ type: "tower-built", tower });
@@ -318,7 +416,7 @@ export class Game {
     const refund = this.sellValue(t);
     this.towers.splice(this.towers.indexOf(t), 1);
     for (const [x, y] of t.cells) this.towerCellsMap.delete(cellKey(x, y));
-    this.credits += refund;
+    this.hotbar.add("metal", refund);
     this.events.push({ type: "tower-sold", tower: t, refund });
     return refund;
   }
@@ -355,15 +453,20 @@ export class Game {
     }
   }
 
-  /** Advance the simulation by one fixed tick. */
   /**
    * Advance the avatar by one tick. Separate from `step` so the player always
    * moves in real time, whatever the game speed.
    */
   stepAvatar(dt = TICK): void {
-    this.avatar.step(dt, this.avatarInput, this.heightAt, this.avatarTuning);
+    this.avatarTuning.sprint = this.tuning.sprint;
+    // Sprint is a travel mode: firing the tool drops back to running speed.
+    const input = { ...this.avatarInput, sprint: this.avatarInput.sprint && !this.mineInput.firing };
+    this.avatar.step(dt, input, this.heightAt, this.avatarTuning);
     this.avatarInput.jump = false;
     if (this.avatar.landed) this.events.push({ type: "avatar-landed" });
+    // Mining is the player's own action, so it runs on real time too.
+    if (this.phase !== "over") this.stepMining(dt);
+    else this.mining = { node: null, full: false };
   }
 
   /** Advance the world (waves, enemies, towers) by one tick. Game speed scales how often this runs. */
@@ -384,7 +487,8 @@ export class Game {
     if (this.phase === "wave" && this.waveLeft === 0 && this.walkers.length === 0) {
       this.round++;
       this.setPhase("planning");
-      this.supply(this.tuning.income);
+      this.supply();
+      this.regrowNodes();
     }
   }
 

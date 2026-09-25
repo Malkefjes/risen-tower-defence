@@ -11,6 +11,7 @@ export const TOWER_INFO: Record<TowerKind, { name: string; size: number; top: nu
 };
 
 export interface TowerStats {
+  /** Metal. */
   cost: number;
   damage: number;
   /** Reach in cells, measured from the footprint's center. */
@@ -22,8 +23,17 @@ export interface TowerStats {
 /** Every number the tuning panel can change. The game reads these live. */
 export interface Tuning {
   supplyPerRound: number;
-  income: number;
-  startCredits: number;
+  /** Stone per wall cell (a 4-cell wall costs four times this). */
+  wallCost: number;
+  /** Ore in the hotbar at the start of a run. */
+  startStone: number;
+  startMetal: number;
+  /** Seconds to mine a whole node (three stages). */
+  mineTime: number;
+  /** Mining reach: the gap between you and a node, as it looks on screen, in cells. */
+  reach: number;
+  /** Top speed multiplier while sprinting. */
+  sprint: number;
   startHp: number;
   enemyHp: number;
   /** Enemy HP multiplier per round after the first. */
@@ -38,15 +48,19 @@ export interface Tuning {
 
 export const defaultTuning = (): Tuning => ({
   supplyPerRound: 3,
-  income: 5,
-  startCredits: 10,
+  wallCost: 25,
+  startStone: 400,
+  startMetal: 100,
+  mineTime: 25 / 3,
+  reach: 1.5,
+  sprint: 1.4,
   startHp: 20,
   enemyHp: 6,
   enemyHpGrowth: 1.15,
   enemySpeed: 1,
   sellRefund: 0.75,
-  twin: { cost: 4, damage: 1, range: 2.5, rate: 3 },
-  gatling: { cost: 10, damage: 1, range: 3.5, rate: 9 },
+  twin: { cost: 100, damage: 1, range: 2.5, rate: 3 },
+  gatling: { cost: 250, damage: 1, range: 3.5, rate: 9 },
 });
 
 export interface Tower {
@@ -57,7 +71,7 @@ export interface Tower {
   cells: Cell[];
   /** Footprint center in continuous cell coordinates. */
   cx: number; cy: number;
-  /** Credits paid, so refunds don't move when tuning changes. */
+  /** Metal paid, so refunds don't move when tuning changes. */
   paid: number;
   /** Placed this planning phase: sells back for the full price. */
   fresh: boolean;

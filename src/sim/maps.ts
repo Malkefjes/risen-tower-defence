@@ -7,6 +7,11 @@ export const FROSTFALL: MapDef = {
   /** The ship: 3×3. */
   nexus: [[11, 5], [12, 5], [13, 5], [11, 6], [12, 6], [13, 6], [11, 7], [12, 7], [13, 7]],
   start: [14, 9],
+  /** Stone close to the ship; metal further out, toward the rift and the enemy path. */
+  ore: [
+    { x: 15, y: 5, kind: "stone" }, { x: 11, y: 1, kind: "stone" }, { x: 11, y: 9, kind: "stone" },
+    { x: 6, y: 5, kind: "metal" }, { x: 3, y: 1, kind: "metal" },
+  ],
   rocks: [
     { x: 5, y: 8, h: 14 }, { x: 6, y: 8, h: 11 }, { x: 6, y: 9, h: 16 },
     { x: 8, y: 0, h: 12 }, { x: 9, y: 0, h: 15 }, { x: 3, y: 5, h: 13 },

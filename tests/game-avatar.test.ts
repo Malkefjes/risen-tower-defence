@@ -20,7 +20,7 @@ describe("avatar in the game", () => {
   });
 
   it("the ship and rocks are solid; walls are decks; towers stand on them", () => {
-    const g = new Game(open({ rocks: [{ x: 7, y: 5, h: 10 }] }), { seed: 1, tuning: { startCredits: 50 } });
+    const g = new Game(open({ rocks: [{ x: 7, y: 5, h: 10 }] }), { seed: 1, tuning: { startMetal: 500 } });
     g.world.walls.set("3,3", 1);
     g.buildTower("twin", [3, 3]);
     g.world.walls.set("4,3", 1);
@@ -40,7 +40,7 @@ describe("avatar in the game", () => {
   });
 
   it("towers can't be placed under the avatar standing on a deck", () => {
-    const g = new Game(open(), { seed: 1, tuning: { startCredits: 50 } });
+    const g = new Game(open(), { seed: 1, tuning: { startMetal: 500 } });
     g.world.walls.set("5,5", 1);
     g.avatar.place(5.5, 5.5, WALL_DECK);
     const r = g.checkTower("twin", [5, 5]);
@@ -62,7 +62,7 @@ describe("avatar in the game", () => {
   });
 
   it("can climb from a wall deck onto a tower, but not from the snow", () => {
-    const g = new Game(open({ start: [2, 0] }), { seed: 1, tuning: { startCredits: 50 } });
+    const g = new Game(open({ start: [2, 0] }), { seed: 1, tuning: { startMetal: 500 } });
     for (let x = 4; x < 9; x++) g.world.walls.set(`${x},0`, 1);
     g.buildTower("twin", [7, 0]);
     // From the snow straight at the tower's wall: lands on the deck in front of it.

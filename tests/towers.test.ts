@@ -6,9 +6,9 @@ const open = (extra: Partial<MapDef> = {}): MapDef => ({
   name: "test", spawners: [[0, 0]], nexus: [[20, 0]], rocks: [], trees: [], ...extra,
 });
 
-/** A game with walls set directly (piece ids given), plenty of credits. */
-function withWalls(cells: [number, number, number][], credits = 100): Game {
-  const g = new Game(open(), { seed: 1, tuning: { startCredits: credits } });
+/** A game with walls set directly (piece ids given), plenty of metal. */
+function withWalls(cells: [number, number, number][], metal = 1000): Game {
+  const g = new Game(open(), { seed: 1, tuning: { startMetal: metal } });
   for (const [x, y, id] of cells) g.world.walls.set(`${x},${y}`, id);
   return g;
 }
@@ -43,21 +43,21 @@ describe("tower placement", () => {
     expect(g.towers[0]!.cy).toBe(6);
   });
 
-  it("refuses terrain, overlapping towers, and building without credits", () => {
-    const g = withWalls([[5, 5, 1], [6, 5, 1]], 5);
+  it("refuses terrain, overlapping towers, and building without metal", () => {
+    const g = withWalls([[5, 5, 1], [6, 5, 1]], 150);
     expect(g.checkTower("twin", [3, 3]).ok).toBe(false);
     expect(g.buildTower("twin", [5, 5]).ok).toBe(true);
     const again = g.checkTower("twin", [5, 5]);
     expect(again.ok).toBe(false);
     if (!again.ok) expect(again.reason).toBe("tower-there");
-    expect(g.credits).toBe(1);
+    expect(g.ore("metal")).toBe(150 - g.towerCost("twin"));
     const broke = g.checkTower("twin", [6, 5]);
     expect(broke.ok).toBe(false);
-    if (!broke.ok) expect(broke.reason).toBe("credits");
+    if (!broke.ok) expect(broke.reason).toBe("metal");
   });
 
   it("a wall carrying a tower can't be picked up until the tower is sold", () => {
-    const g = new Game(open(), { seed: 1, tuning: { startCredits: 50 } });
+    const g = new Game(open(), { seed: 1, tuning: { startMetal: 500 } });
     const piece = g.place(g.hand[0]!.uid, 0, [8, 5]).piece!;
     const [x, y] = piece.cells[0]!;
     const t = g.buildTower("twin", [x, y]).tower!;
@@ -74,7 +74,7 @@ describe("selling", () => {
     const cost = g.towerCost("twin");
     const a = g.buildTower("twin", [5, 5]).tower!;
     expect(g.sellTower(a.id)).toBe(cost);
-    expect(g.credits).toBe(100);
+    expect(g.ore("metal")).toBe(1000);
 
     const b = g.buildTower("twin", [7, 5]).tower!;
     g.startWave();
@@ -134,7 +134,7 @@ describe("combat", () => {
   });
 });
 
-describe("hp, income and the run", () => {
+describe("hp and the run", () => {
   it("each leaked enemy costs 1 HP; practice walkers cost nothing", () => {
     const g = new Game(open({ nexus: [[4, 0]] }), { seed: 1, waveSize: () => 3 });
     g.setTestWalkers(true);
@@ -146,13 +146,13 @@ describe("hp, income and the run", () => {
     expect(g.hp).toBe(g.tuning.startHp - 3);
   });
 
-  it("pays flat income after each wave", () => {
+  it("has no income: ore only comes from mining", () => {
     const g = new Game(open({ nexus: [[4, 0]] }), { seed: 1, waveSize: () => 1 });
-    const start = g.credits;
+    const stone = g.ore("stone"), metal = g.ore("metal");
     g.startWave();
     finishWave(g);
     expect(g.phase).toBe("planning");
-    expect(g.credits).toBe(start + g.tuning.income);
+    expect([g.ore("stone"), g.ore("metal")]).toEqual([stone, metal]);
   });
 
   it("the run ends at 0 HP, and reset starts a fresh run", () => {
