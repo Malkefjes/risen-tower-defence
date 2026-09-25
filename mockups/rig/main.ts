@@ -99,8 +99,6 @@ function buildRig() {
 
   // Torso: exactly as wide as the hips and legs.
   torso.add(rbox(TORSO_W, TORSO_H, TORSO_D, 0.045, M.suit, 0, TORSO_Y, 0));
-  const chestZ = TORSO_D / 2 + bulge(0.045, TORSO_H);
-  torso.add(box(TORSO_W * 0.62, 0.1, 0.02, M.orange, 0, TORSO_Y + 0.12, chestZ));
 
   // A short neck, then a square helmet with a front visor.
   const NECK_H = 0.04;
@@ -111,11 +109,11 @@ function buildRig() {
   torso.add(box(HW * 0.84, 0.042, 0.02, M.power, 0, headY + HH * 0.45, HW / 2 + bulge(0.028, HH)));
 
   // Backpack: its top is flush with the top of the torso; round cyan core and three ore canisters.
-  const PACK_H = 0.24, PACK_D = 0.08;
+  const PACK_H = 0.2, PACK_D = 0.065;
   const backZ = -TORSO_D / 2 - bulge(0.045, TORSO_H) - PACK_D / 2 - bulge(0.025, PACK_H);
   const packFace = backZ - PACK_D / 2 - bulge(0.025, PACK_H);
-  torso.add(rbox(TORSO_W * 0.95, PACK_H, PACK_D, 0.025, M.steel, 0, TORSO_TOP - PACK_H, backZ));
-  torso.add(mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.015, 14).rotateX(Math.PI / 2), M.power, 0, TORSO_TOP - 0.065, packFace - 0.005));
+  torso.add(rbox(TORSO_W * 0.82, PACK_H, PACK_D, 0.025, M.steel, 0, TORSO_TOP - PACK_H, backZ));
+  torso.add(mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.015, 14).rotateX(Math.PI / 2), M.power, 0, TORSO_TOP - 0.06, packFace - 0.005));
   const load: THREE.Object3D[] = [];
 
   // Legs with boots.
