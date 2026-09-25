@@ -263,7 +263,7 @@ function frame(now: number): void {
   last = now;
   time += dt;
 
-  // Mining: hold E within reach of a node. You stand still while mining.
+  // Mining: hold the left mouse button within reach of a node. You can keep moving while mining.
   const target_ = nodeInReach();
   const mining = !!target_ && mouseDown;
   // The first hit on a node reveals its hotspot.
@@ -275,8 +275,8 @@ function frame(now: number): void {
   let landed = false;
   while (acc >= TICK) {
     prev.x = avatar.x; prev.y = avatar.y; prev.z = avatar.z; prev.facing = avatar.facing;
-    const m = mining ? { x: 0, y: 0 } : moveInput();
-    avatar.step(TICK, { x: m.x, y: m.y, jump: jumpQueued && !mining }, heightAt, T);
+    const m = moveInput();
+    avatar.step(TICK, { x: m.x, y: m.y, jump: jumpQueued }, heightAt, T);
     jumpQueued = false;
     landed ||= avatar.landed;
     if (mining && target_) {
