@@ -63,11 +63,11 @@ describe("pathfinding", () => {
     expect(f.trace([0, 0]).length).toBeGreaterThan(30);
   });
 
-  it("route ends on the nexus", () => {
+  it("route ends beside the ship, where enemies attack it", () => {
     const g = new Game(open(), { seed: 1 });
     const route = g.routes()[0]!;
     expect(route[0]).toEqual([0, 0]);
-    expect(route[route.length - 1]).toEqual([10, 0]);
+    expect(route[route.length - 1]).toEqual([9, 0]);
   });
 });
 

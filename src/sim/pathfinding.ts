@@ -65,12 +65,12 @@ export class FlowField {
     return best;
   }
 
-  /** Cells from `from` to the nexus (inclusive). Empty if unreachable. */
+  /** Cells from `from` to beside the nearest target (inclusive). Empty if unreachable. */
   trace(from: Cell): Cell[] {
     if (!isFinite(this.at(from[0], from[1]))) return [];
     const out: Cell[] = [from];
     let [x, y] = from;
-    for (let guard = 0; guard < 10000 && !this.world.isNexus(x, y); guard++) {
+    for (let guard = 0; guard < 10000 && !this.world.targetNextTo(x, y); guard++) {
       const n = this.next(x, y);
       if (!n) break;
       [x, y] = n;
@@ -91,7 +91,8 @@ export function computeField(world: World, extra?: ReadonlySet<string>, extraCel
   const field = new FlowField(world, bounds, dist, extra, blocked);
   const heap = new MinHeap();
 
-  for (const k of world.nexus) {
+  // Paths lead to the nearest target: the ship and every smelter.
+  for (const k of world.targets) {
     const [x, y] = k.split(",").map(Number) as [number, number];
     const i = (y - bounds.y0) * w + (x - bounds.x0);
     dist[i] = 0;

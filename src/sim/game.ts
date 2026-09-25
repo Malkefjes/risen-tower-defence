@@ -57,8 +57,10 @@ export interface Walker {
   maxHp: number;
   /** Damage from bolts already in flight, so towers don't overkill. */
   pending: number;
-  /** Planning-phase practice walkers: shootable, but leaks cost nothing. */
+  /** Planning-phase practice walkers: shootable, but do no damage (they vanish on reaching a target). */
   practice: boolean;
+  /** The target cell it's clawing (it stands still meanwhile), or none while walking. */
+  attacking?: string | null;
 }
 
 /** A bolt in flight. Damage lands when `t` reaches `dur`. */
@@ -95,7 +97,6 @@ export type TowerCheck =
 export type GameEvent =
   | { type: "placed"; piece: PlacedPiece }
   | { type: "removed"; piece: PlacedPiece }
-  | { type: "walker-arrived"; walker: Walker }
   | { type: "phase"; phase: Phase }
   /** A stage broke off a node; `added` is the ore that went into the hotbar. */
   | { type: "node-broke"; node: OreNode; stagesLeft: number; added: number }
@@ -110,7 +111,10 @@ export type GameEvent =
   | { type: "shot"; shot: Shot }
   | { type: "hit"; walker: Walker }
   | { type: "killed"; walker: Walker }
-  | { type: "leak"; walker: Walker; hp: number }
+  /** The ship's HP hit 0: it's a wreck now, and the run goes on. */
+  | { type: "ship-destroyed" }
+  /** A smelter's HP hit 0: it's gone, with what was in it. */
+  | { type: "smelter-destroyed"; smelter: Smelter }
   | { type: "avatar-landed" }
   | { type: "reset" };
 
@@ -167,7 +171,10 @@ export class Game {
   nodes: OreNode[] = [];
   /** The player's inventory: the multitool and the ore that pays for walls and towers. */
   hotbar = new Hotbar();
+  /** The ship's HP. */
   hp = 0;
+  /** The ship was destroyed: a wreck that still blocks, its gun silent. The run goes on. */
+  shipDown = false;
   field: FlowField;
   events: GameEvent[] = [];
   /** Spawn practice walkers during planning so rerouting can be watched. */
@@ -276,6 +283,8 @@ export class Game {
     this.hotbar.add("metal", this.tuning.startMetal);
     this.hotbar.add("alloy", this.tuning.startAlloy);
     this.hp = this.tuning.startHp;
+    this.shipDown = false;
+    for (const k of this.world.nexus) this.world.targets.add(k);
     this.raidIn = this.tuning.raidGrace;
   }
 
@@ -293,6 +302,7 @@ export class Game {
   reset(): void {
     this.world.walls.clear();
     this.world.buildings.clear();
+    this.world.targets.clear();
     this.towerCellsMap.clear();
     this.smelters = [];
     this.pieces = []; this.towers = []; this.walkers = []; this.shots = [];
@@ -375,7 +385,7 @@ export class Game {
       const area = nodeArea(n);
       if (area.some(([x, y]) => this.world.walls.has(cellKey(x, y)) || this.world.buildings.has(cellKey(x, y)) || under.has(cellKey(x, y)))) continue;
       const field = computeField(this.world, keysOf(area), area);
-      if (this.world.spawners.some(([sx, sy]) => !isFinite(field.at(sx, sy)))) continue;
+      if (this.world.targets.size && this.world.spawners.some(([sx, sy]) => !isFinite(field.at(sx, sy)))) continue;
       n.amount = n.max;
       this.syncOre();
       this.field = computeField(this.world);
@@ -402,8 +412,11 @@ export class Game {
       if (set.has(cellKey(w.cx, w.cy)) || set.has(cellKey(w.tx, w.ty))) return { ok: false, cells, reason: "walker" };
     }
     const field = computeField(this.world, set, cells);
-    for (const [sx, sy] of this.world.spawners) if (!isFinite(field.at(sx, sy))) return { ok: false, cells, reason: "cuts-off-rift" };
-    for (const w of this.walkers) if (!isFinite(field.at(w.tx, w.ty))) return { ok: false, cells, reason: "traps-walker" };
+    // With nothing left to attack there is no path to keep open.
+    if (this.world.targets.size) {
+      for (const [sx, sy] of this.world.spawners) if (!isFinite(field.at(sx, sy))) return { ok: false, cells, reason: "cuts-off-rift" };
+      for (const w of this.walkers) if (!isFinite(field.at(w.tx, w.ty))) return { ok: false, cells, reason: "traps-walker" };
+    }
     return { ok: true, cells, field };
   }
 
@@ -485,8 +498,11 @@ export class Game {
     if (this.ore("stone") < this.tuning.smelterStone) return { ok: false, cells, reason: "stone" };
     if (this.ore("metal") < this.tuning.smelterMetal) return { ok: false, cells, reason: "metal" };
     const field = computeField(this.world, set, cells);
-    for (const [sx, sy] of this.world.spawners) if (!isFinite(field.at(sx, sy))) return { ok: false, cells, reason: "cuts-off-rift" };
-    for (const w of this.walkers) if (!isFinite(field.at(w.tx, w.ty))) return { ok: false, cells, reason: "traps-walker" };
+    // With nothing left to attack there is no path to keep open.
+    if (this.world.targets.size) {
+      for (const [sx, sy] of this.world.spawners) if (!isFinite(field.at(sx, sy))) return { ok: false, cells, reason: "cuts-off-rift" };
+      for (const w of this.walkers) if (!isFinite(field.at(w.tx, w.ty))) return { ok: false, cells, reason: "traps-walker" };
+    }
     return { ok: true, cells, field };
   }
 
@@ -494,9 +510,9 @@ export class Game {
     const check = this.checkSmelter(at);
     if (!check.ok) return check;
     const paid = { stone: this.hotbar.remove("stone", this.tuning.smelterStone), metal: this.hotbar.remove("metal", this.tuning.smelterMetal) };
-    const s = newSmelter(this.nextId++, at, paid);
+    const s = newSmelter(this.nextId++, at, paid, this.tuning.smelterHp);
     this.smelters.push(s);
-    for (const [x, y] of s.cells) this.world.buildings.set(cellKey(x, y), s.id);
+    for (const [x, y] of s.cells) { this.world.buildings.set(cellKey(x, y), s.id); this.world.targets.add(cellKey(x, y)); }
     this.field = computeField(this.world);
     this.events.push({ type: "smelter-built", smelter: s });
     this.noise(this.tuning.noiseBuild);
@@ -526,11 +542,37 @@ export class Game {
     this.hotbar.slots.forEach((x, i) => { trial.slots[i] = x ? { ...x } : null; });
     for (const [kind, n] of back) if (trial.add(kind, n) < n) return "full";
     for (const [kind, n] of back) this.hotbar.add(kind, n);
-    this.smelters.splice(this.smelters.indexOf(s), 1);
-    for (const [x, y] of s.cells) this.world.buildings.delete(cellKey(x, y));
-    this.field = computeField(this.world);
+    this.dropSmelter(s);
     this.events.push({ type: "smelter-removed", smelter: s });
     return "ok";
+  }
+
+  /** Take a smelter off the map (removed or destroyed): its cells free up and paths change. */
+  private dropSmelter(s: Smelter): void {
+    this.smelters.splice(this.smelters.indexOf(s), 1);
+    for (const [x, y] of s.cells) { this.world.buildings.delete(cellKey(x, y)); this.world.targets.delete(cellKey(x, y)); }
+    this.field = computeField(this.world);
+  }
+
+  /** An enemy claws the target at `key`: the ship or a smelter. At 0 HP it's destroyed. */
+  private damageTarget(key: string, amount: number): void {
+    if (this.world.nexus.has(key)) {
+      if (this.shipDown) return;
+      this.hp = Math.max(0, this.hp - amount);
+      if (this.hp > 0) return;
+      this.shipDown = true;
+      for (const k of this.world.nexus) this.world.targets.delete(k);
+      this.field = computeField(this.world);
+      this.events.push({ type: "ship-destroyed" });
+      return;
+    }
+    const [x, y] = key.split(",").map(Number) as [number, number];
+    const s = this.smelterAt(x, y);
+    if (!s) return;
+    s.hp = Math.max(0, s.hp - amount);
+    if (s.hp > 0) return;
+    this.dropSmelter(s);
+    this.events.push({ type: "smelter-destroyed", smelter: s });
   }
 
   /** Put a hotbar slot's raw metal into a smelter (as much as fits). Only raw metal goes in. Returns how much moved. */
@@ -709,16 +751,27 @@ export class Game {
     }
   }
 
+  /**
+   * Enemies walk the flow field to the nearest target. Next to one, they stop and
+   * claw it until it's destroyed, then walk on to the next. With nothing left to go
+   * for, they burrow back underground.
+   */
   private moveWalkers(dt: number): void {
-    const arrived: Walker[] = [];
+    const gone: Walker[] = [];
     for (const w of this.walkers) {
       w.px = w.x; w.py = w.y;
+      if (!this.world.targets.size) { gone.push(w); continue; }
+      if (w.attacking) {
+        if (this.world.targets.has(w.attacking)) { this.damageTarget(w.attacking, this.tuning.enemyDamage * dt); continue; }
+        w.attacking = null; // it's gone: walk on from here
+      }
       let budget = w.speed * dt;
       while (budget > 0) {
         const gx = w.tx + 0.5, gy = w.ty + 0.5, dx = gx - w.x, dy = gy - w.y, L = Math.hypot(dx, dy);
         if (L <= budget) {
           w.x = gx; w.y = gy; budget -= L; w.cx = w.tx; w.cy = w.ty;
-          if (this.world.isNexus(w.cx, w.cy)) { arrived.push(w); break; }
+          const t = this.world.targetNextTo(w.cx, w.cy);
+          if (t) { if (w.practice) gone.push(w); else w.attacking = t; break; }
           const n = this.field.next(w.cx, w.cy);
           if (!n) break;
           [w.tx, w.ty] = n;
@@ -727,15 +780,7 @@ export class Game {
         }
       }
     }
-    if (!arrived.length) return;
-    this.walkers = this.walkers.filter(w => !arrived.includes(w));
-    for (const w of arrived) {
-      this.events.push({ type: "walker-arrived", walker: w });
-      if (w.practice || this.phase !== "wave") continue;
-      this.hp = Math.max(0, this.hp - 1);
-      this.events.push({ type: "leak", walker: w, hp: this.hp });
-      if (this.hp === 0) { this.setPhase("over"); return; }
-    }
+    if (gone.length) this.walkers = this.walkers.filter(w => !gone.includes(w));
   }
 
   /**
@@ -773,7 +818,8 @@ export class Game {
   private updateTowers(dt: number): void {
     const gun = this.shipGun, s = this.tuning.ship, c = this.shipCenter();
     gun.cooldown = Math.max(0, gun.cooldown - dt);
-    const st = s.damage > 0 && s.rate > 0 ? this.pickTargetFrom(c.x, c.y, s.range) : null;
+    // A wrecked ship's gun is silent.
+    const st = !this.shipDown && s.damage > 0 && s.rate > 0 ? this.pickTargetFrom(c.x, c.y, s.range) : null;
     gun.targetId = st?.id ?? null;
     if (st && gun.cooldown <= 0) {
       gun.cooldown = 1 / s.rate;

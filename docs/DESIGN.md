@@ -66,7 +66,7 @@ Principle: **waiting must cost something.** You don't choose when you're attacke
 - They move in 8 directions but never cut a wall corner, so two diagonal walls form a closed seam.
 - Until breakable walls exist, walls may never seal a target off from the caves, and no placement may trap an enemy.
 - Live path preview while placing a piece. This is essential.
-- **The ship can be destroyed:** raids then move on to the next-nearest targets. Later, **upkeep:** the ship and hub modules supply a large area; walls and buildings connected to a supply keep up, and lose it when the supply is destroyed, then decay over time.
+- **Attacks (built):** enemies walk to a cell next to their target and claw it (`enemyDamage` 2 HP/s each); ship 400 HP, smelter 150. **The ship can be destroyed:** it slumps into a dark wreck that still blocks, its gun goes silent, a notice offers a New run, and the run goes on; raids move on to the next-nearest targets. A destroyed smelter is gone with what was in it. With nothing left to attack, enemies burrow away, so a raid still ends. Later, **upkeep:** the ship and hub modules supply a large area; walls and buildings connected to a supply keep up, and lose it when the supply is destroyed, then decay over time.
 
 ### Walls
 

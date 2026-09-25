@@ -35,7 +35,7 @@ describe("smelting", () => {
 });
 
 describe("the smelter in the game", () => {
-  it("costs stone and raw metal, and blocks enemies like a wall", () => {
+  it("costs stone and raw metal, blocks like a wall, and becomes a target", () => {
     const g = new Game(open(), { seed: 1, tuning: rich });
     const before = g.field.at(0, 0);
     const r = g.buildSmelter([10, -1]);
@@ -43,7 +43,10 @@ describe("the smelter in the game", () => {
     expect(g.ore("stone")).toBe(1000 - g.tuning.smelterStone);
     expect(g.ore("metal")).toBe(1000 - g.tuning.smelterMetal);
     expect(g.world.isBlocked(11, 0)).toBe(true);
-    expect(g.field.at(0, 0)).toBeGreaterThan(before);
+    // It's nearer the cave than the ship, so enemies now head for it.
+    expect(g.field.at(0, 0)).toBeLessThan(before);
+    const end = g.routes()[0]!.at(-1)!;
+    expect(g.smelterAt(...(g.world.targetNextTo(end[0], end[1])!.split(",").map(Number) as [number, number]))).toBe(r.smelter);
     expect(g.heightAt(10, -1)).toBe(Infinity);
   });
 

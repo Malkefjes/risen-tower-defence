@@ -179,13 +179,15 @@ export function shipModel(): THREE.Object3D {
   rocket.group.rotation.y = Math.PI / 4;
   root.add(rocket.group);
   root.userData.rig = { ...rocket, materials } satisfies ShipRig;
-  // The core flashes when an enemy reaches the ship.
-  let flash = 0;
+  // The core flashes when enemies claw the ship, and goes dark when it's a wreck.
+  let flash = 0, wrecked = false;
   root.userData.flash = () => { flash = 0.45; };
+  root.userData.setWrecked = (on: boolean) => { wrecked = on; };
   root.userData.update = (t: number, dt = 0) => {
-    rocket.update(t);
+    if (!wrecked) rocket.update(t);
     flash = Math.max(0, flash - dt);
-    materials.crystal.emissiveIntensity = 0.95 * (1 + (flash > 0 ? 1.4 : 0));
+    materials.crystal.emissiveIntensity = wrecked ? 0.04 : 0.95 * (1 + (flash > 0 ? 1.4 : 0));
+    materials.power.emissiveIntensity = wrecked ? 0.03 : 0.6;
   };
   return root;
 }

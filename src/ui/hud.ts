@@ -70,6 +70,7 @@ export class Hud {
   private lastSig = "";
   private barSig = "";
   private smelterSig = "";
+  private lastHp = Infinity;
   private toastTimer = 0;
   private icons = itemIcons();
   /** "+N" over the node a stage just broke off (adds up if stages break close together). */
@@ -102,11 +103,6 @@ export class Hud {
         const g = this.gain;
         if (g.node !== e.node || g.idle > GAIN_HOLD + GAIN_FADE) { g.node = e.node; g.amount = 0; }
         g.amount += e.added; g.idle = 0;
-      } else if (e.type === "leak") {
-        const hp = $("hp");
-        hp.classList.remove("hurt");
-        void hp.offsetWidth;
-        hp.classList.add("hurt");
       }
     }
   }
@@ -213,7 +209,11 @@ export class Hud {
   update(sel: HudSelection): void {
     const g = this.game;
     const tower = g.towers.find(t => t.id === sel.selectedTowerId);
-    const sig = JSON.stringify([g.phase, g.round, sel.selectedTowerId, sel.selectedShip, g.waveRemaining, g.hp,
+    // The ship's HP flashes when enemies claw it.
+    const hpNow = Math.ceil(g.hp);
+    if (hpNow < this.lastHp && !g.shipDown) { const el = $("hp"); el.classList.remove("hurt"); void el.offsetWidth; el.classList.add("hurt"); }
+    this.lastHp = hpNow;
+    const sig = JSON.stringify([g.phase, g.round, sel.selectedTowerId, sel.selectedShip, g.waveRemaining, hpNow, g.shipDown,
       g.tuning.twin, g.tuning.gatling, g.tuning.ship, g.tuning.sellRefund, tower?.fresh]);
     if (sig === this.lastSig) return;
     this.lastSig = sig;
@@ -222,12 +222,13 @@ export class Hud {
     const pill = $("phase");
     pill.textContent = g.phase === "planning" ? "Calm" : g.phase === "wave" ? "Raid" : "Run over";
     pill.className = `pill ${g.phase}`;
-    $("hp").innerHTML = `HP <b>${g.hp}</b>`;
+    $("hp").innerHTML = g.shipDown ? "Ship <b>destroyed</b>" : `Ship <b>${hpNow}</b>`;
 
     // Run over: a notice, not a popup. The map stays visible behind it.
     const over = $("over");
-    over.hidden = g.phase !== "over";
-    $("overText").textContent = `The ship fell in raid ${g.round}.`;
+    // The ship destroyed: a notice, not the end. The run goes on; New run starts over.
+    over.hidden = !g.shipDown;
+    $("overText").textContent = `The ship was destroyed in raid ${g.round}.`;
 
     // Selected tower (or the ship): its stats in the corner; the view draws its range.
     const inspect = $("inspect");

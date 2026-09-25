@@ -54,7 +54,12 @@ export interface Tuning {
   sprint: number;
   /** How many caves (the nearest to the ship) send enemies each wave. */
   activeCaves: number;
+  /** The ship's HP; enemies claw it down. */
   startHp: number;
+  /** A smelter's HP. */
+  smelterHp: number;
+  /** Damage per second one enemy does to the building it's clawing. */
+  enemyDamage: number;
   enemyHp: number;
   /** Enemy HP multiplier per round after the first. */
   enemyHpGrowth: number;
@@ -97,7 +102,9 @@ export const defaultTuning = (): Tuning => ({
   reach: 1.5,
   sprint: 1.4,
   activeCaves: 3,
-  startHp: 20,
+  startHp: 400,
+  smelterHp: 150,
+  enemyDamage: 2,
   enemyHp: 6,
   enemyHpGrowth: 1.15,
   enemySpeed: 1,

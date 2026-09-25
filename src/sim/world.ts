@@ -67,6 +67,11 @@ export class World {
   readonly ore = new Map<string, number>();
   /** cell key -> id of the building (a smelter) standing on it */
   readonly buildings = new Map<string, number>();
+  /**
+   * What enemies go for, by cell: the ship (until it's destroyed) and every smelter.
+   * Enemies path to the nearest one and attack it from a neighbouring cell.
+   */
+  readonly targets = new Set<string>();
   private staticBounds: Bounds;
 
   constructor(map: MapDef) {
@@ -79,7 +84,7 @@ export class World {
       const k = cellKey(c.x + dx, c.y + dy);
       this.terrain.add(k); this.terrainTop.set(k, PLATEAU_TOP);
     }
-    for (const [x, y] of map.nexus) this.nexus.add(cellKey(x, y));
+    for (const [x, y] of map.nexus) { this.nexus.add(cellKey(x, y)); this.targets.add(cellKey(x, y)); }
     const oreCells = (map.ore ?? []).flatMap(o => nodeArea({ id: 0, kind: o.kind, x: o.x, y: o.y, amount: 0, max: nodeMax(o.kind) }));
     const all: Cell[] = [...map.spawners, ...map.nexus, ...[...this.terrain].map(parseKey), ...oreCells];
     this.staticBounds = boundsOf(all);
@@ -90,12 +95,21 @@ export class World {
   isSpawner(x: number, y: number): boolean { return this.spawners.some(s => s[0] === x && s[1] === y); }
 
   isOre(x: number, y: number): boolean { return this.ore.has(cellKey(x, y)); }
+
+  /** A target cell next to (x, y) (8 ways), if any: an enemy there attacks it. */
+  targetNextTo(x: number, y: number): string | null {
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const k = cellKey(x + dx, y + dy);
+      if ((dx || dy) && this.targets.has(k)) return k;
+    }
+    return null;
+  }
   isTree(x: number, y: number): boolean { return this.trees.has(cellKey(x, y)); }
 
-  /** Blocks movement (terrain, walls, ore, or extra hypothetical cells). */
+  /** Blocks movement (terrain, walls, ore, buildings, the ship or its wreck, or extra hypothetical cells). */
   isBlocked(x: number, y: number, extra?: ReadonlySet<string>): boolean {
     const k = cellKey(x, y);
-    return this.terrain.has(k) || this.walls.has(k) || this.ore.has(k) || this.buildings.has(k) || (extra ? extra.has(k) : false);
+    return this.terrain.has(k) || this.walls.has(k) || this.ore.has(k) || this.buildings.has(k) || this.nexus.has(k) || (extra ? extra.has(k) : false);
   }
 
   /** Can't be built on. */
@@ -130,6 +144,7 @@ export class World {
     mark(this.walls.keys());
     mark(this.ore.keys());
     mark(this.buildings.keys());
+    mark(this.nexus);
     if (extra) mark(extra);
     return grid;
   }

@@ -139,15 +139,35 @@ describe("combat", () => {
 });
 
 describe("hp and the run", () => {
-  it("each leaked enemy costs 1 HP; practice walkers cost nothing", () => {
-    const g = new Game(open({ nexus: [[4, 0]] }), { seed: 1, waveSize: () => 3 });
+  it("enemies stop beside the ship and claw it; practice walkers do no damage", () => {
+    const noGun = { cost: 0, damage: 0, range: 5.5, rate: 1 };
+    const g = new Game(open({ nexus: [[4, 0]] }), { seed: 1, waveSize: () => 3, tuning: { enemyDamage: 2, ship: noGun } });
     g.setTestWalkers(true);
     for (let i = 0; i < 60 * 8; i++) g.step();
     expect(g.hp).toBe(g.tuning.startHp);
     g.setTestWalkers(false);
     g.startWave();
-    finishWave(g);
-    expect(g.hp).toBe(g.tuning.startHp - 3);
+    for (let i = 0; i < 60 * 12; i++) g.step();
+    const clawing = g.walkers.filter(w => w.attacking === "4,0");
+    expect(clawing.length).toBe(3);
+    for (const w of clawing) expect(Math.max(Math.abs(w.cx - 4), Math.abs(w.cy))).toBe(1);
+    const hp = g.hp;
+    for (let i = 0; i < 60; i++) g.step();
+    expect(hp - g.hp).toBeCloseTo(3 * 2, 1);
+  });
+
+  it("enemies go for the nearest target, and walk on when it's destroyed", () => {
+    const noGun = { cost: 0, damage: 0, range: 5.5, rate: 1 };
+    const g = new Game(open({ nexus: [[20, 0]] }), { seed: 1, waveSize: () => 1, tuning: { startStone: 1000, startMetal: 1000, smelterHp: 40, enemyDamage: 5, ship: noGun } });
+    const s = g.buildSmelter([6, -1]).smelter!;
+    g.startWave();
+    for (let i = 0; i < 60 * 6; i++) g.step();
+    expect(g.walkers[0]!.attacking).toMatch(/^[67],-?[01]$/);
+    for (let i = 0; i < 60 * 9; i++) g.step();
+    expect(g.smelters).not.toContain(s);
+    expect(g.drainEvents().some(e => e.type === "smelter-destroyed")).toBe(true);
+    for (let i = 0; i < 60 * 15; i++) g.step();
+    expect(g.walkers[0]!.attacking).toBe("20,0");
   });
 
   it("has no income: ore only comes from mining", () => {
@@ -159,15 +179,21 @@ describe("hp and the run", () => {
     expect([g.ore("stone"), g.ore("alloy")]).toEqual([stone, metal]);
   });
 
-  it("the run ends at 0 HP, and reset starts a fresh run", () => {
+  it("the ship can be destroyed and the run goes on; enemies with nothing left burrow; reset starts fresh", () => {
     const g = new Game(open({ nexus: [[4, 0]] }), { seed: 1, waveSize: () => 5, tuning: { startHp: 2 } });
     g.place("T", 0, [10, 10]);
     g.startWave();
     finishWave(g);
-    expect(g.phase).toBe("over");
+    expect(g.shipDown).toBe(true);
     expect(g.hp).toBe(0);
-    expect(g.canPlaceNow()).toBe(false);
+    expect(g.drainEvents().some(e => e.type === "ship-destroyed")).toBe(true);
+    // Nothing left to attack: they burrowed, the raid is over, and you can still build.
+    expect(g.phase).toBe("planning");
+    expect(g.walkers).toHaveLength(0);
+    expect(g.canPlaceNow()).toBe(true);
+    expect(g.place("T", 0, [10, -10]).ok).toBe(true);
     g.reset();
+    expect(g.shipDown).toBe(false);
     expect(g.phase).toBe("planning");
     expect(g.hp).toBe(2);
     expect(g.round).toBe(1);

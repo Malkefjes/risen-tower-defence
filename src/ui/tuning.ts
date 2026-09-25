@@ -46,7 +46,9 @@ const SECTIONS: { title: string; knobs: Knob[] }[] = [
     top("packMax", "Largest pack", 1, 12, 1),
     top("packGap", "Seconds between packs", 0.5, 15, 0.5),
     top("laneSpread", "Sideways spread (cells)", 0, 0.45, 0.01),
-    top("startHp", "Ship HP", 1, 50, 1),
+    top("startHp", "Ship HP", 10, 3000, 10),
+    top("smelterHp", "Smelter HP", 10, 2000, 10),
+    top("enemyDamage", "Damage per second (to buildings)", 0, 20, 0.5),
     top("activeCaves", "Caves sending enemies", 1, 12, 1),
   ] },
   { title: "Ship's gun", knobs: [
@@ -63,8 +65,8 @@ const SECTIONS: { title: string; knobs: Knob[] }[] = [
   ] },
 ];
 
-// v4: towers and plating cost alloy, and "starting metal" became raw metal, so older saved tuning is dropped.
-const STORE = "risen.tuning.v4";
+// v5: ship HP is now real HP (enemies claw it), so older saved tuning is dropped.
+const STORE = "risen.tuning.v5";
 
 /** Tuning saved in this browser, if any. Never throws. */
 export function loadTuning(): Partial<Tuning> | undefined {

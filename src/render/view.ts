@@ -116,6 +116,14 @@ export class GameView {
   private smelterGhost: THREE.Object3D;
   private smelters = new Map<number, Refinery>();
   /** Caves by their mouth cell, for stirring when a raid is near. */
+  /** 0..1 how far the ship has slumped into a wreck. */
+  private wreck = 0;
+  private wreckPuff = 0;
+  private lastShipHp = Infinity;
+  private shipHitCd = 0;
+  private debrisMat = new THREE.MeshStandardMaterial({ color: "#4a5266", roughness: 0.8, flatShading: true });
+  /** HP bars over damaged buildings: the ship (key -1) and smelters (their ids). */
+  private buildingBars = new Map<number, THREE.Group>();
   private caveByMouth = new Map<string, { obj: THREE.Object3D; home: THREE.Vector3; mouth: [number, number]; puffT: number }>();
   private dust: { mesh: THREE.Mesh; v: THREE.Vector3; life: number; max: number }[] = [];
   private dustGeo = new THREE.IcosahedronGeometry(0.12, 0);
@@ -419,14 +427,15 @@ export class GameView {
     this.syncPieces(o.hoverPieceId);
     this.syncTowers();
     this.syncSmelters(t);
+    this.syncBuildingBars();
     for (const ev of events) {
       if (ev.type === "placed" || ev.type === "plated") this.onPlaced(ev.piece);
-      else if (ev.type === "walker-arrived") (this.nexus.userData.flash as () => void)();
+      else if (ev.type === "smelter-destroyed") this.onKilled(ev.smelter.cx, ev.smelter.cy, 26, this.debrisMat);
       else if (ev.type === "tower-built") { const v = this.towers.get(ev.tower.id); if (v) v.drop = 0.12; }
       else if (ev.type === "shot") this.onShot(ev.shot);
       else if (ev.type === "hit") { const w = this.walkers.get(ev.walker.id); if (w) w.userData.flash = 0.09; }
       else if (ev.type === "killed") this.onKilled(ev.walker.x, ev.walker.y);
-      else if (ev.type === "reset") { this.clearFx(); this.shipLand = 0; this.followAvatar(); }
+      else if (ev.type === "reset") { this.clearFx(); this.shipLand = 0; this.wreck = 0; this.followAvatar(); }
     }
     this.mining.onEvents(events);
     const landed = events.some(e => e.type === "avatar-landed");
@@ -507,6 +516,17 @@ export class GameView {
     const t = this.shipLand, c = this.nexusCenter();
     const k = Math.min(1, t / LAND_DESCENT);
     this.nexus.position.set(c.x, LAND_DROP * (1 - (1 - (1 - k) ** 3)), c.z);
+    // Destroyed: it slumps and lists into a dark, smoking wreck (it still blocks).
+    const down = this.game.shipDown;
+    (this.nexus.userData.setWrecked as (on: boolean) => void)(down);
+    this.wreck = down ? Math.min(1, this.wreck + dt * 1.5) : 0;
+    const w = 1 - (1 - this.wreck) ** 3;
+    this.nexus.position.y -= 0.35 * w;
+    this.nexus.rotation.set(0.16 * w, 0, -0.12 * w);
+    if (down && (this.wreckPuff -= dt) <= 0) { this.wreckPuff = 0.18; this.spawnDust(c.x + (Math.random() - 0.5) * 1.6, c.z + (Math.random() - 0.5) * 1.6, 1.4 + Math.random() * 0.6, "#3a3642"); }
+    // Enemies clawing it: the core flashes now and then.
+    if (!down && this.game.hp < this.lastShipHp && (this.shipHitCd -= dt) <= 0) { this.shipHitCd = 0.35; (this.nexus.userData.flash as () => void)(); }
+    this.lastShipHp = this.game.hp;
     const open = Math.min(1, Math.max(0, (t - LAND_DESCENT - LAND_HOLD) / LAND_OPEN));
     const e = open < 0.5 ? 2 * open * open : 1 - (-2 * open + 2) ** 2 / 2;
     rig.door.rotation.x = e * rig.openAngle;
@@ -588,8 +608,10 @@ export class GameView {
       o.userData.t += dt;
       o.userData.flash = Math.max(0, ((o.userData.flash as number) ?? 0) - dt);
       e.flash((o.userData.flash as number) > 0 ? 1 : 0);
-      e.update(o.userData.t as number, true);
-      const dx = w.tx + 0.5 - w.x, dz = w.ty + 0.5 - w.y;
+      // Clawing a building: it stands still, faces it and lunges; otherwise it walks.
+      e.update(o.userData.t as number, !w.attacking);
+      const [ax, az] = w.attacking ? w.attacking.split(",").map(Number) as [number, number] : [0, 0];
+      const dx = w.attacking ? ax + 0.5 - w.x : w.tx + 0.5 - w.x, dz = w.attacking ? az + 0.5 - w.y : w.ty + 0.5 - w.y;
       if (dx * dx + dz * dz > 1e-6) {
         const want = Math.atan2(dx, dz);
         let d = want - o.rotation.y;
@@ -605,6 +627,12 @@ export class GameView {
       // Climbing out: below the snow at the mouth, up on it half a cell out.
       const [fx, fy] = o.userData.from as [number, number], out = Math.hypot(cx - fx, cy - fy);
       o.position.set(x, -0.25 * Math.max(0, 1 - out / 0.5), y);
+      if (w.attacking) {
+        // A quick lunge toward what it's clawing, several times a second.
+        const lunge = Math.max(0, Math.sin((o.userData.t as number) * 9 + w.id)) * 0.12;
+        o.position.x += Math.sin(o.rotation.y) * lunge;
+        o.position.z += Math.cos(o.rotation.y) * lunge;
+      }
     }
     for (const [id, o] of this.walkers) if (!alive.has(id)) { this.scene.remove(o); this.walkers.delete(id); }
     for (const [id, b] of this.bars) if (!alive.has(id)) { this.scene.remove(b); this.bars.delete(id); }
@@ -644,11 +672,7 @@ export class GameView {
       c.obj.position.set(c.home.x + Math.sin(t * 43) * 0.012, c.home.y + Math.abs(Math.sin(t * 31)) * 0.01, c.home.z + Math.cos(t * 37) * 0.012);
       if ((c.puffT -= dt) > 0) continue;
       c.puffT = 0.12 + Math.random() * 0.12;
-      const m = new THREE.Mesh(this.dustGeo, new THREE.MeshStandardMaterial({ color: "#6d6878", roughness: 1, transparent: true, opacity: 0.55, depthWrite: false }));
-      m.position.set(c.mouth[0] + (Math.random() - 0.5) * 0.6, 0.1, c.mouth[1] + (Math.random() - 0.5) * 0.6);
-      m.rotation.set(Math.random() * 3, Math.random() * 3, 0);
-      this.scene.add(m);
-      this.dust.push({ mesh: m, v: new THREE.Vector3((Math.random() - 0.5) * 0.4, 0.5 + Math.random() * 0.4, (Math.random() - 0.5) * 0.4), life: 1.4, max: 1.4 });
+      this.spawnDust(c.mouth[0] + (Math.random() - 0.5) * 0.6, c.mouth[1] + (Math.random() - 0.5) * 0.6, 0.1, "#6d6878");
     }
     for (const d of this.dust) {
       d.life -= dt;
@@ -663,6 +687,43 @@ export class GameView {
       (d.mesh.material as THREE.Material).dispose();
       return false;
     });
+  }
+
+  /** A puff of dust or smoke that rises, grows and fades. */
+  private spawnDust(x: number, z: number, y: number, color: string): void {
+    const m = new THREE.Mesh(this.dustGeo, new THREE.MeshStandardMaterial({ color, roughness: 1, transparent: true, opacity: 0.55, depthWrite: false }));
+    m.position.set(x, y, z);
+    m.rotation.set(Math.random() * 3, Math.random() * 3, 0);
+    this.scene.add(m);
+    this.dust.push({ mesh: m, v: new THREE.Vector3((Math.random() - 0.5) * 0.4, 0.5 + Math.random() * 0.4, (Math.random() - 0.5) * 0.4), life: 1.4, max: 1.4 });
+  }
+
+  /** HP bars over damaged buildings (the ship and smelters), wider than an enemy's. */
+  private syncBuildingBars(): void {
+    const want = new Map<number, { x: number; y: number; z: number; frac: number }>();
+    if (!this.game.shipDown && this.game.hp < this.game.tuning.startHp) {
+      const c = this.nexusCenter();
+      want.set(-1, { x: c.x, y: 3.4, z: c.z, frac: this.game.hp / this.game.tuning.startHp });
+    }
+    for (const s of this.game.smelters) if (s.hp < s.maxHp) want.set(s.id, { x: s.cx, y: 3.3, z: s.cy, frac: s.hp / s.maxHp });
+    for (const [id, w] of want) {
+      let b = this.buildingBars.get(id);
+      if (!b) {
+        b = new THREE.Group();
+        const bg = new THREE.Mesh(this.barGeo, this.barBgMat), fill = new THREE.Mesh(this.barFillGeo, this.barFillMat);
+        fill.position.set(-0.25, 0, 0.001);
+        fill.name = "fill";
+        b.add(bg, fill);
+        b.scale.set(2.4, 1.6, 1);
+        b.renderOrder = 5;
+        this.scene.add(b);
+        this.buildingBars.set(id, b);
+      }
+      b.position.set(w.x, w.y, w.z);
+      b.quaternion.copy(this.camera.quaternion);
+      b.getObjectByName("fill")!.scale.x = Math.max(0.001, w.frac);
+    }
+    for (const [id, b] of this.buildingBars) if (!want.has(id)) { this.scene.remove(b); this.buildingBars.delete(id); }
   }
 
   // ------------------------------------------------------------------ smelters
@@ -777,9 +838,9 @@ export class GameView {
   }
 
   /** A killed enemy simply bursts into a small spray of red dots. */
-  private onKilled(x: number, y: number): void {
-    for (let i = 0; i < 10; i++) {
-      const m = new THREE.Mesh(this.goreGeo, this.goreMat);
+  private onKilled(x: number, y: number, n = 10, mat: THREE.Material = this.goreMat): void {
+    for (let i = 0; i < n; i++) {
+      const m = new THREE.Mesh(this.goreGeo, mat);
       m.position.set(x, 0.18, y);
       this.scene.add(m);
       const a = Math.random() * Math.PI * 2, sp = 0.4 + Math.random() * 0.8;
