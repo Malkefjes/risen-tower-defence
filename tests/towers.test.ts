@@ -47,13 +47,13 @@ describe("tower placement", () => {
   });
 
   it("refuses terrain, overlapping towers, and building without metal", () => {
-    const g = withWalls([[5, 5, 1], [6, 5, 1]], 150);
+    const g = withWalls([[5, 5, 1], [6, 5, 1]], 300);
     expect(g.checkTower("twin", [3, 3]).ok).toBe(false);
     expect(g.buildTower("twin", [5, 5]).ok).toBe(true);
     const again = g.checkTower("twin", [5, 5]);
     expect(again.ok).toBe(false);
     if (!again.ok) expect(again.reason).toBe("tower-there");
-    expect(g.ore("metal")).toBe(150 - g.towerCost("twin"));
+    expect(g.ore("metal")).toBe(300 - g.towerCost("twin"));
     const broke = g.checkTower("twin", [6, 5]);
     expect(broke.ok).toBe(false);
     if (!broke.ok) expect(broke.reason).toBe("metal");
@@ -115,7 +115,7 @@ describe("combat", () => {
   });
 
   it("damage lands after the bolt flies, and kills remove the walker", () => {
-    const g = withWalls([[10, 2, 1]], 100);
+    const g = withWalls([[10, 2, 1]]);
     g.tuning.twin.damage = 5;
     g.buildTower("twin", [10, 2]);
     g.startWave();

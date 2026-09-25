@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { Game, GameEvent, PlacedPiece, Shot } from "../sim/game";
+import { SHIP_SHOOTER, type Game, type GameEvent, type PlacedPiece, type Shot } from "../sim/game";
 import { MiningView } from "./mining";
 import { stoneWallMaterials, stoneWallPiece } from "./stoneWall";
 import { createRig, RigAnimator, type Rig } from "./rig";
@@ -51,6 +51,8 @@ const LIGHT_DIST = Math.hypot(...EVENING.sunOffset);
 const LIGHT_RIGHT = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), LIGHT_DIR).normalize();
 const LIGHT_UP = new THREE.Vector3().crossVectors(LIGHT_DIR, LIGHT_RIGHT).normalize();
 const ZOOM_MIN = 3.2, ZOOM_MAX = 11;
+/** Height of the ship's core crystal above the ground, where its gun fires from. */
+const SHIP_CORE_Y = 1.95;
 /** How far the torso may twist from the legs toward where the tool aims (radians). */
 const TWIST_MAX = 1.9;
 const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -90,6 +92,8 @@ export class GameView {
   private glows: Glows;
   private boltGeo = new THREE.SphereGeometry(0.045, 8, 6);
   private boltMat = new THREE.MeshBasicMaterial({ color: "#ffd08a" });
+  /** The ship's gun fires cyan bolts from its reactor core. */
+  private shipBoltMat = new THREE.MeshBasicMaterial({ color: "#7ff5e6" });
   private barGeo = new THREE.PlaneGeometry(0.5, 0.07);
   private barFillGeo = new THREE.PlaneGeometry(0.5, 0.07).translate(0.25, 0, 0);
   private barBgMat = new THREE.MeshBasicMaterial({ color: "#241f3d" });
@@ -322,6 +326,22 @@ export class GameView {
     this.raycaster.setFromCamera(ndc, this.camera);
     const p = new THREE.Vector3();
     return this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -y), p) ? p : null;
+  }
+
+  /** Is the ship under this screen position? */
+  shipAt(clientX: number, clientY: number): boolean {
+    const r = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+    this.placeCamera();
+    this.raycaster.setFromCamera(ndc, this.camera);
+    if (this.raycaster.intersectObject(this.nexus, true).length > 0) return true;
+    // The core cage is open, so also count any point over the ship's footprint, up its height.
+    const p = new THREE.Vector3(), plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    for (let y = 0; y <= 3.5; y += 0.25) {
+      plane.constant = -y;
+      if (this.raycaster.ray.intersectPlane(plane, p) && this.game.world.isNexus(Math.floor(p.x), Math.floor(p.z))) return true;
+    }
+    return false;
   }
 
   /** Ground point under a screen position, or null. */
@@ -610,8 +630,19 @@ export class GameView {
   }
 
   private onShot(s: Shot): void {
-    const v = this.towers.get(s.towerId);
     const target = this.walkers.get(s.targetId);
+    if (s.towerId === SHIP_SHOOTER) {
+      // From the crystal in the ship's core cage.
+      const from = this.nexus.position.clone().setY(this.nexus.position.y + SHIP_CORE_Y);
+      this.addFlash(from, this.glows.cyan, 0.6, 0.12);
+      const mesh = new THREE.Mesh(this.boltGeo, this.shipBoltMat);
+      mesh.position.copy(from);
+      this.scene.add(mesh);
+      const to = target ? target.position.clone().setY(0.25) : from.clone();
+      this.bolts.push({ mesh, from, to, walkerId: s.targetId, t: 0, dur: Math.max(0.02, s.dur) });
+      return;
+    }
+    const v = this.towers.get(s.towerId);
     if (!v) return;
     const i = v.gun++ % v.rig.guns.length;
     const g = v.rig.guns[i]!;

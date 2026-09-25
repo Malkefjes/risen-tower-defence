@@ -90,7 +90,7 @@ Locked: clean low-poly 3D, rendered with three.js through a fixed isometric-styl
 
 - **Palette:** colony orange, cyan power, dark steel, and white (snow and light accents). Violet belongs to the aliens.
 - **Walls: Armored deck** (from `mockups/stronghold/`): walls fuse with every neighbouring wall, whatever piece it came from, so a wall line is one continuous structure. One orange for all walls. Dark steel plinth, orange armor, steel gun deck on top, a thin cyan power line along the outside. The power line is dim until power exists, then lights on powered walls.
-- **Ship:** gets its own mockup, with its engine core based on the Reactor core (nexus A in `mockups/stronghold/`).
+- **Ship:** the Rocket (3×3), with the Reactor core mid-body. It has a weak built-in gun that fires from the core: a circular range of about 5.5 cells, slow and light, enough to help early on but never a replacement for towers. Towers mostly have circular ranges too; click a turret or the ship to see its range and stats.
 - **Turret:** Twin / Gatling (design B from `mockups/turrets/`).
 - **Style:** simple low-poly shapes, soft light and shadows. Lighting carries much of the mood.
 - **Evening is the look:** a low orange sun, lavender sky. Day and night presets were dropped.
@@ -149,7 +149,7 @@ These were part of the round-based Phase 1 design. They stay in the game until t
 
 ## Controls (current)
 
-WASD run (relative to the screen) · Shift sprint · Space jump · hold left mouse to fire the multitool (mines a node in reach) · hold right mouse on a wall for its modification wheel (metal plating) · hold Q for the wall wheel, E for the tower wheel, release to pick · left click places what you hold · R or right-click rotate · 1–6 hotbar (1 puts away what you hold) · middle-drag or arrows pan · C follow the rig · H look at the ship · scroll zoom · click a tower, X sells · Z undo · Enter start wave · P pause · F speed · V path preview · G grid · T test walkers · K tuning.
+WASD run (relative to the screen) · Shift sprint · Space jump · hold left mouse to fire the multitool (mines a node in reach) · hold right mouse on a wall for its modification wheel (metal plating) · click a turret or the ship for its range and stats · hold Q for the wall wheel, E for the tower wheel, release to pick · left click places what you hold · R or right-click rotate · 1–6 hotbar (1 puts away what you hold) · middle-drag or arrows pan · C follow the rig · H look at the ship · scroll zoom · X sells the selected tower · Z undo · Enter start wave · P pause · F speed · V path preview · G grid · T test walkers · K tuning.
 
 ## Open questions
 

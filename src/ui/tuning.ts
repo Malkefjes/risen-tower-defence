@@ -3,16 +3,16 @@ import { defaultTuning, type TowerStats, type Tuning } from "../sim/towers";
 /** One slider: where the number lives in Tuning, and its range. */
 interface Knob { label: string; get(t: Tuning): number; set(t: Tuning, v: number): void; min: number; max: number; step: number; pct?: boolean }
 
-const top = (key: Exclude<keyof Tuning, "twin" | "gatling">, label: string, min: number, max: number, step: number, pct = false): Knob =>
+const top = (key: Exclude<keyof Tuning, "twin" | "gatling" | "ship">, label: string, min: number, max: number, step: number, pct = false): Knob =>
   ({ label, get: t => t[key], set: (t, v) => { t[key] = v; }, min, max, step, pct });
-const tower = (kind: "twin" | "gatling", key: keyof TowerStats, label: string, min: number, max: number, step: number): Knob =>
+const tower = (kind: "twin" | "gatling" | "ship", key: keyof TowerStats, label: string, min: number, max: number, step: number): Knob =>
   ({ label, get: t => t[kind][key], set: (t, v) => { t[kind][key] = v; }, min, max, step });
 
 const SECTIONS: { title: string; knobs: Knob[] }[] = [
   { title: "Supply and ore", knobs: [
     top("supplyPerRound", "Walls per round", 1, 8, 1),
     top("wallCost", "Stone per wall cell", 0, 100, 5),
-    top("platingCost", "Metal plating per wall piece", 0, 300, 5),
+    top("platingCost", "Metal plating per wall piece", 0, 500, 5),
     top("startStone", "Starting stone", 0, 2000, 50),
     top("startMetal", "Starting metal", 0, 1000, 25),
     top("sellRefund", "Sell refund (after the wave starts)", 0, 1, 0.05, true),
@@ -28,18 +28,22 @@ const SECTIONS: { title: string; knobs: Knob[] }[] = [
     top("enemySpeed", "Speed", 0.4, 2.5, 0.05),
     top("startHp", "Ship HP", 1, 50, 1),
   ] },
+  { title: "Ship's gun", knobs: [
+    tower("ship", "damage", "Damage", 0, 10, 0.5), tower("ship", "rate", "Shots per second", 0, 6, 0.25),
+    tower("ship", "range", "Range", 1, 10, 0.25),
+  ] },
   { title: "Twin 1×1", knobs: [
-    tower("twin", "cost", "Metal cost", 0, 500, 10), tower("twin", "damage", "Damage", 0.5, 10, 0.5),
+    tower("twin", "cost", "Metal cost", 0, 1000, 10), tower("twin", "damage", "Damage", 0.5, 10, 0.5),
     tower("twin", "rate", "Shots per second", 0.5, 12, 0.5), tower("twin", "range", "Range", 1, 8, 0.25),
   ] },
   { title: "Gatling 2×2", knobs: [
-    tower("gatling", "cost", "Metal cost", 0, 1000, 10), tower("gatling", "damage", "Damage", 0.5, 10, 0.5),
+    tower("gatling", "cost", "Metal cost", 0, 2000, 10), tower("gatling", "damage", "Damage", 0.5, 10, 0.5),
     tower("gatling", "rate", "Shots per second", 0.5, 20, 0.5), tower("gatling", "range", "Range", 1, 10, 0.25),
   ] },
 ];
 
-// v2: ore replaced credits (prices changed scale), so older saved tuning is dropped.
-const STORE = "risen.tuning.v2";
+// v3: metal prices doubled and the ship got a gun, so older saved tuning is dropped.
+const STORE = "risen.tuning.v3";
 
 /** Tuning saved in this browser, if any. Never throws. */
 export function loadTuning(): Partial<Tuning> | undefined {
@@ -48,7 +52,7 @@ export function loadTuning(): Partial<Tuning> | undefined {
     if (!raw) return undefined;
     const t = JSON.parse(raw) as Partial<Tuning>;
     const d = defaultTuning();
-    return { ...t, twin: { ...d.twin, ...t.twin }, gatling: { ...d.gatling, ...t.gatling } };
+    return { ...t, twin: { ...d.twin, ...t.twin }, gatling: { ...d.gatling, ...t.gatling }, ship: { ...d.ship, ...t.ship } };
   } catch { return undefined; }
 }
 
@@ -95,7 +99,7 @@ export class TuningPanel {
     this.el.appendChild(note);
     this.el.querySelector("#tuneReset")!.addEventListener("click", () => {
       const d = defaultTuning();
-      Object.assign(t, d, { twin: { ...d.twin }, gatling: { ...d.gatling } });
+      Object.assign(t, d, { twin: { ...d.twin }, gatling: { ...d.gatling }, ship: { ...d.ship } });
       save(t);
       this.render();
     });

@@ -108,7 +108,7 @@ describe("ore pays for building", () => {
   });
 
   it("towers cost metal", () => {
-    const g = new Game(map(), { seed: 1, tuning: { startMetal: 100 } });
+    const g = new Game(map(), { seed: 1, tuning: { startMetal: 200 } });
     metalWall(g, [[2, 10]]);
     expect(g.buildTower("twin", [2, 10]).ok).toBe(true);
     expect(g.ore("metal")).toBe(0);

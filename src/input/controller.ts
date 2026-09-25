@@ -1,7 +1,7 @@
 import { REASON_TEXT, TOWER_REASON_TEXT, type Game, type PlacedPiece, type PlacementCheck } from "../sim/game";
 import { WALL_DECK } from "../sim/world";
 import { SHAPE_IDS } from "../sim/pieces";
-import { TOWER_INFO, TOWER_KINDS, type TowerKind } from "../sim/towers";
+import { TOWER_INFO, TOWER_KINDS, type Tower, type TowerKind } from "../sim/towers";
 import type { Cell } from "../sim/types";
 import { BuildWheel, type WheelItem } from "../ui/buildWheel";
 import { pieceIcon, platingIcon, towerIcon, type Hud } from "../ui/hud";
@@ -21,6 +21,8 @@ export class Controller {
   buildKind: TowerKind | null = null;
   /** Placed tower picked for inspecting and selling. */
   selectedTowerId: number | null = null;
+  /** The ship picked for inspecting (its gun's range and stats). */
+  selectedShip = false;
   rot = 0;
   showPath = true;
   showGrid = false;
@@ -118,6 +120,17 @@ export class Controller {
     this.wheel.show(this.wheelItems());
   }
 
+  /** The tower under the cursor: turrets stand on walls, so look at turret and deck height before the ground. */
+  private towerUnderCursor(): Tower | undefined {
+    if (!this.lastPointer) return undefined;
+    for (const y of [WALL_DECK + 0.35, WALL_DECK, 0]) {
+      const p = this.view.pickAtHeight(this.lastPointer.x, this.lastPointer.y, y);
+      const t = p && this.game.towerAt(Math.floor(p.x), Math.floor(p.z));
+      if (t) return t;
+    }
+    return undefined;
+  }
+
   /** The wall under the cursor: its deck if the cursor is on top of one, else the ground cell. */
   private wallAt(clientX: number, clientY: number): PlacedPiece | undefined {
     for (const y of [WALL_DECK, 0]) {
@@ -194,6 +207,7 @@ export class Controller {
     this.selectedUid = null;
     this.buildKind = null;
     this.selectedTowerId = null;
+    this.selectedShip = false;
   }
 
   select(uid: number | null): void {
@@ -270,10 +284,13 @@ export class Controller {
       this.updateHover();
       return;
     }
-    const tower = this.game.towerAt(this.hoverCell[0], this.hoverCell[1]);
-    if (tower) { this.selectedTowerId = this.selectedTowerId === tower.id ? null : tower.id; return; }
+    // Clicking a tower (or the ship) shows its range and stats; clicking it again hides them.
+    const tower = this.towerUnderCursor();
+    if (tower) { this.selectedShip = false; this.selectedTowerId = this.selectedTowerId === tower.id ? null : tower.id; return; }
     this.selectedTowerId = null;
-    const piece = this.game.pieceAt(this.hoverCell[0], this.hoverCell[1]);
+    if (this.lastPointer && this.view.shipAt(this.lastPointer.x, this.lastPointer.y)) { this.selectedShip = !this.selectedShip; return; }
+    this.selectedShip = false;
+    const piece = this.lastPointer ? this.wallAt(this.lastPointer.x, this.lastPointer.y) : undefined;
     if (!piece) return;
     if (piece.locked) { this.hud.toast("That piece is locked in"); return; }
     if (this.game.phase !== "planning") return;
@@ -288,7 +305,7 @@ export class Controller {
     const p = this.view.pickGround(this.lastPointer.x, this.lastPointer.y);
     this.hoverCell = p ? [Math.floor(p.x), Math.floor(p.z)] : null;
     this.hoverPoint = p ? { x: p.x, z: p.z } : null;
-    const piece = this.hoverCell && this.selectedUid === null && this.buildKind === null && !this.game.towerAt(this.hoverCell[0], this.hoverCell[1]) ? this.game.pieceAt(this.hoverCell[0], this.hoverCell[1]) : undefined;
+    const piece = this.hoverCell && this.selectedUid === null && this.buildKind === null && !this.towerUnderCursor() ? this.wallAt(this.lastPointer.x, this.lastPointer.y) : undefined;
     this.hoverPieceId = piece && this.game.canPickUp(piece) ? piece.id : null;
   }
 
@@ -358,10 +375,12 @@ export class Controller {
       towerGhost = { kind: this.buildKind, cells: tc.cells, valid: tc.ok, cx: at[0] + n / 2, cy: at[1] + n / 2, range: this.game.tuning[this.buildKind].range };
     }
     const sel = this.game.towers.find(t => t.id === this.selectedTowerId);
+    const ship = this.selectedShip ? this.game.shipCenter() : null;
     return {
       towerGhost,
       toolReady: this.selectedUid !== null || this.buildKind !== null,
-      selectedTower: sel ? { cx: sel.cx, cy: sel.cy, range: this.game.tuning[sel.kind].range } : null,
+      selectedTower: sel ? { cx: sel.cx, cy: sel.cy, range: this.game.tuning[sel.kind].range }
+        : ship ? { cx: ship.x, cy: ship.y, range: this.game.tuning.ship.range } : null,
       ghost: check ? { cells: check.cells, valid: check.ok } : null,
       route: check?.ok ? this.game.routes(check.field) : current,
       faintRoute: check?.ok ? current : null,

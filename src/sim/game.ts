@@ -11,6 +11,8 @@ import { WALL_DECK, World, type MapDef } from "./world";
 /** Random walls delivered at the start of every round. Unused walls carry over. */
 export const SUPPLY_PER_ROUND = 3;
 export const TICK = 1 / 60;
+/** Shots from the ship's own gun carry this as their shooter id (tower ids start at 1). */
+export const SHIP_SHOOTER = 0;
 /** The avatar collides with the world in eighths of a cell (for the rim around towers). */
 export const AVATAR_SUB = 8;
 /** Width of the wall rim left around a tower, in eighths of a cell. */
@@ -588,19 +590,41 @@ export class Game {
   }
 
   /** The walker a tower would shoot now: in range, not already doomed, most progress. */
-  pickTarget(t: Tower): Walker | null {
-    const range = this.tuning[t.kind].range;
+  pickTarget(t: Tower): Walker | null { return this.pickTargetFrom(t.cx, t.cy, this.tuning[t.kind].range); }
+
+  /** The ship's centre, where its gun's range is measured from. */
+  shipCenter(): { x: number; y: number } {
+    const cells = this.world.map.nexus;
+    return { x: cells.reduce((a, c) => a + c[0] + 0.5, 0) / cells.length, y: cells.reduce((a, c) => a + c[1] + 0.5, 0) / cells.length };
+  }
+
+  /** Same targeting for any gun: in a circle around (cx, cy), not already doomed, most progress. */
+  pickTargetFrom(cx: number, cy: number, range: number): Walker | null {
     let best: Walker | null = null, bestR = Infinity;
     for (const w of this.walkers) {
       if (w.pending >= w.hp) continue;
-      if (Math.hypot(w.x - t.cx, w.y - t.cy) > range) continue;
+      if (Math.hypot(w.x - cx, w.y - cy) > range) continue;
       const r = this.remaining(w);
       if (r < bestR) { bestR = r; best = w; }
     }
     return best;
   }
 
+  /** The ship's weak gun, fired from its core. */
+  shipGun = { cooldown: 0, targetId: null as number | null };
+
   private updateTowers(dt: number): void {
+    const gun = this.shipGun, s = this.tuning.ship, c = this.shipCenter();
+    gun.cooldown = Math.max(0, gun.cooldown - dt);
+    const st = s.damage > 0 && s.rate > 0 ? this.pickTargetFrom(c.x, c.y, s.range) : null;
+    gun.targetId = st?.id ?? null;
+    if (st && gun.cooldown <= 0) {
+      gun.cooldown = 1 / s.rate;
+      const shot: Shot = { id: this.nextId++, towerId: SHIP_SHOOTER, targetId: st.id, damage: s.damage, t: 0, dur: Math.hypot(st.x - c.x, st.y - c.y) / BOLT_SPEED };
+      st.pending += shot.damage;
+      this.shots.push(shot);
+      this.events.push({ type: "shot", shot });
+    }
     for (const t of this.towers) {
       t.cooldown = Math.max(0, t.cooldown - dt);
       const target = this.pickTarget(t);

@@ -45,6 +45,7 @@ export interface HudHandlers {
 /** What the input layer has selected, for highlighting. */
 export interface HudSelection {
   selectedTowerId: number | null;
+  selectedShip: boolean;
 }
 
 /** Screen position (page pixels) of a world point, from the view. */
@@ -132,8 +133,8 @@ export class Hud {
   update(sel: HudSelection): void {
     const g = this.game;
     const tower = g.towers.find(t => t.id === sel.selectedTowerId);
-    const sig = JSON.stringify([g.phase, g.round, sel.selectedTowerId, g.waveRemaining, g.hp,
-      g.tuning.twin, g.tuning.gatling, g.tuning.sellRefund, tower?.fresh]);
+    const sig = JSON.stringify([g.phase, g.round, sel.selectedTowerId, sel.selectedShip, g.waveRemaining, g.hp,
+      g.tuning.twin, g.tuning.gatling, g.tuning.ship, g.tuning.sellRefund, tower?.fresh]);
     if (sig === this.lastSig) return;
     this.lastSig = sig;
 
@@ -148,9 +149,15 @@ export class Hud {
     over.hidden = g.phase !== "over";
     $("overText").textContent = `The ship fell in round ${g.round}.`;
 
-    // Selected tower
+    // Selected tower (or the ship): its stats in the corner; the view draws its range.
     const inspect = $("inspect");
-    inspect.hidden = !tower;
+    inspect.hidden = !tower && !sel.selectedShip;
+    if (!tower && sel.selectedShip) {
+      const s = g.tuning.ship;
+      inspect.innerHTML = `
+        <h3>Ship <span>reactor gun</span></h3>
+        <dl><dt>Damage</dt><dd>${s.damage}</dd><dt>Shots/s</dt><dd>${s.rate}</dd><dt>Range</dt><dd>${s.range}</dd></dl>`;
+    }
     if (tower) {
       const info = TOWER_INFO[tower.kind], s = g.tuning[tower.kind], value = g.sellValue(tower);
       inspect.innerHTML = `

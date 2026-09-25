@@ -45,13 +45,15 @@ export interface Tuning {
   /** Share of the price returned when selling a tower placed in an earlier phase. */
   sellRefund: number;
   twin: TowerStats;
+  /** The ship's own weak gun, fired from its core (no cost; range from the ship's centre). */
+  ship: TowerStats;
   gatling: TowerStats;
 }
 
 export const defaultTuning = (): Tuning => ({
   supplyPerRound: 3,
   wallCost: 25,
-  platingCost: 50,
+  platingCost: 100,
   startStone: 400,
   startMetal: 150,
   mineTime: 25 / 3,
@@ -62,8 +64,9 @@ export const defaultTuning = (): Tuning => ({
   enemyHpGrowth: 1.15,
   enemySpeed: 1,
   sellRefund: 0.75,
-  twin: { cost: 100, damage: 1, range: 2.5, rate: 3 },
-  gatling: { cost: 250, damage: 1, range: 3.5, rate: 9 },
+  twin: { cost: 200, damage: 1, range: 2.5, rate: 3 },
+  gatling: { cost: 500, damage: 1, range: 3.5, rate: 9 },
+  ship: { cost: 0, damage: 1, range: 5.5, rate: 1 },
 });
 
 export interface Tower {
