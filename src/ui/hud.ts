@@ -7,7 +7,7 @@ import { TOWER_INFO, type TowerKind } from "../sim/towers";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
-/** Small SVG of a piece, for cards. */
+/** Small SVG of a piece, for the wall wheel. */
 export function pieceIcon(shape: ShapeId, rot = 0): string {
   const cells = shapeOffsets(shape, rot);
   const minX = Math.min(...cells.map(c => c[0])), minY = Math.min(...cells.map(c => c[1]));
@@ -38,7 +38,7 @@ export function repairIcon(): string {
   return `<svg viewBox="0 0 44 44" aria-hidden="true"><rect x="6" y="24" width="24" height="13" rx="2" fill="#8d8a99" stroke="#b3b0bf"/><path d="M11 28 l5 3 M20 27 l-3 5" stroke="#5a5766" stroke-width="1.5"/><rect x="21" y="5" width="7" height="26" rx="2" transform="rotate(35 24 18)" fill="#3d4457"/><rect x="24" y="4" width="16" height="8" rx="2" transform="rotate(35 32 8)" fill="#d9573a" stroke="#f08a66"/></svg>`;
 }
 
-/** Small SVG of a tower seen from above, for build cards. */
+/** Small SVG of a tower seen from above, for the tower wheel. */
 export function towerIcon(kind: TowerKind): string {
   const hex = (r: number) => Array.from({ length: 6 }, (_, i) => {
     const a = (Math.PI / 3) * i + Math.PI / 6;
@@ -68,7 +68,7 @@ export type Projector = (x: number, y: number, z: number) => { x: number; y: num
 /** Seconds the "+N" stays up after the last ore, and how long it takes to fade. */
 const GAIN_HOLD = 1, GAIN_FADE = 0.5;
 
-/** DOM overlay: status, hotbar, wave button, notices. Re-renders only on change. */
+/** DOM overlay: status, hotbar, raid clock, panels, notices. Re-renders only on change. */
 export class Hud {
   /** The smelter whose panel is open, set by the input layer each frame. */
   smelterId: number | null = null;
@@ -230,7 +230,6 @@ export class Hud {
       : g.phase === "wave" ? `Raid <b>${g.waveRemaining} left</b>` : "";
     if (clock.innerHTML !== clockText) clock.innerHTML = clockText;
     clock.className = `raidclock${g.raidWarned ? " warned" : ""}${g.phase === "wave" ? " raiding" : ""}`;
-    clock.hidden = g.phase === "over";
     this.markCaves(project);
 
     // "+N" over the node, or "Full" while the hotbar can't take the next chunk.
@@ -287,7 +286,7 @@ export class Hud {
       inspect.innerHTML = `
         <h3>${info.name} <span>${info.size}×${info.size}</span></h3>
         <dl><dt>Damage</dt><dd>${s.damage}</dd><dt>Shots/s</dt><dd>${s.rate}</dd><dt>Range</dt><dd>${s.range}</dd></dl>
-        <button class="sell" id="sellBtn" ${g.phase === "over" ? "disabled" : ""}>Sell for <img alt="" src="${this.icons.alloy}">${value}</button>`;
+        <button class="sell" id="sellBtn">Sell for <img alt="" src="${this.icons.alloy}">${value}</button>`;
       $("sellBtn").addEventListener("click", () => this.h.sell());
     }
 

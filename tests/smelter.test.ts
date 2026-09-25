@@ -3,7 +3,7 @@ import { Game, SMELTER_REACH } from "../src/sim/game";
 import { gapTo, newSmelter, smelt } from "../src/sim/smelter";
 import type { MapDef } from "../src/sim/world";
 
-const open = (extra: Partial<MapDef> = {}): MapDef => ({ name: "test", spawners: [[0, 0]], nexus: [[20, 0]], rocks: [], trees: [], start: [6, 6], ...extra });
+const open = (extra: Partial<MapDef> = {}): MapDef => ({ name: "test", spawners: [[0, 0]], ship: [[20, 0]], rocks: [], trees: [], start: [6, 6], ...extra });
 const rich = { startStone: 1000, startMetal: 1000, startAlloy: 0 };
 const run = (g: Game, seconds: number) => { for (let i = 0; i < Math.round(seconds * 60); i++) g.step(); };
 
@@ -65,10 +65,10 @@ describe("the smelter in the game", () => {
     for (let y = -2; y <= 2; y++) for (let x = -2; x <= 2; x++) {
       if (Math.max(Math.abs(x), Math.abs(y)) === 2 && !(x === 2 && (y === 0 || y === 1))) rocks.push({ x, y, h: 10 });
     }
-    const ring = new Game(open({ nexus: [[0, 0]], spawners: [[12, 0]], rocks }), { seed: 1, tuning: rich });
+    const ring = new Game(open({ ship: [[0, 0]], spawners: [[12, 0]], rocks }), { seed: 1, tuning: rich });
     const c = ring.checkSmelter([2, 0]);
     expect(c.ok).toBe(false);
-    if (!c.ok) expect(c.reason).toBe("cuts-off-rift");
+    if (!c.ok) expect(c.reason).toBe("seals-path");
     expect(ring.checkSmelter([5, -6]).ok).toBe(true);
   });
 

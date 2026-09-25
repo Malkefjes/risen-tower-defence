@@ -52,7 +52,7 @@ export interface Tuning {
   reach: number;
   /** Top speed multiplier while sprinting. */
   sprint: number;
-  /** How many caves (the nearest to the ship) send enemies each wave. */
+  /** How many caves (the nearest to the ship) send enemies each raid. */
   activeCaves: number;
   /** The ship's HP; enemies claw it down. */
   startHp: number;
@@ -73,7 +73,7 @@ export interface Tuning {
   platedHpMult: number;
   wallClawers: number;
   enemyHp: number;
-  /** Enemy HP multiplier per round after the first. */
+  /** Enemy HP multiplier per raid after the first. */
   enemyHpGrowth: number;
   /** Multiplier on enemy walking speed. */
   enemySpeed: number;
@@ -148,7 +148,7 @@ export interface Tower {
   cx: number; cy: number;
   /** Alloy paid, so refunds don't move when tuning changes. */
   paid: number;
-  /** Placed this planning phase: sells back for the full price. */
+  /** Placed this calm: sells back for the full price. */
   fresh: boolean;
   cooldown: number;
   targetId: number | null;

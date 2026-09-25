@@ -143,7 +143,6 @@ export class Controller {
   }
 
   private openWheel(kind: "walls" | "towers"): void {
-    if (!this.game.canPlaceNow()) return;
     this.wheelKind = kind;
     this.wheel.show(this.wheelItems());
   }
@@ -183,7 +182,7 @@ export class Controller {
   /** Right mouse held on a wall: its modification wheel (metal plating, repair). */
   private openMods(clientX: number, clientY: number): void {
     const piece = this.wallAt(clientX, clientY);
-    if (!piece || !this.game.canPlaceNow()) return;
+    if (!piece) return;
     this.modTarget = piece;
     this.wheelKind = "mods";
     this.wheel.show(this.wheelItems());
@@ -195,7 +194,7 @@ export class Controller {
     this.wheel.hide();
     this.wheelKind = null;
     this.modTarget = null;
-    if (i === null || !this.game.canPlaceNow()) return;
+    if (i === null) return;
     if (kind === "mods") { if (target) { if (i === 0) this.game.plate(target.id); else this.game.repair(target.id); } return; }
     if (kind === "walls") {
       const shape = SHAPE_IDS[i]!;
@@ -253,7 +252,6 @@ export class Controller {
 
   /** Pick a tower type to place; picking it again puts it away. */
   selectBuild(kind: BuildKind | null): void {
-    if (kind !== null && !this.game.canPlaceNow()) return;
     const same = kind === this.buildKind;
     this.clearSelection();
     this.buildKind = same ? null : kind;
@@ -361,10 +359,10 @@ export class Controller {
 
   private currentCheck(dt: number): PlacementCheck | null {
     const held = this.heldShape;
-    if (!held || !this.hoverCell || !this.game.canPlaceNow()) return null;
+    if (!held || !this.hoverCell) return null;
     const sig = `${held}|${this.rot}|${this.hoverCell[0]},${this.hoverCell[1]}|${this.game.pieces.length}`;
     this.checkAge += dt;
-    // During a wave, enemies move, so re-check a few times per second.
+    // During a raid, enemies move, so re-check a few times per second.
     if (sig !== this.checkSig || (this.game.phase === "wave" && this.checkAge > 0.12)) {
       this.check = this.game.checkPlacement(held, this.rot, this.hoverCell);
       this.checkSig = sig;
@@ -422,10 +420,6 @@ export class Controller {
       this.view.panScreen(pr * s, pu * s * 1.6);
       this.updateHover();
     }
-    // Walls can't be held once the run is over.
-    if (!this.game.canPlaceNow()) this.heldShape = null;
-
-    if (!this.game.canPlaceNow()) this.buildKind = null;
     if (this.selectedTowerId !== null && !this.game.towers.some(t => t.id === this.selectedTowerId)) this.selectedTowerId = null;
 
     const check = this.currentCheck(dt);

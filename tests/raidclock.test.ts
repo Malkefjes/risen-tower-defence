@@ -3,7 +3,7 @@ import { Game } from "../src/sim/game";
 import type { MapDef } from "../src/sim/world";
 
 const open = (extra: Partial<MapDef> = {}): MapDef => ({
-  name: "test", spawners: [[0, 0]], nexus: [[10, 0]], rocks: [], trees: [], start: [5, 6],
+  name: "test", spawners: [[0, 0]], ship: [[10, 0]], rocks: [], trees: [], start: [5, 6],
   ore: [{ x: 3, y: 8, kind: "stone" }], ...extra,
 });
 const run = (g: Game, seconds: number) => { for (let i = 0; i < Math.round(seconds * 60); i++) g.step(); };

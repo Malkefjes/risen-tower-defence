@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { EVENING } from "./models";
 import { createOreNode, type NodeKind } from "./ore";
-import { alloyIngot } from "./refineryLooks";
+import { alloyIngot } from "./smelterModel";
 import { createMultitool } from "./rig";
 
 /**
@@ -28,7 +28,7 @@ export function itemIcons(size = 96): Record<IconKind, string> {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
   const scene = new THREE.Scene();
-  // The world's lights, as set up in the view and the playgrounds, turned up so
+  // The world's lights, as set up in the view, turned up so
   // the icons pop against the dark hotbar.
   scene.add(new THREE.HemisphereLight(EVENING.sky, EVENING.ground, EVENING.hemi * Math.PI * 0.62 * ICON_BOOST.sky));
   const sun = new THREE.DirectionalLight(EVENING.sun, EVENING.sunIntensity * Math.PI * 0.8 * ICON_BOOST.sun);

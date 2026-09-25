@@ -3,7 +3,7 @@ import { Game } from "../src/sim/game";
 import type { MapDef } from "../src/sim/world";
 
 const map = (): MapDef => ({
-  name: "test", spawners: [[30, 0]], nexus: [[-1, -1], [0, -1], [1, -1], [-1, 0], [0, 0], [1, 0], [-1, 1], [0, 1], [1, 1]],
+  name: "test", spawners: [[30, 0]], ship: [[-1, -1], [0, -1], [1, -1], [-1, 0], [0, 0], [1, 0], [-1, 1], [0, 1], [1, 1]],
   rocks: [], trees: [], start: [-3, 0],
 });
 const game = (t = {}) => new Game(map(), { seed: 1, supply: true, tuning: { supplyRadius: 12, startStone: 2000, startAlloy: 500, shipStartStone: 0, upkeepRate: 0.03, decayTime: 100, wallCost: 25, ...t } });

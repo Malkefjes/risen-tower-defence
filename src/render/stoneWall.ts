@@ -7,7 +7,7 @@ import { cellBounds, pieceOutline, type OutlineCell } from "./pieceShape";
 /**
  * The stone wall: the plain wall every piece starts as (built from stone only,
  * towers can't stand on it). Metal plating upgrades it to the Armored deck.
- * Erik's pick (look C from the wall playground): terraced courses. Same outline rules as the
+ * Erik's pick (look C): terraced courses. Same outline rules as the
  * armored wall: pieces fuse with neighbouring walls, the top is a walkable deck.
  */
 

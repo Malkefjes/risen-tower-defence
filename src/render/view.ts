@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { SHIP_SHOOTER, type Game, type GameEvent, type PlacedPiece, type Shot } from "../sim/game";
 import type { GeneratedWorld } from "../sim/worldgen";
-import { caveLook, type Cave } from "./caveLooks";
-import { enemyLook, type Enemy } from "./enemyLooks";
+import { caveModel } from "./cave";
+import { leaperModel, type Enemy } from "./leaper";
 import { MiningView } from "./mining";
-import { refineryLook, type Refinery } from "./refineryLooks";
+import { smelterModel, type SmelterView } from "./smelterModel";
 import { buildScenery } from "./scenery";
 import { stoneWallMaterials, stoneWallPiece } from "./stoneWall";
 import { createRig, RigAnimator, type Rig } from "./rig";
@@ -13,7 +13,7 @@ import type { Tower, TowerKind } from "../sim/towers";
 import type { Cell } from "../sim/types";
 import { createDefaultModels, createGlows, createMaterials, DECK_TOP, EVENING, type Glows, type Materials, type ModelLibrary, type TurretRig } from "./models";
 
-// Author colors as plain hex and light the way the mockups did.
+// Author colors as plain hex, with legacy-like light intensities.
 THREE.ColorManagement.enabled = false;
 
 /** What the input layer wants drawn on top of the game state this frame. */
@@ -50,7 +50,7 @@ interface Flash { sprite: THREE.Sprite; life: number; max: number; size: number 
 /** Smelters turn their window to face the camera. */
 const SMELTER_TURN = Math.PI / 4;
 const CAM_OFFSET = new THREE.Vector3(20, 16.33, 20); // ~30° elevation, 45° around: classic iso
-/** How tightly the camera follows the avatar (Erik's playground tuning). */
+/** How tightly the camera follows the avatar (Erik's tuning). */
 const FOLLOW = 4;
 /** Ship landing: descent, then a pause, then the cargo door opens. */
 const LAND_DROP = 10, LAND_DESCENT = 2.6, LAND_HOLD = 0.5, LAND_OPEN = 1.0;
@@ -114,7 +114,7 @@ export class GameView {
   private barFillMat = new THREE.MeshBasicMaterial({ color: "#e0262b" });
   private towerGhosts: Record<TowerKind, THREE.Object3D>;
   private smelterGhost: THREE.Object3D;
-  private smelters = new Map<number, Refinery>();
+  private smelters = new Map<number, SmelterView>();
   /** Caves by their mouth cell, for stirring when a raid is near. */
   /** 0..1 how far the ship has slumped into a wreck. */
   private wreck = 0;
@@ -136,7 +136,7 @@ export class GameView {
   private unsuppliedMetal = new THREE.MeshStandardMaterial({ color: "#6d5a58", roughness: 0.9, flatShading: true });
   private rangeDisc: THREE.Mesh;
   private animated: THREE.Object3D[] = [];
-  private nexus: THREE.Object3D;
+  private ship: THREE.Object3D;
   /** Blueprint of the wall being placed: the stone wall's own shape, see-through. */
   private wallGhost: THREE.Object3D | null = null;
   private wallGhostSig = "";
@@ -173,7 +173,7 @@ export class GameView {
     this.mat = createMaterials();
     const glows = createGlows();
     this.glows = glows;
-    this.models = createDefaultModels(this.mat, glows);
+    this.models = createDefaultModels(this.mat);
 
     const P = EVENING;
     this.scene.background = new THREE.Color(P.background);
@@ -197,7 +197,7 @@ export class GameView {
       return o;
     };
     this.towerGhosts = { twin: ghost("twin"), gatling: ghost("gatling") };
-    this.smelterGhost = refineryLook("A").object;
+    this.smelterGhost = smelterModel().object;
     this.smelterGhost.rotation.y = SMELTER_TURN;
     this.smelterGhost.traverse(c => { if ((c as THREE.Mesh).isMesh) { const m = c as THREE.Mesh; m.castShadow = false; m.material = this.mat.ghostOk; } });
     this.smelterGhost.visible = false;
@@ -212,7 +212,7 @@ export class GameView {
     this.supplyRing.visible = false;
     this.scene.add(this.supplyRing);
     this.scene.add(this.rangeRing, this.rangeDisc);
-    this.nexus = this.buildNexusAndRifts();
+    this.ship = this.buildShipAndCaves();
     this.rig = createRig();
     this.rigAnim = new RigAnimator(this.rig);
     this.scene.add(this.rig.object);
@@ -275,36 +275,29 @@ export class GameView {
     for (const g of buildScenery(this.game.world.map, this.models, this.gen, this.gen?.seed ?? 1)) this.scene.add(g);
   }
 
-  private nexusCenter(): THREE.Vector3 {
-    const cells = this.game.world.map.nexus;
+  private shipCenter(): THREE.Vector3 {
+    const cells = this.game.world.map.ship;
     const x = cells.reduce((a, c) => a + c[0] + 0.5, 0) / cells.length;
     const z = cells.reduce((a, c) => a + c[1] + 0.5, 0) / cells.length;
     return new THREE.Vector3(x, 0, z);
   }
 
-  private buildNexusAndRifts(): THREE.Object3D {
-    const nexus = this.models.create("ship");
-    nexus.position.copy(this.nexusCenter());
-    this.scene.add(nexus);
-    this.animated.push(nexus);
+  private buildShipAndCaves(): THREE.Object3D {
+    const ship = this.models.create("ship");
+    ship.position.copy(this.shipCenter());
+    this.scene.add(ship);
+    this.animated.push(ship);
     // Cave exits: the model's mouth faces +z, turned to face the way the cave opens.
     const caves = this.game.world.map.caves ?? [];
     caves.forEach((c, i) => {
-      const cave: Cave = caveLook("A", (this.gen?.seed ?? 1) * 97 + i);
-      cave.object.position.set(c.x + 0.5, 0, c.y + 0.5);
-      cave.object.rotation.y = Math.atan2(c.dir[0], c.dir[1]);
-      this.scene.add(cave.object);
+      const cave = caveModel((this.gen?.seed ?? 1) * 97 + i);
+      cave.position.set(c.x + 0.5, 0, c.y + 0.5);
+      cave.rotation.y = Math.atan2(c.dir[0], c.dir[1]);
+      this.scene.add(cave);
       // Keyed by the cave's mouth, the cell enemies climb out of (the spawner).
-      this.caveByMouth.set(`${c.x + c.dir[0] * 2},${c.y + c.dir[1] * 2}`, { obj: cave.object, home: cave.object.position.clone(), mouth: [c.x + c.dir[0] * 2 + 0.5, c.y + c.dir[1] * 2 + 0.5], puffT: 0 });
+      this.caveByMouth.set(`${c.x + c.dir[0] * 2},${c.y + c.dir[1] * 2}`, { obj: cave, home: cave.position.clone(), mouth: [c.x + c.dir[0] * 2 + 0.5, c.y + c.dir[1] * 2 + 0.5], puffT: 0 });
     });
-    // Maps without caves (tests, older maps) keep the old rift marker.
-    if (!caves.length) for (const [x, y] of this.game.world.spawners) {
-      const r = this.models.create("rift");
-      r.position.set(x + 0.5, 0, y + 0.5);
-      this.scene.add(r);
-      this.animated.push(r);
-    }
-    return nexus;
+    return ship;
   }
 
   // ------------------------------------------------------------------ camera
@@ -370,12 +363,12 @@ export class GameView {
     const ndc = new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
     this.placeCamera();
     this.raycaster.setFromCamera(ndc, this.camera);
-    if (this.raycaster.intersectObject(this.nexus, true).length > 0) return true;
+    if (this.raycaster.intersectObject(this.ship, true).length > 0) return true;
     // The core cage is open, so also count any point over the ship's footprint, up its height.
     const p = new THREE.Vector3(), plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     for (let y = 0; y <= 3.5; y += 0.25) {
       plane.constant = -y;
-      if (this.raycaster.ray.intersectPlane(plane, p) && this.game.world.isNexus(Math.floor(p.x), Math.floor(p.z))) return true;
+      if (this.raycaster.ray.intersectPlane(plane, p) && this.game.world.isShip(Math.floor(p.x), Math.floor(p.z))) return true;
     }
     return false;
   }
@@ -401,7 +394,7 @@ export class GameView {
   followAvatar(): void { this.following = true; this.camGoal = null; }
 
   /** Glide to the ship and stay there (H). */
-  lookAtShip(): void { this.following = false; this.camGoal = this.nexusCenter(); }
+  lookAtShip(): void { this.following = false; this.camGoal = this.shipCenter(); }
 
   panBy(dx: number, dz: number): void {
     this.target.x += dx;
@@ -469,7 +462,7 @@ export class GameView {
     // Supply reach: shown while holding something to build.
     this.supplyRing.visible = o.toolReady && this.game.supplyRule && !this.game.shipDown;
     if (this.supplyRing.visible) {
-      const c = this.nexusCenter(), r = this.game.tuning.supplyRadius;
+      const c = this.shipCenter(), r = this.game.tuning.supplyRadius;
       this.supplyRing.position.set(c.x, 0.04, c.z);
       this.supplyRing.scale.setScalar(r);
     }
@@ -529,22 +522,22 @@ export class GameView {
 
   /** The ship comes down with its door shut, lands with a snow burst, then opens the ramp. */
   private updateShipLanding(dt: number): void {
-    const rig = this.nexus.userData.rig as ShipRig;
+    const rig = this.ship.userData.rig as ShipRig;
     const before = this.shipLand;
     this.shipLand += dt;
-    const t = this.shipLand, c = this.nexusCenter();
+    const t = this.shipLand, c = this.shipCenter();
     const k = Math.min(1, t / LAND_DESCENT);
-    this.nexus.position.set(c.x, LAND_DROP * (1 - (1 - (1 - k) ** 3)), c.z);
+    this.ship.position.set(c.x, LAND_DROP * (1 - (1 - (1 - k) ** 3)), c.z);
     // Destroyed: it slumps and lists into a dark, smoking wreck (it still blocks).
     const down = this.game.shipDown;
-    (this.nexus.userData.setWrecked as (on: boolean) => void)(down);
+    (this.ship.userData.setWrecked as (on: boolean) => void)(down);
     this.wreck = down ? Math.min(1, this.wreck + dt * 1.5) : 0;
     const w = 1 - (1 - this.wreck) ** 3;
-    this.nexus.position.y -= 0.35 * w;
-    this.nexus.rotation.set(0.16 * w, 0, -0.12 * w);
+    this.ship.position.y -= 0.35 * w;
+    this.ship.rotation.set(0.16 * w, 0, -0.12 * w);
     if (down && (this.wreckPuff -= dt) <= 0) { this.wreckPuff = 0.18; this.spawnDust(c.x + (Math.random() - 0.5) * 1.6, c.z + (Math.random() - 0.5) * 1.6, 1.4 + Math.random() * 0.6, "#3a3642"); }
     // Enemies clawing it: the core flashes now and then.
-    if (!down && this.game.hp < this.lastShipHp && (this.shipHitCd -= dt) <= 0) { this.shipHitCd = 0.35; (this.nexus.userData.flash as () => void)(); }
+    if (!down && this.game.hp < this.lastShipHp && (this.shipHitCd -= dt) <= 0) { this.shipHitCd = 0.35; (this.ship.userData.flash as () => void)(); }
     this.lastShipHp = this.game.hp;
     const open = Math.min(1, Math.max(0, (t - LAND_DESCENT - LAND_HOLD) / LAND_OPEN));
     const e = open < 0.5 ? 2 * open * open : 1 - (-2 * open + 2) ** 2 / 2;
@@ -615,7 +608,7 @@ export class GameView {
       alive.add(w.id);
       let o = this.walkers.get(w.id);
       if (!o) {
-        const e = enemyLook("C");
+        const e = leaperModel();
         o = e.object;
         o.userData.enemy = e;
         o.userData.t = Math.random() * 10;
@@ -722,7 +715,7 @@ export class GameView {
   private syncBuildingBars(): void {
     const want = new Map<number, { x: number; y: number; z: number; frac: number }>();
     if (!this.game.shipDown && this.game.hp < this.game.tuning.startHp) {
-      const c = this.nexusCenter();
+      const c = this.shipCenter();
       want.set(-1, { x: c.x, y: 3.4, z: c.z, frac: this.game.hp / this.game.tuning.startHp });
     }
     for (const s of this.game.smelters) if (s.hp < s.maxHp) want.set(s.id, { x: s.cx, y: 3.3, z: s.cy, frac: s.hp / s.maxHp });
@@ -762,7 +755,7 @@ export class GameView {
       alive.add(s.id);
       let v = this.smelters.get(s.id);
       if (!v) {
-        v = refineryLook("A");
+        v = smelterModel();
         v.object.position.set(s.cx, 0, s.cy);
         v.object.rotation.y = SMELTER_TURN;
         this.scene.add(v.object);
@@ -816,7 +809,7 @@ export class GameView {
     const target = this.walkers.get(s.targetId);
     if (s.towerId === SHIP_SHOOTER) {
       // From the crystal in the ship's core cage.
-      const from = this.nexus.position.clone().setY(this.nexus.position.y + SHIP_CORE_Y);
+      const from = this.ship.position.clone().setY(this.ship.position.y + SHIP_CORE_Y);
       this.addFlash(from, this.glows.cyan, 0.6, 0.12);
       const mesh = new THREE.Mesh(this.boltGeo, this.shipBoltMat);
       mesh.position.copy(from);

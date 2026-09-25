@@ -11,7 +11,8 @@ export const DIRS: readonly (readonly [number, number, number])[] = [
 const DX = DIRS.map(d => d[0]), DY = DIRS.map(d => d[1]), DC = DIRS.map(d => d[2]);
 
 /**
- * Distance-to-nexus for every walkable cell. Enemies at any cell step to the
+ * Distance to the nearest target for every walkable cell (walls count as their chew
+ * time). Enemies at any cell step to the
  * neighbor that minimises step cost + distance, so the field doubles as the
  * route for every enemy at once and handles rerouting for free.
  */
@@ -32,7 +33,7 @@ export class FlowField {
     return x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1;
   }
 
-  /** Distance from cell to the nexus; Infinity when unreachable or outside the world. */
+  /** Distance from a cell to the nearest target; Infinity when unreachable or outside the world. */
   at(x: number, y: number): number {
     if (!this.inBounds(x, y)) return Infinity;
     return this.dist[(y - this.bounds.y0) * this.width + (x - this.bounds.x0)]!;
@@ -84,7 +85,6 @@ export class FlowField {
   }
 }
 
-/** Dijkstra outward from the nexus. `extra` adds hypothetical blocked cells (placement preview). */
 /**
  * The flow field to the nearest target. Walls count as the time it takes to chew
  * through them, so a maze that's quicker to walk gets walked and a full block gets

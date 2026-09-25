@@ -4,7 +4,7 @@ import type { MapDef } from "../src/sim/world";
 import { metalWall } from "./helpers";
 
 const open = (extra: Partial<MapDef> = {}): MapDef => ({
-  name: "test", spawners: [[0, 0]], nexus: [[20, 0]], rocks: [], trees: [], ...extra,
+  name: "test", spawners: [[0, 0]], ship: [[20, 0]], rocks: [], trees: [], ...extra,
 });
 
 /** A game with walls set directly (piece ids given), plenty of metal. */
@@ -73,7 +73,7 @@ describe("tower placement", () => {
 });
 
 describe("selling", () => {
-  it("refunds in full in the planning phase it was built, a share after", () => {
+  it("refunds in full in the calm it was built, a share after", () => {
     const g = withWalls([[5, 5, 1], [7, 5, 1]]);
     const cost = g.towerCost("twin");
     const a = g.buildTower("twin", [5, 5]).tower!;
@@ -89,7 +89,7 @@ describe("selling", () => {
     expect(g.towers).toHaveLength(0);
   });
 
-  it("towers built mid-wave are not fresh", () => {
+  it("towers built mid-raid are not fresh", () => {
     const g = withWalls([[5, 5, 1]]);
     g.startWave();
     const t = g.buildTower("twin", [5, 5]).tower!;
@@ -98,11 +98,11 @@ describe("selling", () => {
 });
 
 describe("combat", () => {
-  it("shoots the walker with the most progress toward the nexus", () => {
+  it("shoots the walker with the most progress toward the ship", () => {
     const g = withWalls([[10, 2, 1]]);
     const t = g.buildTower("twin", [10, 2]).tower!;
     g.startWave();
-    // Both in range; the one at x=12 is closer to the nexus at (20,0).
+    // Both in range; the one at x=12 is closer to the ship at (20,0).
     g.walkers.push(walker(901, 9, 1), walker(902, 12, 1));
     expect(g.pickTarget(t)?.id).toBe(902);
   });
@@ -141,7 +141,7 @@ describe("combat", () => {
 describe("hp and the run", () => {
   it("enemies stop beside the ship and claw it; practice walkers do no damage", () => {
     const noGun = { cost: 0, damage: 0, range: 5.5, rate: 1 };
-    const g = new Game(open({ nexus: [[4, 0]] }), { seed: 1, waveSize: () => 3, tuning: { enemyDamage: 2, ship: noGun } });
+    const g = new Game(open({ ship: [[4, 0]] }), { seed: 1, waveSize: () => 3, tuning: { enemyDamage: 2, ship: noGun } });
     g.setTestWalkers(true);
     for (let i = 0; i < 60 * 8; i++) g.step();
     expect(g.hp).toBe(g.tuning.startHp);
@@ -158,7 +158,7 @@ describe("hp and the run", () => {
 
   it("enemies go for the nearest target, and walk on when it's destroyed", () => {
     const noGun = { cost: 0, damage: 0, range: 5.5, rate: 1 };
-    const g = new Game(open({ nexus: [[20, 0]] }), { seed: 1, waveSize: () => 1, tuning: { startStone: 1000, startMetal: 1000, smelterHp: 40, enemyDamage: 5, ship: noGun } });
+    const g = new Game(open({ ship: [[20, 0]] }), { seed: 1, waveSize: () => 1, tuning: { startStone: 1000, startMetal: 1000, smelterHp: 40, enemyDamage: 5, ship: noGun } });
     const s = g.buildSmelter([6, -1]).smelter!;
     g.startWave();
     for (let i = 0; i < 60 * 6; i++) g.step();
@@ -170,17 +170,8 @@ describe("hp and the run", () => {
     expect(g.walkers[0]!.attacking).toBe("20,0");
   });
 
-  it("has no income: ore only comes from mining", () => {
-    const g = new Game(open({ nexus: [[4, 0]] }), { seed: 1, waveSize: () => 1 });
-    const stone = g.ore("stone"), metal = g.ore("alloy");
-    g.startWave();
-    finishWave(g);
-    expect(g.phase).toBe("planning");
-    expect([g.ore("stone"), g.ore("alloy")]).toEqual([stone, metal]);
-  });
-
   it("the ship can be destroyed and the run goes on; enemies with nothing left burrow; reset starts fresh", () => {
-    const g = new Game(open({ nexus: [[4, 0]] }), { seed: 1, waveSize: () => 5, tuning: { startHp: 2 } });
+    const g = new Game(open({ ship: [[4, 0]] }), { seed: 1, waveSize: () => 5, tuning: { startHp: 2 } });
     g.place("T", 0, [10, 10]);
     g.startWave();
     finishWave(g);
@@ -190,7 +181,6 @@ describe("hp and the run", () => {
     // Nothing left to attack: they burrowed, the raid is over, and you can still build.
     expect(g.phase).toBe("planning");
     expect(g.walkers).toHaveLength(0);
-    expect(g.canPlaceNow()).toBe(true);
     expect(g.place("T", 0, [10, -10]).ok).toBe(true);
     g.reset();
     expect(g.shipDown).toBe(false);
@@ -202,7 +192,7 @@ describe("hp and the run", () => {
     expect(g.ore("stone")).toBe(g.tuning.startStone);
   });
 
-  it("enemy HP grows each round", () => {
+  it("enemy HP grows each raid", () => {
     const g = new Game(open(), { seed: 1 });
     expect(g.enemyHp(1)).toBe(g.tuning.enemyHp);
     expect(g.enemyHp(5)).toBeGreaterThan(g.enemyHp(1));

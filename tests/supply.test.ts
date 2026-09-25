@@ -4,7 +4,7 @@ import type { MapDef } from "../src/sim/world";
 
 // Ship is the 3×3 at -1..1; supply radius 10 for these tests.
 const map = (): MapDef => ({
-  name: "test", spawners: [[30, 0]], nexus: [[-1, -1], [0, -1], [1, -1], [-1, 0], [0, 0], [1, 0], [-1, 1], [0, 1], [1, 1]],
+  name: "test", spawners: [[30, 0]], ship: [[-1, -1], [0, -1], [1, -1], [-1, 0], [0, 0], [1, 0], [-1, 1], [0, 1], [1, 1]],
   rocks: [], trees: [], start: [-6, -6],
 });
 const game = () => new Game(map(), { seed: 1, supply: true, tuning: { supplyRadius: 10, startStone: 2000, startMetal: 1000 } });

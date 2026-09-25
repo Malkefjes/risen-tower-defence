@@ -4,7 +4,7 @@ import { NODE_SIZE, type OreNode } from "../sim/ore";
 import { createOreNode, type OreNodeModel } from "./ore";
 
 /**
- * Everything the player sees while mining (from the ore playground): the node
+ * Everything the player sees while mining: the node
  * models breaking stage by stage, chunk bursts, the hotspot glint on the node
  * in reach, and sparks off the multitool's beam.
  */

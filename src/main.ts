@@ -6,8 +6,7 @@ import { generateWorld } from "./sim/worldgen";
 import { Hud } from "./ui/hud";
 import { loadTuning, TuningPanel } from "./ui/tuning";
 
-// The world is generated from a seed: the same one the World playground shows
-// (its "New seed" button stores it), so the game plays the world you explored.
+// The world is generated from a seed (stored in this browser; 1 unless changed).
 let seed = 1;
 try { seed = Number(localStorage.getItem("risen.world.seed")) || 1; } catch { /* storage blocked */ }
 const world = generateWorld(seed);

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ENEMY_SPEED, Game, PACK_STAGGER } from "../src/sim/game";
 import type { MapDef } from "../src/sim/world";
 
-const map = (): MapDef => ({ name: "test", spawners: [[0, 0]], nexus: [[40, 0]], rocks: [], trees: [] });
+const map = (): MapDef => ({ name: "test", spawners: [[0, 0]], ship: [[40, 0]], rocks: [], trees: [] });
 const run = (g: Game, seconds: number) => { for (let i = 0; i < Math.round(seconds * 60); i++) g.step(); };
 
 describe("enemy packs", () => {
@@ -18,7 +18,7 @@ describe("enemy packs", () => {
     expect(g.waveRemaining).toBe(8);
   });
 
-  it("the last pack is only what is left, and the wave counts it", () => {
+  it("the last pack is only what is left, and the raid counts it", () => {
     const g = new Game(map(), { seed: 2, waveSize: () => 5, tuning: { packMin: 4, packMax: 4, packGap: 1 } });
     g.startWave();
     expect(g.waveRemaining).toBe(5);

@@ -3,7 +3,7 @@ import { roundedBox } from "./models";
 import { colonyOrange } from "./palette";
 
 /**
- * The player rig (picked by Erik from mockups/rig): a slim humanoid exo-rig with a
+ * The player rig (picked by Erik): a slim humanoid exo-rig with a
  * square visored helmet, a small backpack and a multitool locked to the right wrist.
  * `createRig` builds the model; `RigAnimator` drives it from how the avatar moves.
  */

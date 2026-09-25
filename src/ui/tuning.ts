@@ -38,7 +38,7 @@ const SECTIONS: { title: string; knobs: Knob[] }[] = [
     top("sprint", "Sprint (× run speed)", 1, 2.5, 0.05),
   ] },
   { title: "Enemies", knobs: [
-    top("enemyHp", "HP in round 1", 1, 60, 1),
+    top("enemyHp", "HP in raid 1", 1, 60, 1),
     top("enemyHpGrowth", "HP growth per round", 1, 1.6, 0.01),
     top("enemySpeed", "Speed", 0.4, 2.5, 0.05),
     top("speedSpread", "Speed variation between packs (±)", 0, 0.5, 0.01, true),

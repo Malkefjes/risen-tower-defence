@@ -28,8 +28,8 @@ export interface MapDef {
   spawners: Cell[];
   /** Where the avatar starts (cell). Defaults to the first spawner. */
   start?: Cell;
-  /** Cells covered by the nexus. Enemies path to any of them. */
-  nexus: Cell[];
+  /** Cells covered by the ship (3×3). */
+  ship: Cell[];
   rocks: RockDef[];
   trees: TreeDef[];
   /** Ore nodes (3×3), by north-west cell. */
@@ -59,7 +59,7 @@ export class World {
   /** How high each terrain cell is for the avatar (rocks: their top; trees: a hurdle). */
   readonly terrainTop = new Map<string, number>();
   readonly trees = new Set<string>();
-  readonly nexus = new Set<string>();
+  readonly ship = new Set<string>();
   readonly spawners: Cell[];
   /** cell key -> id of the placed piece occupying it */
   readonly walls = new Map<string, number>();
@@ -97,14 +97,14 @@ export class World {
       const k = cellKey(c.x + dx, c.y + dy);
       this.terrain.add(k); this.terrainTop.set(k, PLATEAU_TOP);
     }
-    for (const [x, y] of map.nexus) { this.nexus.add(cellKey(x, y)); this.targets.add(cellKey(x, y)); }
+    for (const [x, y] of map.ship) { this.ship.add(cellKey(x, y)); this.targets.add(cellKey(x, y)); }
     const oreCells = (map.ore ?? []).flatMap(o => nodeArea({ id: 0, kind: o.kind, x: o.x, y: o.y, amount: 0, max: nodeMax(o.kind) }));
-    const all: Cell[] = [...map.spawners, ...map.nexus, ...[...this.terrain].map(parseKey), ...oreCells];
+    const all: Cell[] = [...map.spawners, ...map.ship, ...[...this.terrain].map(parseKey), ...oreCells];
     this.staticBounds = boundsOf(all);
   }
 
   isTerrain(x: number, y: number): boolean { return this.terrain.has(cellKey(x, y)); }
-  isNexus(x: number, y: number): boolean { return this.nexus.has(cellKey(x, y)); }
+  isShip(x: number, y: number): boolean { return this.ship.has(cellKey(x, y)); }
   isSpawner(x: number, y: number): boolean { return this.spawners.some(s => s[0] === x && s[1] === y); }
 
   isOre(x: number, y: number): boolean { return this.ore.has(cellKey(x, y)); }
@@ -122,12 +122,12 @@ export class World {
   /** Blocks movement (terrain, walls, ore, buildings, the ship or its wreck, or extra hypothetical cells). */
   isBlocked(x: number, y: number, extra?: ReadonlySet<string>): boolean {
     const k = cellKey(x, y);
-    return this.terrain.has(k) || this.walls.has(k) || this.ore.has(k) || this.buildings.has(k) || this.nexus.has(k) || (extra ? extra.has(k) : false);
+    return this.terrain.has(k) || this.walls.has(k) || this.ore.has(k) || this.buildings.has(k) || this.ship.has(k) || (extra ? extra.has(k) : false);
   }
 
   /** Can't be built on. */
   isOccupied(x: number, y: number): boolean {
-    return this.isBlocked(x, y) || this.isNexus(x, y) || this.isSpawner(x, y);
+    return this.isBlocked(x, y) || this.isShip(x, y) || this.isSpawner(x, y);
   }
 
   /** Static terrain as a number grid, cached per bounds (terrain never changes). */
@@ -162,7 +162,7 @@ export class World {
     };
     mark(this.ore.keys());
     mark(this.buildings.keys());
-    mark(this.nexus);
+    mark(this.ship);
     if (extra && extraWallHp === undefined) mark(extra);
     mark(this.walls.keys(), 2, k => this.pieceHp.get(this.walls.get(k)!) ?? this.defaultWallHp);
     if (extra && extraWallHp !== undefined) mark(extra, 2, () => extraWallHp);

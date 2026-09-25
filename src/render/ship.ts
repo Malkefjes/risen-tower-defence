@@ -3,8 +3,7 @@ import { roundedBox } from "./models";
 import { colonyOrange } from "./palette";
 
 /**
- * The player's ship, the Rocket (3×3 footprint). Picked by Erik from
- * mockups/rocketship. Palette: white hull, colony orange, dark steel, cyan core.
+ * The player's ship, the Rocket (3×3 footprint), picked by Erik. Palette: white hull, colony orange, dark steel, cyan core.
  */
 
 const std = (color: string, o: THREE.MeshStandardMaterialParameters = {}) =>

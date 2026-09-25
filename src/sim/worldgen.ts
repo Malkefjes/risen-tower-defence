@@ -1,5 +1,5 @@
 /**
- * The generated world (from the World playground, now the game's map). Pure logic:
+ * The generated world: the game's map. Pure logic:
  * a seed goes in, a `MapDef` plus the few extra fields the renderer needs come out.
  *
  * Zones around the landing site: a clearing, a pine forest belt, rocky highlands
@@ -116,7 +116,7 @@ export function generateWorld(seed: number, opts: WorldGenOptions = {}): Generat
   };
   const parse = (k: string) => k.split(",").map(Number) as [number, number];
 
-  // --- Raised ground: the edges of higher land (see the World playground notes).
+  // --- Raised ground: the edges of higher land.
   const elev = noise(seed * 23 + 8), elev2 = noise(seed * 29 + 9);
   const high = new Set<string>();
   for (let y = -R; y < R; y++) for (let x = -R; x < R; x++) {
@@ -276,11 +276,11 @@ export function generateWorld(seed: number, opts: WorldGenOptions = {}): Generat
     drifts.push({ x, y, s: 0.3 + rand() * 0.45 });
   }
 
-  const nexus: Cell[] = [];
-  for (let y = -1; y <= 1; y++) for (let x = -1; x <= 1; x++) nexus.push([x, y]);
+  const ship: Cell[] = [];
+  for (let y = -1; y <= 1; y++) for (let x = -1; x <= 1; x++) ship.push([x, y]);
   const map: MapDef = {
     name: "Frostfall",
-    nexus,
+    ship,
     start: [2, 3],
     spawners: caves.map(mouth),
     caves,

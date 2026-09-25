@@ -23,7 +23,8 @@ const TRUNK_LO = 2, TRUNK_HI = 6;
 /** Width of the wall rim left around a tower, in eighths of a cell. */
 const RIM = 1;
 
-export type Phase = "planning" | "wave" | "over";
+/** Calm (the raid clock runs; code name "planning") or a raid ("wave"). A run never ends by itself. */
+export type Phase = "planning" | "wave";
 
 export interface PlacedPiece {
   id: number;
@@ -31,13 +32,13 @@ export interface PlacedPiece {
   rot: number;
   at: Cell;
   cells: Cell[];
-  /** Locked pieces are permanent. Unlocked ones can be picked back up this planning phase. */
+  /** Locked pieces stay. Unlocked ones (placed this calm) can be picked back up. */
   locked: boolean;
   /** Stone paid, returned when it's picked back up. */
   paid: number;
   /** Plated with metal: the Armored deck, the only wall towers stand on. */
   metal: boolean;
-  /** Metal paid for the plating, returned with the stone on pick-up. */
+  /** Alloy paid for the plating, returned with the stone on pick-up. */
   plated: number;
 }
 
@@ -57,7 +58,7 @@ export interface Walker {
   maxHp: number;
   /** Damage from bolts already in flight, so towers don't overkill. */
   pending: number;
-  /** Planning-phase practice walkers: shootable, but do no damage (they vanish on reaching a target). */
+  /** Practice walkers (calm, test walkers on): shootable, but do no damage (they vanish on reaching a target). */
   practice: boolean;
   /** The target cell it's clawing (it stands still meanwhile), or none while walking. */
   attacking?: string | null;
@@ -73,15 +74,15 @@ export interface Shot {
   dur: number;
 }
 
-export type BlockReason = "occupied" | "walker" | "avatar" | "cuts-off-rift" | "traps-walker" | "stone" | "out-of-range" | "unconnected";
+export type BlockReason = "occupied" | "walker" | "avatar" | "stone" | "out-of-range" | "unconnected";
 
 export type PlacementCheck =
   | { ok: true; cells: Cell[]; field: FlowField }
   | { ok: false; cells: Cell[]; reason: BlockReason };
 
-export type TowerBlockReason = "no-wall" | "stone-wall" | "tower-there" | "avatar" | "alloy" | "run-over";
+export type TowerBlockReason = "no-wall" | "stone-wall" | "tower-there" | "avatar" | "alloy";
 
-export type SmelterBlockReason = "occupied" | "walker" | "avatar" | "cuts-off-rift" | "traps-walker" | "stone" | "metal" | "run-over" | "out-of-range" | "unconnected";
+export type SmelterBlockReason = "occupied" | "walker" | "avatar" | "seals-path" | "traps-walker" | "stone" | "metal" | "out-of-range" | "unconnected";
 
 export type SmelterCheck =
   | { ok: true; cells: Cell[]; field: FlowField }
@@ -117,7 +118,7 @@ export type GameEvent =
   | { type: "ship-destroyed" }
   /** A smelter's HP hit 0: it's gone, with what was in it. */
   | { type: "smelter-destroyed"; smelter: Smelter }
-  /** Enemies chewed through a wall cell: it's gone, and so is any tower standing on it. */
+  /** Enemies chewed through a wall piece: the whole shape is gone, and so is any tower on it. */
   | { type: "wall-broken"; piece: PlacedPiece }
   | { type: "tower-destroyed"; tower: Tower }
   | { type: "repaired"; piece: PlacedPiece }
@@ -130,8 +131,6 @@ export const REASON_TEXT: Record<BlockReason, string> = {
   "occupied": "Something is already there",
   "walker": "An enemy is in the way",
   "avatar": "You're standing there",
-  "cuts-off-rift": "Enemies must always have a path to the nexus",
-  "traps-walker": "That would trap an enemy",
   "stone": "Not enough stone",
 };
 
@@ -139,13 +138,12 @@ export const SMELTER_REASON_TEXT: Record<SmelterBlockReason, string> = {
   "occupied": "Something is already there",
   "walker": "An enemy is in the way",
   "avatar": "You're standing there",
-  "cuts-off-rift": "Enemies must always have a path to the ship",
+  "seals-path": "That would seal off the enemies' path",
   "traps-walker": "That would trap an enemy",
   "stone": "Not enough stone",
   "metal": "Not enough raw metal",
   "out-of-range": "Too far from the ship",
   "unconnected": "Must connect to your walls",
-  "run-over": "The run is over",
 };
 
 export const TOWER_REASON_TEXT: Record<TowerBlockReason, string> = {
@@ -154,7 +152,6 @@ export const TOWER_REASON_TEXT: Record<TowerBlockReason, string> = {
   "tower-there": "There's already a tower there",
   "avatar": "You're standing there",
   "alloy": "Not enough alloy",
-  "run-over": "The run is over",
 };
 
 export interface GameOptions {
@@ -185,7 +182,7 @@ export class Game {
   shots: Shot[] = [];
   /** Ore nodes on the map. */
   nodes: OreNode[] = [];
-  /** The player's inventory: the multitool and the ore that pays for walls and towers. */
+  /** The player's inventory: the multitool, stone, raw metal and alloy. */
   hotbar = new Hotbar();
   /** The ship's HP. */
   hp = 0;
@@ -258,7 +255,7 @@ export class Game {
    * over (see `standable`); the ship is solid; everything else is snow.
    */
   readonly heightAt = (x: number, y: number): number => {
-    if (this.world.isNexus(x, y)) return Infinity;
+    if (this.world.isShip(x, y)) return Infinity;
     const k = cellKey(x, y);
     if (this.world.buildings.has(k)) return Infinity;
     const terrain = this.world.terrainTop.get(k);
@@ -316,7 +313,7 @@ export class Game {
     this.hotbar.add("alloy", this.tuning.startAlloy);
     this.hp = this.tuning.startHp;
     this.shipDown = false;
-    for (const k of this.world.nexus) this.world.targets.add(k);
+    for (const k of this.world.ship) this.world.targets.add(k);
     this.raidIn = this.tuning.raidGrace;
     this.shipStore = new Inventory(SHIP_SLOTS);
     this.shipStore.add("stone", this.tuning.shipStartStone);
@@ -412,8 +409,8 @@ export class Game {
   }
 
   /**
-   * Mined-out nodes grow back at the start of a planning phase, if their 3×3 is
-   * clear (no walls, not the avatar) and growing wouldn't cut off the rift.
+   * Mined-out nodes grow back when a raid is cleared, if their 3×3 is
+   * clear (no walls, not the avatar) and growing wouldn't seal the caves off.
    */
   private regrowNodes(): void {
     const under = this.avatarCells();
@@ -435,7 +432,6 @@ export class Game {
 
   // ---------------------------------------------------------------- placement
 
-  canPlaceNow(): boolean { return this.phase === "planning" || this.phase === "wave"; }
 
   /** Would placing `shape` at `at` be legal? On success also returns the resulting flow field. */
   checkPlacement(shape: ShapeId, rot: number, at: Cell): PlacementCheck {
@@ -450,19 +446,13 @@ export class Game {
     for (const w of this.walkers) {
       if (set.has(cellKey(w.cx, w.cy)) || set.has(cellKey(w.tx, w.ty))) return { ok: false, cells, reason: "walker" };
     }
-    const field = computeField(this.world, set, cells, this.tuning.wallHp);
-    // With nothing left to attack there is no path to keep open.
-    // (Walls can be chewed through, so they never truly seal a path; terrain can.)
-    if (this.world.targets.size) {
-      for (const [sx, sy] of this.world.spawners) if (!isFinite(field.at(sx, sy))) return { ok: false, cells, reason: "cuts-off-rift" };
-      for (const w of this.walkers) if (!isFinite(field.at(w.tx, w.ty))) return { ok: false, cells, reason: "traps-walker" };
-    }
-    return { ok: true, cells, field };
+    // Walls can always be chewed through, so a wall never seals a path; the field is
+    // for the preview of the new route.
+    return { ok: true, cells, field: computeField(this.world, set, cells, this.tuning.wallHp) };
   }
 
   /** Buy and place a piece, paying its stone. Pieces placed during a wave lock immediately. */
   place(shape: ShapeId, rot: number, at: Cell): PlacementCheck & { piece?: PlacedPiece } {
-    if (!this.canPlaceNow()) return { ok: false, cells: [], reason: "occupied" };
     const check = this.checkPlacement(shape, rot, at);
     if (!check.ok) return check;
     const paid = this.hotbar.remove("stone", this.wallCost(check.cells.length));
@@ -486,7 +476,7 @@ export class Game {
     return !!piece && !piece.locked && this.phase === "planning" && !piece.cells.some(([x, y]) => this.towerCellsMap.has(cellKey(x, y)));
   }
 
-  /** Take up an unlocked piece, refunding its stone (and plating metal). Returns its shape. */
+  /** Take up an unlocked piece, refunding its stone (and plating alloy). Returns its shape. */
   pickUp(pieceId: number): ShapeId | null {
     const piece = this.pieces.find(p => p.id === pieceId);
     if (!this.canPickUp(piece)) return null;
@@ -500,9 +490,9 @@ export class Game {
     return piece.shape;
   }
 
-  /** Can this piece be plated now? Any stone piece, locked or not, while the run is on. */
+  /** Can this piece be plated? Any stone piece, locked or not, with the alloy for it. */
   canPlate(piece: PlacedPiece | undefined): piece is PlacedPiece {
-    return !!piece && !piece.metal && this.canPlaceNow() && this.ore("alloy") >= this.tuning.platingCost;
+    return !!piece && !piece.metal && this.ore("alloy") >= this.tuning.platingCost;
   }
 
   /**
@@ -537,7 +527,7 @@ export class Game {
   }
 
   canRepair(piece: PlacedPiece | undefined): piece is PlacedPiece {
-    return !!piece && this.canPlaceNow() && this.repairCost(piece) > 0 && this.ore("stone") >= this.repairCost(piece);
+    return !!piece && this.repairCost(piece) > 0 && this.ore("stone") >= this.repairCost(piece);
   }
 
   /** Repair a piece to full HP for stone, even mid-raid. */
@@ -610,7 +600,7 @@ export class Game {
     const joins = cells.some(([x, y]) => {
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
         const k = cellKey(x + dx, y + dy);
-        if ((dx || dy) && (this.supplied.has(k) || this.world.nexus.has(k))) return true;
+        if ((dx || dy) && (this.supplied.has(k) || this.world.ship.has(k))) return true;
       }
       return false;
     });
@@ -624,7 +614,7 @@ export class Game {
   private syncSupply(): void {
     const out = new Set<string>();
     if (!this.shipDown) {
-      const stack: Cell[] = [...this.world.nexus].map(k => parseKey(k));
+      const stack: Cell[] = [...this.world.ship].map(k => parseKey(k));
       while (stack.length) {
         const [x, y] = stack.pop()!;
         for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
@@ -642,8 +632,8 @@ export class Game {
 
   /** Is the player close enough to use the ship's inventory (the gap to its footprint)? */
   canUseShip(): boolean {
-    if (this.shipDown || this.phase === "over") return false;
-    const xs = [...this.world.nexus].map(k => parseKey(k));
+    if (this.shipDown) return false;
+    const xs = [...this.world.ship].map(k => parseKey(k));
     const x0 = Math.min(...xs.map(c => c[0])), x1 = Math.max(...xs.map(c => c[0])) + 1;
     const y0 = Math.min(...xs.map(c => c[1])), y1 = Math.max(...xs.map(c => c[1])) + 1;
     const { x, y } = this.avatar;
@@ -731,7 +721,6 @@ export class Game {
   /** Can a smelter go down with its top-left cell at `at`? Open ground only, paid in stone and raw metal. */
   checkSmelter(at: Cell): SmelterCheck {
     const cells = smelterCells(at);
-    if (!this.canPlaceNow()) return { ok: false, cells, reason: "run-over" };
     for (const [x, y] of cells) if (this.world.isOccupied(x, y)) return { ok: false, cells, reason: "occupied" };
     const supply = this.checkSupply(cells);
     if (supply) return { ok: false, cells, reason: supply };
@@ -743,7 +732,7 @@ export class Game {
     const field = computeField(this.world, set, cells);
     // With nothing left to attack there is no path to keep open.
     if (this.world.targets.size) {
-      for (const [sx, sy] of this.world.spawners) if (!isFinite(field.at(sx, sy))) return { ok: false, cells, reason: "cuts-off-rift" };
+      for (const [sx, sy] of this.world.spawners) if (!isFinite(field.at(sx, sy))) return { ok: false, cells, reason: "seals-path" };
       for (const w of this.walkers) if (!isFinite(field.at(w.tx, w.ty))) return { ok: false, cells, reason: "traps-walker" };
     }
     return { ok: true, cells, field };
@@ -769,7 +758,7 @@ export class Game {
 
   /** Is the player close enough to use this smelter? */
   canUseSmelter(s: Smelter): boolean {
-    return this.phase !== "over" && gapTo(s, this.avatar.x, this.avatar.y) <= SMELTER_REACH;
+    return gapTo(s, this.avatar.x, this.avatar.y) <= SMELTER_REACH;
   }
 
   /**
@@ -806,14 +795,14 @@ export class Game {
       else this.breakPiece(id);
       return;
     }
-    if (this.world.nexus.has(key)) {
+    if (this.world.ship.has(key)) {
       if (this.shipDown) return;
       this.hp = Math.max(0, this.hp - amount);
       if (this.hp > 0) return;
       this.shipDown = true;
       // Its inventory goes with it.
       this.shipStore = new Inventory(SHIP_SLOTS);
-      for (const k of this.world.nexus) this.world.targets.delete(k);
+      for (const k of this.world.ship) this.world.targets.delete(k);
       this.refresh();
       this.events.push({ type: "ship-destroyed" });
       return;
@@ -855,7 +844,6 @@ export class Game {
   /** Towers stand on walls only. A footprint may span walls from different pieces. */
   checkTower(kind: TowerKind, at: Cell): TowerCheck {
     const cells = towerCells(kind, at);
-    if (!this.canPlaceNow()) return { ok: false, cells, reason: "run-over" };
     for (const [x, y] of cells) if (!this.world.walls.has(cellKey(x, y))) return { ok: false, cells, reason: "no-wall" };
     for (const [x, y] of cells) if (!this.pieceAt(x, y)?.metal) return { ok: false, cells, reason: "stone-wall" };
     for (const [x, y] of cells) if (this.towerCellsMap.has(cellKey(x, y))) return { ok: false, cells, reason: "tower-there" };
@@ -886,15 +874,15 @@ export class Game {
     return id === undefined ? undefined : this.towers.find(t => t.id === id);
   }
 
-  /** Full price back in the planning phase it was built; a share of it after. */
+  /** Full price back in the calm it was built; a share of it after. */
   sellValue(t: Tower): number {
     return t.fresh ? t.paid : Math.floor(t.paid * this.tuning.sellRefund);
   }
 
-  /** Sell a tower, in planning or mid-wave. Bolts already fired still land. Returns the refund, or null. */
+  /** Sell a tower, any time. Bolts already fired still land. Returns the refund, or null. */
   sellTower(id: number): number | null {
     const t = this.towers.find(x => x.id === id);
-    if (!t || !this.canPlaceNow()) return null;
+    if (!t) return null;
     const refund = this.sellValue(t);
     this.towers.splice(this.towers.indexOf(t), 1);
     for (const [x, y] of t.cells) this.towerCellsMap.delete(cellKey(x, y));
@@ -921,7 +909,7 @@ export class Game {
 
   get waveRemaining(): number { return this.waveLeft * this.activeSpawners().length + this.packQueue.length + this.walkers.length; }
 
-  /** HP of an enemy in the given round. */
+  /** HP of an enemy in the given raid. */
   enemyHp(round = this.round): number {
     return Math.max(1, Math.round(this.tuning.enemyHp * this.tuning.enemyHpGrowth ** (round - 1)));
   }
@@ -965,13 +953,11 @@ export class Game {
     this.avatarInput.jump = false;
     if (this.avatar.landed) this.events.push({ type: "avatar-landed" });
     // Mining is the player's own action, so it runs on real time too.
-    if (this.phase !== "over") this.stepMining(dt);
-    else this.mining = { node: null, full: false };
+    this.stepMining(dt);
   }
 
   /** Advance the world (waves, enemies, towers) by one tick. Game speed scales how often this runs. */
   step(dt = TICK): void {
-    if (this.phase === "over") return;
     this.syncWallWeights();
     if (this.phase === "wave") {
       this.spawnTimer -= dt;
@@ -991,8 +977,6 @@ export class Game {
       }
     }
     this.moveWalkers(dt);
-    // A leak may have ended the run.
-    if ((this.phase as Phase) === "over") return;
     for (const s of this.smelters) smelt(s, dt, this.tuning.smeltRate);
     this.stepUpkeep(dt);
     this.updateTowers(dt);
@@ -1062,7 +1046,7 @@ export class Game {
 
   /** The ship's centre, where its gun's range is measured from. */
   shipCenter(): { x: number; y: number } {
-    const cells = this.world.map.nexus;
+    const cells = this.world.map.ship;
     return { x: cells.reduce((a, c) => a + c[0] + 0.5, 0) / cells.length, y: cells.reduce((a, c) => a + c[1] + 0.5, 0) / cells.length };
   }
 

@@ -4,7 +4,7 @@ import { computeField } from "../src/sim/pathfinding";
 import type { MapDef } from "../src/sim/world";
 import { metalWall } from "./helpers";
 
-const open = (extra: Partial<MapDef> = {}): MapDef => ({ name: "test", spawners: [[0, 0]], nexus: [[10, 0]], rocks: [], trees: [], start: [3, 8], ...extra });
+const open = (extra: Partial<MapDef> = {}): MapDef => ({ name: "test", spawners: [[0, 0]], ship: [[10, 0]], rocks: [], trees: [], start: [3, 8], ...extra });
 const run = (g: Game, seconds: number) => { for (let i = 0; i < Math.round(seconds * 60); i++) g.step(); };
 const noGun = { cost: 0, damage: 0, range: 5.5, rate: 1 };
 /** A column of stone walls at x, from y0 to y1 (whole pieces of one cell each). */
@@ -48,7 +48,7 @@ describe("walls are slow obstacles", () => {
   });
 
   it("a piece breaks as a whole shape, with any tower on it; a 2×2 on two pieces goes if either does", () => {
-    const g = new Game(open({ nexus: [[20, 0]] }), { seed: 1, tuning: { startAlloy: 2000 } });
+    const g = new Game(open({ ship: [[20, 0]] }), { seed: 1, tuning: { startAlloy: 2000 } });
     metalWall(g, [[4, 4], [5, 4]], 801);
     metalWall(g, [[4, 5], [5, 5], [6, 5], [7, 5]], 802);
     expect(g.buildTower("gatling", [4, 4]).ok).toBe(true);
@@ -61,7 +61,7 @@ describe("walls are slow obstacles", () => {
   });
 
   it("plating makes a wall tougher; repair costs stone for the HP missing", () => {
-    const g = new Game(open({ nexus: [[20, 0]] }), { seed: 1, tuning: { startStone: 1000, startAlloy: 1000, wallCost: 25 } });
+    const g = new Game(open({ ship: [[20, 0]] }), { seed: 1, tuning: { startStone: 1000, startAlloy: 1000, wallCost: 25 } });
     const p = g.place("I", 0, [5, 5]).piece!;
     expect(g.pieceHp(p)).toEqual({ hp: 600, max: 600 });
     g.world.pieceHp.set(p.id, 150);

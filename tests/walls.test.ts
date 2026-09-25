@@ -3,7 +3,7 @@ import { Game, SHIP_SHOOTER } from "../src/sim/game";
 import type { MapDef } from "../src/sim/world";
 
 const open = (extra: Partial<MapDef> = {}): MapDef => ({
-  name: "test", spawners: [[0, 0]], nexus: [[20, 0]], rocks: [], trees: [], start: [2, 12], ...extra,
+  name: "test", spawners: [[0, 0]], ship: [[20, 0]], rocks: [], trees: [], start: [2, 12], ...extra,
 });
 const place = (g: Game, at: [number, number] = [8, 5]) => g.place("T", 0, at).piece!;
 
@@ -40,7 +40,7 @@ describe("stone and metal walls", () => {
     expect(b.metal).toBe(false);
   });
 
-  it("locked walls can be plated, during a wave too", () => {
+  it("locked walls can be plated, during a raid too", () => {
     const g = new Game(open(), { seed: 1, tuning: { startAlloy: 500 } });
     const p = place(g);
     g.startWave();

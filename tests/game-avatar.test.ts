@@ -4,7 +4,7 @@ import { rockTop, TREE_HURDLE, WALL_DECK, type MapDef } from "../src/sim/world";
 import { metalWall } from "./helpers";
 
 const open = (extra: Partial<MapDef> = {}): MapDef => ({
-  name: "test", spawners: [[0, 0]], nexus: [[20, 0]], rocks: [], trees: [], start: [5, 5], ...extra,
+  name: "test", spawners: [[0, 0]], ship: [[20, 0]], rocks: [], trees: [], start: [5, 5], ...extra,
 });
 const ticks = (g: Game, n: number) => { for (let i = 0; i < n; i++) { g.stepAvatar(); g.step(); } };
 

@@ -1,8 +1,7 @@
 import * as THREE from "three";
 
 /**
- * A resource node (Erik's pick: the B1 ore body from mockups/ore-b, without the
- * crater): a mound of rock sitting on the snow. Two kinds share the shape:
+ * A resource node (Erik's pick: the B1 ore body, without the crater): a mound of rock sitting on the snow. Two kinds share the shape:
  * stone (grey) and metal (all silver). Mining breaks it off in three stages.
  */
 export type NodeKind = "stone" | "metal";

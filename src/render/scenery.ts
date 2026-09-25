@@ -5,14 +5,14 @@ import { cellKey } from "../sim/types";
 import { BARE_CORE, BARE_KINDS, BARE_RIM, type Bare, type GeneratedWorld } from "../sim/worldgen";
 import { crystalCluster, deadTree } from "./alien";
 import { bakeStatic } from "./bake";
-import { cliffLook } from "./cliffLooks";
+import { cliffModel } from "./cliff";
 import type { ModelLibrary } from "./models";
 
 /**
  * The world's scenery, which never moves: pines, dead pines, crystal, rocks, raised
  * ground (slab cliffs at the edges, a flat snow top inside), snow drifts and bare
  * patches. Built per chunk and merged (`bakeStatic`), so only chunks on screen are
- * drawn and each costs a few draws. Shared by the game and the World playground.
+ * drawn and each costs a few draws.
  */
 export const CHUNK = 16;
 
@@ -108,7 +108,7 @@ export function buildScenery(map: MapDef, models: ModelLibrary, gen?: GeneratedW
   for (const [c, cells] of byChunk) {
     const edge = cells.filter(([x, y]) => !isHigh(x + 1, y) || !isHigh(x - 1, y) || !isHigh(x, y + 1) || !isHigh(x, y - 1));
     const inner = cells.filter(([x, y]) => isHigh(x + 1, y) && isHigh(x - 1, y) && isHigh(x, y + 1) && isHigh(x, y - 1));
-    if (edge.length) c.g.add(cliffLook("B", edge, isHigh, c.cx * 31 + c.cy + seed));
+    if (edge.length) c.g.add(cliffModel(edge, isHigh, c.cx * 31 + c.cy + seed));
     for (const [x, y] of inner) {
       const top = new THREE.Mesh(plateauGeo, materials().plateau);
       top.position.set(x + 0.5, 0, y + 0.5);

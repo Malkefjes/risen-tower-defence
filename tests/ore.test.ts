@@ -2,10 +2,9 @@ import { describe, expect, it } from "vitest";
 import { Game } from "../src/sim/game";
 import { nodeFootprint, STAGE_YIELD, stagesLeft, viewGap, type OreNode } from "../src/sim/ore";
 import type { MapDef } from "../src/sim/world";
-import { metalWall } from "./helpers";
 
 const map = (extra: Partial<MapDef> = {}): MapDef => ({
-  name: "test", spawners: [[0, 0]], nexus: [[20, 0]], rocks: [], trees: [],
+  name: "test", spawners: [[0, 0]], ship: [[20, 0]], rocks: [], trees: [],
   ore: [{ x: 8, y: 4, kind: "stone" }, { x: 14, y: 4, kind: "metal" }], start: [9, 8], ...extra,
 });
 const node = (amountFrac: number): OreNode => ({ id: 1, kind: "stone", x: 0, y: 0, amount: 600 * amountFrac, max: 600 });
@@ -93,31 +92,6 @@ describe("mining", () => {
   });
 });
 
-describe("ore pays for building", () => {
-  it("walls cost stone per cell and give it back when picked up", () => {
-    const g = new Game(map(), { seed: 1, tuning: { startStone: 100 } });
-    const r = g.place("T", 0, [2, 10]);
-    expect(r.ok).toBe(true);
-    expect(g.ore("stone")).toBe(0);
-    const again = g.checkPlacement("T", 0, [2, 14]);
-    expect(again.ok).toBe(false);
-    if (!again.ok) expect(again.reason).toBe("stone");
-    g.pickUp(r.piece!.id);
-    expect(g.ore("stone")).toBe(100);
-  });
-
-  it("towers cost alloy; raw metal can't pay for them", () => {
-    const g = new Game(map(), { seed: 1, tuning: { startMetal: 1000, startAlloy: 200 } });
-    metalWall(g, [[2, 10], [4, 10]]);
-    expect(g.buildTower("twin", [2, 10]).ok).toBe(true);
-    expect(g.ore("alloy")).toBe(0);
-    expect(g.ore("metal")).toBe(1000);
-    const r = g.checkTower("twin", [4, 10]);
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.reason).toBe("alloy");
-  });
-});
-
 describe("regrowth", () => {
   const minedOut = () => {
     const g = new Game(map(), { seed: 1, waveSize: () => 1, tuning: { startStone: 0 } });
@@ -132,7 +106,7 @@ describe("regrowth", () => {
     while (g.phase === "wave" && guard++ < 60 * 120) g.step();
   };
 
-  it("a mined-out node grows back at the next planning phase", () => {
+  it("a mined-out node grows back when the raid is cleared", () => {
     const g = minedOut();
     endWave(g);
     expect(g.phase).toBe("planning");
@@ -145,27 +119,5 @@ describe("regrowth", () => {
     g.world.walls.set("8,4", 99);
     endWave(g);
     expect(g.nodes[0]!.amount).toBe(0);
-  });
-});
-
-describe("Frostfall", () => {
-  it("its nodes sit on clear ground and the rift still reaches the ship", async () => {
-    const { FROSTFALL } = await import("../src/sim/maps");
-    const { nodeArea } = await import("../src/sim/ore");
-    const g = new Game(FROSTFALL, { seed: 1 });
-    expect(g.nodes.length).toBeGreaterThan(0);
-    for (const n of g.nodes) for (const [x, y] of nodeArea(n)) {
-      expect(g.world.isTerrain(x, y) || g.world.isNexus(x, y) || g.world.isSpawner(x, y)).toBe(false);
-    }
-    expect(g.routes()[0]!.length).toBeGreaterThan(0);
-  });
-
-  it("keeps its nodes out of the zone around the ship", async () => {
-    const { FROSTFALL } = await import("../src/sim/maps");
-    const { nodeArea, SHIP_CLEARANCE } = await import("../src/sim/ore");
-    const g = new Game(FROSTFALL, { seed: 1 });
-    for (const n of g.nodes) for (const [x, y] of nodeArea(n)) for (const [sx, sy] of FROSTFALL.nexus) {
-      expect(Math.max(Math.abs(x - sx), Math.abs(y - sy)) - 1).toBeGreaterThanOrEqual(SHIP_CLEARANCE);
-    }
   });
 });

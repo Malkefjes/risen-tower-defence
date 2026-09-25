@@ -37,7 +37,7 @@ export interface AvatarTuning {
   stepUp: number;
 }
 
-/** Tuned by Erik in the movement playground (2026-09-25). */
+/** Erik's tuned values. */
 export const defaultAvatarTuning = (): AvatarTuning => ({
   speed: 5,
   sprint: 1.4,

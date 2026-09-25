@@ -7,7 +7,6 @@
 import type { Cell } from "./types";
 
 export type OreKind = "stone" | "metal";
-export const ORE_KINDS: readonly OreKind[] = ["stone", "metal"];
 
 /** A node on a map: its north-west cell. Nodes are always 3×3. */
 export interface OreNodeDef { x: number; y: number; kind: OreKind }

@@ -28,7 +28,7 @@ describe("generated world", () => {
 
   it("keeps ore out of the zone around the ship", () => {
     for (const o of map.ore ?? []) for (const [x, y] of nodeArea({ id: 0, kind: o.kind, x: o.x, y: o.y, amount: 1, max: 1 })) {
-      for (const [sx, sy] of map.nexus) expect(Math.max(Math.abs(x - sx), Math.abs(y - sy)) - 1).toBeGreaterThanOrEqual(SHIP_CLEARANCE);
+      for (const [sx, sy] of map.ship) expect(Math.max(Math.abs(x - sx), Math.abs(y - sy)) - 1).toBeGreaterThanOrEqual(SHIP_CLEARANCE);
     }
   });
 
