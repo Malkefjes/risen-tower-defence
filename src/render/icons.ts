@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { EVENING } from "./models";
 import { createOreNode, type NodeKind } from "./ore";
 
@@ -11,6 +12,8 @@ import { createOreNode, type NodeKind } from "./ore";
 let cache: Record<NodeKind, string> | undefined;
 /** How much brighter than the world the icons are lit: mostly the sun, so the facets contrast. */
 const ICON_BOOST = { sky: 1.05, sun: 1.9 };
+/** Strength of the reflections that make the metal icon read as silver. */
+const METAL_SHEEN = 0.7;
 
 /** Ore icons: the last stage of a node (its core), seen from the game's camera angle. */
 export function oreIcons(size = 96): Record<NodeKind, string> {
@@ -38,10 +41,19 @@ export function oreIcons(size = 96): Record<NodeKind, string> {
   ground.receiveShadow = true;
   scene.add(ground);
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
+  // Silver is mostly reflection: give metal a soft bright room to reflect so it
+  // reads cool and shiny next to stone at hotbar size.
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const room = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   const out = {} as Record<NodeKind, string>;
   for (const kind of ["stone", "metal"] as const) {
     const node = createOreNode(3, kind === "stone" ? 7 : 11, kind);
     node.setAmount(0.2); // only the core is left
+    // The icon's metal is polished: sharp reflections give bright glints next to darker facets.
+    if (kind === "metal") node.object.traverse(c => {
+      const m = c as THREE.Mesh;
+      if (m.isMesh) m.material = Object.assign((m.material as THREE.MeshStandardMaterial).clone(), { metalness: 0.95, roughness: 0.18 });
+    });
     scene.add(node.object);
     // Frame what's still there (Box3.setFromObject counts hidden layers too).
     node.object.updateMatrixWorld(true);
@@ -55,12 +67,21 @@ export function oreIcons(size = 96): Record<NodeKind, string> {
     camera.lookAt(centre);
     sun.target.position.copy(centre);
     sun.position.copy(centre).add(new THREE.Vector3(...EVENING.sunOffset));
+    scene.environment = kind === "metal" ? room : null;
+    scene.environmentIntensity = METAL_SHEEN;
     renderer.render(scene, camera);
     out[kind] = fadeEdges(renderer.domElement, size);
     scene.remove(node.object);
-    node.object.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).geometry.dispose(); });
+    node.object.traverse(c => {
+      const m = c as THREE.Mesh;
+      if (!m.isMesh) return;
+      m.geometry.dispose();
+      if (kind === "metal") (m.material as THREE.Material).dispose();
+    });
   }
   ground.geometry.dispose();
+  room.dispose();
+  pmrem.dispose();
   renderer.dispose();
   renderer.forceContextLoss();
   return (cache = out);
