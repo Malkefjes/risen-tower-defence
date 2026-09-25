@@ -16,7 +16,6 @@ const view = new GameView(document.getElementById("view")!, game, world);
 
 let controller!: Controller;
 const hud = new Hud(game, {
-  startWave: () => controller.startWave(),
   sell: () => controller.sellSelected(),
   restart: () => { controller.clearSelection(); game.reset(); },
 });

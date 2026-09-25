@@ -47,7 +47,6 @@ export function towerIcon(kind: TowerKind): string {
 }
 
 export interface HudHandlers {
-  startWave(): void;
   sell(): void;
   restart(): void;
 }
@@ -77,7 +76,6 @@ export class Hud {
   private gain = { node: null as OreNode | null, amount: 0, idle: 9 };
 
   constructor(private game: Game, private h: HudHandlers) {
-    $("waveBtn").addEventListener("click", () => h.startWave());
     $("restartBtn").addEventListener("click", () => h.restart());
     // With a smelter open, click a raw metal stack in the hotbar to put it in, and
     // click a smelter slot to take what's in it.
@@ -111,6 +109,30 @@ export class Hud {
         hp.classList.add("hurt");
       }
     }
+  }
+
+  /**
+   * Where the raid comes from: a marker over each active cave during the warning and
+   * the raid, pinned to the screen edge (pointing at it) when the cave is off screen.
+   */
+  private markCaves(project: Projector): void {
+    const g = this.game, box = $("caveMarks");
+    const show = g.raidWarned || g.phase === "wave";
+    const caves = show ? g.activeSpawners() : [];
+    while (box.children.length < caves.length) box.appendChild(document.createElement("i"));
+    // Pinned markers stay clear of the top bar and the hotbar.
+    const W = window.innerWidth, H = window.innerHeight, M = 34, TOP = 72, BOTTOM = 104;
+    [...box.children].forEach((el, i) => {
+      const e = el as HTMLElement, c = caves[i];
+      e.hidden = !c;
+      if (!c) return;
+      const p = project(c[0] + 0.5, 0.9, c[1] + 0.5);
+      const cx = W / 2, cy = H / 2, dx = p.x - cx, dy = p.y - cy;
+      const k = Math.min(1, (W / 2 - M) / Math.max(1e-6, Math.abs(dx)), (dy < 0 ? H / 2 - TOP : H / 2 - BOTTOM) / Math.max(1e-6, Math.abs(dy)));
+      const off = k < 1;
+      e.className = off ? "off" : "";
+      e.style.transform = `translate(${cx + dx * k}px, ${cy + dy * k - (off ? 0 : 42)}px) translate(-50%, -50%) rotate(${off ? Math.atan2(dy, dx) : Math.PI / 2}rad)`;
+    });
   }
 
   /** One inventory slot. `mode`: "take" can be clicked, "dim" can't be used here. */
@@ -162,6 +184,17 @@ export class Hud {
       panel.classList.toggle("working", open.working);
     } else this.smelterSig = "";
 
+    // The raid clock: time to the next raid while calm (the warning stretch stands out),
+    // enemies left while a raid is on.
+    const clock = $("raidClock");
+    const secs = Math.max(0, Math.ceil(g.raidIn)), clockText = g.phase === "planning"
+      ? `Raid in <b>${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}</b>`
+      : g.phase === "wave" ? `Raid <b>${g.waveRemaining} left</b>` : "";
+    if (clock.innerHTML !== clockText) clock.innerHTML = clockText;
+    clock.className = `raidclock${g.raidWarned ? " warned" : ""}${g.phase === "wave" ? " raiding" : ""}`;
+    clock.hidden = g.phase === "over";
+    this.markCaves(project);
+
     // "+N" over the node, or "Full" while the hotbar can't take the next chunk.
     const gn = this.gain, full = g.mining.full ? g.mining.node : null;
     if (full) { if (gn.node !== full) { gn.node = full; gn.amount = 0; } gn.idle = 0; }
@@ -185,16 +218,16 @@ export class Hud {
     if (sig === this.lastSig) return;
     this.lastSig = sig;
 
-    $("round").textContent = `Round ${g.round}`;
+    $("round").textContent = `Raid ${g.round}`;
     const pill = $("phase");
-    pill.textContent = g.phase === "planning" ? "Planning" : g.phase === "wave" ? "Wave" : "Run over";
+    pill.textContent = g.phase === "planning" ? "Calm" : g.phase === "wave" ? "Raid" : "Run over";
     pill.className = `pill ${g.phase}`;
     $("hp").innerHTML = `HP <b>${g.hp}</b>`;
 
     // Run over: a notice, not a popup. The map stays visible behind it.
     const over = $("over");
     over.hidden = g.phase !== "over";
-    $("overText").textContent = `The ship fell in round ${g.round}.`;
+    $("overText").textContent = `The ship fell in raid ${g.round}.`;
 
     // Selected tower (or the ship): its stats in the corner; the view draws its range.
     const inspect = $("inspect");
@@ -214,10 +247,5 @@ export class Hud {
       $("sellBtn").addEventListener("click", () => this.h.sell());
     }
 
-    // Wave button
-    const wave = $("waveBtn") as HTMLButtonElement;
-    wave.disabled = g.phase !== "planning";
-    wave.hidden = g.phase === "over";
-    wave.innerHTML = g.phase === "wave" ? `Wave in progress: ${g.waveRemaining} left` : "Start wave";
   }
 }

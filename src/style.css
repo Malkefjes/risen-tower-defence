@@ -70,6 +70,17 @@ button:focus-visible { outline: 2px solid var(--warm); outline-offset: 2px; }
 .bottom > * { pointer-events: auto; }
 .center { grid-column: 2; display: flex; flex-direction: column; align-items: center; justify-content: end; }
 .actions { justify-self: end; }
+/* The raid clock (bottom right): calm, then the fixed warning, then the raid itself. */
+.raidclock { padding: 10px 16px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); font-weight: 600; font-size: 15px; color: var(--muted); backdrop-filter: blur(6px); font-variant-numeric: tabular-nums; }
+.raidclock b { color: var(--text); font-weight: 700; margin-left: 4px; }
+.raidclock.warned { border-color: rgba(224,38,43,.75); color: #ffc9c4; animation: raid-warn 1s ease-in-out infinite; }
+.raidclock.warned b { color: #ffffff; }
+.raidclock.raiding { border-color: rgba(255,122,47,.6); color: var(--orange); }
+@keyframes raid-warn { 50% { box-shadow: 0 0 0 3px rgba(224,38,43,.35); } }
+/* Where the raid comes from: a red chevron over each active cave, or at the screen edge pointing to it. */
+.cavemarks { position: absolute; inset: 0; pointer-events: none; }
+.cavemarks i { position: absolute; left: 0; top: 0; width: 0; height: 0; border-top: 9px solid transparent; border-bottom: 9px solid transparent; border-left: 14px solid #e0262b; filter: drop-shadow(0 1px 2px rgba(0,0,0,.6)); }
+.cavemarks i.off { border-left-color: #ff5a4f; }
 
 /* ---------- hotbar, "+N", build wheel ---------- */
 .hotbar { display: flex; gap: 5px; padding: 5px; background: rgba(28,26,52,.62); border: 1px solid var(--line); border-radius: 10px; backdrop-filter: blur(6px); pointer-events: none; }

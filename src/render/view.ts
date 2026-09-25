@@ -115,6 +115,10 @@ export class GameView {
   private towerGhosts: Record<TowerKind, THREE.Object3D>;
   private smelterGhost: THREE.Object3D;
   private smelters = new Map<number, Refinery>();
+  /** Caves by their mouth cell, for stirring when a raid is near. */
+  private caveByMouth = new Map<string, { obj: THREE.Object3D; home: THREE.Vector3; mouth: [number, number]; puffT: number }>();
+  private dust: { mesh: THREE.Mesh; v: THREE.Vector3; life: number; max: number }[] = [];
+  private dustGeo = new THREE.IcosahedronGeometry(0.12, 0);
   private rangeRing: THREE.Mesh;
   private rangeDisc: THREE.Mesh;
   private animated: THREE.Object3D[] = [];
@@ -272,6 +276,8 @@ export class GameView {
       cave.object.position.set(c.x + 0.5, 0, c.y + 0.5);
       cave.object.rotation.y = Math.atan2(c.dir[0], c.dir[1]);
       this.scene.add(cave.object);
+      // Keyed by the cave's mouth, the cell enemies climb out of (the spawner).
+      this.caveByMouth.set(`${c.x + c.dir[0] * 2},${c.y + c.dir[1] * 2}`, { obj: cave.object, home: cave.object.position.clone(), mouth: [c.x + c.dir[0] * 2 + 0.5, c.y + c.dir[1] * 2 + 0.5], puffT: 0 });
     });
     // Maps without caves (tests, older maps) keep the old rift marker.
     if (!caves.length) for (const [x, y] of this.game.world.spawners) {
@@ -436,6 +442,7 @@ export class GameView {
     this.grid.visible = o.showGrid;
 
     for (const a of this.animated) (a.userData.update as (t: number, dt: number) => void)?.(t, frameDt);
+    this.stirCaves(t, frameDt);
     this.updateShipLanding(frameDt);
     this.updateAvatar(frameDt, alpha, landed, o.toolReady);
     this.updateFx(frameDt);
@@ -621,6 +628,41 @@ export class GameView {
     b.position.set(x, 0.62, y);
     b.quaternion.copy(this.camera.quaternion);
     b.getObjectByName("fill")!.scale.x = Math.max(0.001, frac);
+  }
+
+  // ------------------------------------------------------------------ caves
+
+  /**
+   * A raid is near: during the warning the active caves tremble and breathe dust
+   * out of their mouths, so you can see where it will come from.
+   */
+  private stirCaves(t: number, dt: number): void {
+    const stir = this.game.raidWarned;
+    const active = new Set(stir ? this.game.activeSpawners().map(([x, y]) => `${x},${y}`) : []);
+    for (const [key, c] of this.caveByMouth) {
+      if (!active.has(key)) { c.obj.position.copy(c.home); continue; }
+      c.obj.position.set(c.home.x + Math.sin(t * 43) * 0.012, c.home.y + Math.abs(Math.sin(t * 31)) * 0.01, c.home.z + Math.cos(t * 37) * 0.012);
+      if ((c.puffT -= dt) > 0) continue;
+      c.puffT = 0.12 + Math.random() * 0.12;
+      const m = new THREE.Mesh(this.dustGeo, new THREE.MeshStandardMaterial({ color: "#6d6878", roughness: 1, transparent: true, opacity: 0.55, depthWrite: false }));
+      m.position.set(c.mouth[0] + (Math.random() - 0.5) * 0.6, 0.1, c.mouth[1] + (Math.random() - 0.5) * 0.6);
+      m.rotation.set(Math.random() * 3, Math.random() * 3, 0);
+      this.scene.add(m);
+      this.dust.push({ mesh: m, v: new THREE.Vector3((Math.random() - 0.5) * 0.4, 0.5 + Math.random() * 0.4, (Math.random() - 0.5) * 0.4), life: 1.4, max: 1.4 });
+    }
+    for (const d of this.dust) {
+      d.life -= dt;
+      d.mesh.position.addScaledVector(d.v, dt);
+      const k = Math.max(0, d.life / d.max);
+      d.mesh.scale.setScalar(1 + (1 - k) * 1.6);
+      (d.mesh.material as THREE.MeshStandardMaterial).opacity = 0.55 * k;
+    }
+    this.dust = this.dust.filter(d => {
+      if (d.life > 0) return true;
+      this.scene.remove(d.mesh);
+      (d.mesh.material as THREE.Material).dispose();
+      return false;
+    });
   }
 
   // ------------------------------------------------------------------ smelters

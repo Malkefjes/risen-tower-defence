@@ -17,6 +17,16 @@ const SECTIONS: { title: string; knobs: Knob[] }[] = [
     top("startAlloy", "Starting alloy", 0, 1000, 25),
     top("sellRefund", "Sell refund (after the wave starts)", 0, 1, 0.05, true),
   ] },
+  { title: "Raids", knobs: [
+    top("raidGrace", "Seconds before the first raid", 10, 900, 10),
+    top("raidInterval", "Seconds between raids", 10, 900, 10),
+    top("raidWarning", "Warning (seconds)", 5, 180, 5),
+    top("noiseStone", "Noise: stone stage mined (s)", 0, 30, 1),
+    top("noiseMetal", "Noise: metal stage mined (s)", 0, 30, 1),
+    top("noiseWall", "Noise: wall piece (s)", 0, 30, 1),
+    top("noiseBuild", "Noise: tower or building (s)", 0, 60, 1),
+    top("smeltNoise", "Noise: clock speed-up while smelting", 0, 3, 0.1, true),
+  ] },
   { title: "Smelter", knobs: [
     top("smelterStone", "Stone to build", 0, 2000, 25),
     top("smelterMetal", "Raw metal to build", 0, 2000, 25),

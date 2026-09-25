@@ -36,6 +36,16 @@ export interface Tuning {
   smelterMetal: number;
   /** Alloy a smelter makes per second (1 raw metal each). */
   smeltRate: number;
+  /** Raid clock, in seconds: before the first raid, between a cleared raid and the next, and the fixed warning at the end. */
+  raidGrace: number;
+  raidInterval: number;
+  raidWarning: number;
+  /** Noise: seconds your activity takes off the raid clock (never into the warning). A smelter at work runs the clock `smeltNoise` faster. */
+  noiseStone: number;
+  noiseMetal: number;
+  noiseWall: number;
+  noiseBuild: number;
+  smeltNoise: number;
   /** Seconds to mine a whole node (three stages). */
   mineTime: number;
   /** Mining reach: the gap between you and a node, as it looks on screen, in cells. */
@@ -75,6 +85,14 @@ export const defaultTuning = (): Tuning => ({
   smelterStone: 500,
   smelterMetal: 300,
   smeltRate: 5,
+  raidGrace: 240,
+  raidInterval: 180,
+  raidWarning: 60,
+  noiseStone: 4,
+  noiseMetal: 6,
+  noiseWall: 2,
+  noiseBuild: 5,
+  smeltNoise: 0.5,
   mineTime: 25 / 3,
   reach: 1.5,
   sprint: 1.4,

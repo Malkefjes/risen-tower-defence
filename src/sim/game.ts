@@ -104,6 +104,8 @@ export type GameEvent =
   | { type: "tower-built"; tower: Tower }
   | { type: "tower-sold"; tower: Tower; refund: number }
   | { type: "smelter-built"; smelter: Smelter }
+  /** The raid clock reached its warning: the active caves stir. */
+  | { type: "raid-warning" }
   | { type: "smelter-removed"; smelter: Smelter }
   | { type: "shot"; shot: Shot }
   | { type: "hit"; walker: Walker }
@@ -170,6 +172,11 @@ export class Game {
   events: GameEvent[] = [];
   /** Spawn practice walkers during planning so rerouting can be watched. */
   testWalkers = false;
+  /**
+   * Seconds (game time) until the next raid, while calm. Runs down on its own; your
+   * activity takes time off it (`noise`), but never into the fixed warning at the end.
+   */
+  raidIn = 0;
   /** The player's avatar. Moves every tick in every phase; never blocks enemies. */
   readonly avatar: Avatar;
   readonly avatarTuning: AvatarTuning = defaultAvatarTuning();
@@ -269,6 +276,17 @@ export class Game {
     this.hotbar.add("metal", this.tuning.startMetal);
     this.hotbar.add("alloy", this.tuning.startAlloy);
     this.hp = this.tuning.startHp;
+    this.raidIn = this.tuning.raidGrace;
+  }
+
+  /** The last stretch before a raid: fixed, the caves stir and show where it comes from. */
+  get raidWarned(): boolean { return this.phase === "planning" && this.raidIn <= this.tuning.raidWarning; }
+
+  /** Activity makes noise the planet hears: it brings the next raid closer, but never into its warning. */
+  noise(seconds: number): void {
+    if (this.phase !== "planning" || seconds <= 0) return;
+    const floor = this.tuning.raidWarning;
+    if (this.raidIn > floor) this.raidIn = Math.max(floor, this.raidIn - seconds);
   }
 
   /** Start a new run on the same map. Tuning is kept. */
@@ -343,6 +361,7 @@ export class Game {
     this.syncOre();
     this.field = computeField(this.world);
     this.events.push({ type: "node-broke", node: n, stagesLeft: stagesLeft(n), added });
+    this.noise(n.kind === "metal" ? this.tuning.noiseMetal : this.tuning.noiseStone);
   }
 
   /**
@@ -399,6 +418,7 @@ export class Game {
     for (const [x, y] of piece.cells) this.world.walls.set(cellKey(x, y), piece.id);
     this.field = computeField(this.world);
     this.events.push({ type: "placed", piece });
+    this.noise(this.tuning.noiseWall);
     return { ...check, piece };
   }
 
@@ -479,6 +499,7 @@ export class Game {
     for (const [x, y] of s.cells) this.world.buildings.set(cellKey(x, y), s.id);
     this.field = computeField(this.world);
     this.events.push({ type: "smelter-built", smelter: s });
+    this.noise(this.tuning.noiseBuild);
     return { ...check, smelter: s };
   }
 
@@ -562,6 +583,7 @@ export class Game {
     this.towers.push(tower);
     for (const [x, y] of tower.cells) this.towerCellsMap.set(cellKey(x, y), tower.id);
     this.events.push({ type: "tower-built", tower });
+    this.noise(this.tuning.noiseBuild);
     return { ...check, tower };
   }
 
@@ -589,6 +611,7 @@ export class Game {
 
   // ---------------------------------------------------------------- waves
 
+  /** Start the raid now. The raid clock does this when it runs out (tests call it directly). */
   startWave(): boolean {
     if (this.phase !== "planning") return false;
     for (const p of this.pieces) p.locked = true;
@@ -660,9 +683,17 @@ export class Game {
       if (this.waveLeft > 0 && this.spawnTimer <= 0) this.sendPack();
       for (const q of this.packQueue) if ((q.delay -= dt) <= 0) this.spawnWalker(q.at, false, q.speed);
       this.packQueue = this.packQueue.filter(q => q.delay > 0);
-    } else if (this.phase === "planning" && this.testWalkers) {
-      this.spawnTimer -= dt;
-      if (this.spawnTimer <= 0) { for (const at of this.activeSpawners()) this.spawnWalker(at, true); this.spawnTimer = 1.6; }
+    } else if (this.phase === "planning") {
+      // The raid clock: it runs down on its own, faster while a smelter works.
+      const warnedBefore = this.raidWarned;
+      if (this.smelters.some(s => s.working)) this.noise(dt * this.tuning.smeltNoise);
+      this.raidIn -= dt;
+      if (!warnedBefore && this.raidWarned) this.events.push({ type: "raid-warning" });
+      if (this.raidIn <= 0) { this.startWave(); return; }
+      if (this.testWalkers) {
+        this.spawnTimer -= dt;
+        if (this.spawnTimer <= 0) { for (const at of this.activeSpawners()) this.spawnWalker(at, true); this.spawnTimer = 1.6; }
+      }
     }
     this.moveWalkers(dt);
     // A leak may have ended the run.
@@ -673,6 +704,7 @@ export class Game {
     if (this.phase === "wave" && this.waveLeft === 0 && this.packQueue.length === 0 && this.walkers.length === 0) {
       this.round++;
       this.setPhase("planning");
+      this.raidIn = this.tuning.raidInterval;
       this.regrowNodes();
     }
   }

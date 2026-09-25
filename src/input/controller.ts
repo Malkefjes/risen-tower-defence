@@ -225,7 +225,6 @@ export class Controller {
       case "x": case "delete": case "backspace": this.sellSelected(); break;
       case "escape": this.clearSelection(); this.openSmelterId = null; break;
       case "z": this.undo(); break;
-      case "enter": this.startWave(); break;
       case " ": e.preventDefault(); if (!e.repeat) this.game.avatarInput.jump = true; break;
       case "p": this.togglePause(); break;
       case "f": this.toggleSpeed(); break;
@@ -274,10 +273,6 @@ export class Controller {
     const p = this.game.undo();
     if (!p) { if (this.game.phase === "wave") this.hud.toast("Pieces are locked once the wave starts"); return; }
     this.updateHover();
-  }
-
-  startWave(): void {
-    if (this.game.startWave()) this.updateHover();
   }
 
   togglePause(): void { this.paused = !this.paused; }
