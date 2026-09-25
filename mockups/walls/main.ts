@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { createDefaultModels, createGlows, createMaterials, EVENING } from "../../src/render/models";
 import { createRig, RigAnimator } from "../../src/render/rig";
-import { stoneWallPiece, type StoneLook } from "../../src/render/stoneWall";
+import { stoneWallPiece } from "../../src/render/stoneWall";
 import { Avatar, defaultAvatarTuning } from "../../src/sim/avatar";
 import { pieceCells, SHAPE_IDS, type ShapeId } from "../../src/sim/pieces";
 import { cellKey, type Cell } from "../../src/sim/types";
@@ -12,7 +12,7 @@ import "./style.css";
 
 // Wall playground: every piece is placed as a stone wall; right-click holds open a
 // wheel on that wall with Metal plating, which turns the whole piece into the
-// Armored deck (the wall towers stand on). Stone looks C, C1, C2 to pick from.
+// Armored deck (the wall towers stand on). Stone look: C (Erik's pick).
 
 THREE.ColorManagement.enabled = false;
 
@@ -50,16 +50,13 @@ const pieces: Piece[] = [];
 /** cell -> piece id */
 const walls = new Map<string, number>();
 let nextId = 1;
-let look: StoneLook = "C";
-const LOOK_KEY = "risen.walls.stoneLook";
-try { const l = localStorage.getItem(LOOK_KEY); if (l === "C" || l === "C1" || l === "C2") look = l; } catch { /* storage blocked */ }
 
 /** Walls fuse only with walls of the same material, so stone and metal meet at a clean seam. */
 function rebuildWalls(): void {
   for (const p of pieces) {
     if (p.obj) { scene.remove(p.obj); p.obj.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).geometry.dispose(); }); }
     const joins = (x: number, y: number) => { const id = walls.get(cellKey(x, y)); return id !== undefined && pieces.find(q => q.id === id)!.metal === p.metal; };
-    p.obj = p.metal ? models.create("wallPiece", { cells: p.cells, joins }) : stoneWallPiece(look, p.cells, joins);
+    p.obj = p.metal ? models.create("wallPiece", { cells: p.cells, joins }) : stoneWallPiece(p.cells, joins);
     scene.add(p.obj);
   }
 }
@@ -191,21 +188,6 @@ function moveInput(): { x: number; y: number } {
   const x = (r - u) * K, y = (-r - u) * K, l = Math.hypot(x, y);
   return l > 0 ? { x: x / l, y: y / l } : { x: 0, y: 0 };
 }
-
-// ------------------------------------------------------------------ look picker
-
-const looksEl = document.getElementById("looks")!;
-function drawLooks(): void {
-  looksEl.innerHTML = (["C", "C1", "C2"] as StoneLook[]).map(l => `<button class="chip" data-look="${l}" aria-pressed="${look === l}">${l}</button>`).join("");
-}
-looksEl.addEventListener("click", e => {
-  const b = (e.target as HTMLElement).closest("button");
-  if (!b) return;
-  look = b.dataset.look as StoneLook;
-  try { localStorage.setItem(LOOK_KEY, look); } catch { /* storage blocked */ }
-  drawLooks(); rebuildWalls();
-});
-drawLooks();
 
 // A few pieces to start with, so the looks can be compared straight away: stone, and one plated.
 placePiece("L", 0, [-3, 1]); placePiece("I", 0, [2, 1]); placePiece("T", 2, [-2, 7]); placePiece("O", 0, [3, 6]);
