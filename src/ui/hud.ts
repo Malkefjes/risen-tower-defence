@@ -18,6 +18,11 @@ export function pieceIcon(shape: ShapeId, rot = 0): string {
   return `<svg viewBox="0 0 ${size} ${size}" aria-hidden="true">${rects}</svg>`;
 }
 
+/** Metal plating, for a wall's modification wheel: an orange armored block. */
+export function platingIcon(): string {
+  return `<svg viewBox="0 0 44 44" aria-hidden="true"><rect x="6" y="20" width="32" height="14" rx="2" fill="#d9573a" stroke="#f08a66"/><rect x="5" y="14" width="34" height="7" rx="2" fill="#4a5266"/><rect x="8" y="26" width="28" height="2" fill="#7ff5e6"/><rect x="6" y="33" width="32" height="3" fill="#2c3142"/></svg>`;
+}
+
 /** Small SVG of a tower seen from above, for build cards. */
 export function towerIcon(kind: TowerKind): string {
   const hex = (r: number) => Array.from({ length: 6 }, (_, i) => {

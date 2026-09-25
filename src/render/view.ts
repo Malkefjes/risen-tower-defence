@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { Game, GameEvent, PlacedPiece, Shot } from "../sim/game";
 import { MiningView } from "./mining";
+import { stoneWallMaterials, stoneWallPiece } from "./stoneWall";
 import { createRig, RigAnimator, type Rig } from "./rig";
 import type { ShipRig } from "./ship";
 import type { Tower, TowerKind } from "../sim/towers";
@@ -309,6 +310,16 @@ export class GameView {
     return this.mining.onHotspot(this.pointer, this.game.nodeInReach(), el.clientWidth / Math.max(1, el.clientHeight));
   }
 
+  /** Point on the horizontal plane at height `y` under a screen position, or null. */
+  pickAtHeight(clientX: number, clientY: number, y: number): THREE.Vector3 | null {
+    const r = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+    this.placeCamera();
+    this.raycaster.setFromCamera(ndc, this.camera);
+    const p = new THREE.Vector3();
+    return this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -y), p) ? p : null;
+  }
+
   /** Ground point under a screen position, or null. */
   pickGround(clientX: number, clientY: number): THREE.Vector3 | null {
     const r = this.renderer.domElement.getBoundingClientRect();
@@ -366,7 +377,7 @@ export class GameView {
     this.syncPieces(o.hoverPieceId);
     this.syncTowers();
     for (const ev of events) {
-      if (ev.type === "placed") this.onPlaced(ev.piece);
+      if (ev.type === "placed" || ev.type === "plated") this.onPlaced(ev.piece);
       else if (ev.type === "walker-arrived") (this.nexus.userData.flash as () => void)();
       else if (ev.type === "tower-built") { const v = this.towers.get(ev.tower.id); if (v) v.drop = 0.12; }
       else if (ev.type === "shot") this.onShot(ev.shot);
@@ -469,8 +480,9 @@ export class GameView {
   }
 
   private buildPiece(p: PlacedPiece): PieceView {
-    const walls = this.game.world.walls;
-    const group = this.models.create("wallPiece", { cells: p.cells, joins: (x, y) => walls.has(`${x},${y}`) });
+    // Walls fuse only with walls of the same material, so stone and metal meet at a clean seam.
+    const joins = (x: number, y: number) => this.game.pieceAt(x, y)?.metal === p.metal;
+    const group = p.metal ? this.models.create("wallPiece", { cells: p.cells, joins }) : stoneWallPiece(p.cells, joins);
     const bodies: THREE.Mesh[] = [];
     group.traverse(c => { if (c.name === "body") bodies.push(c as THREE.Mesh); });
     this.scene.add(group);
@@ -479,7 +491,7 @@ export class GameView {
 
   private syncPieces(hoverId: number | null): void {
     // Walls fuse with their neighbours, so when the set of walls changes, rebuild every piece.
-    const sig = this.game.pieces.map(p => p.id).join(",");
+    const sig = this.game.pieces.map(p => p.id + (p.metal ? "m" : "")).join(",");
     if (sig !== this.wallSig) {
       this.wallSig = sig;
       for (const [id, v] of this.pieces) {
@@ -493,15 +505,19 @@ export class GameView {
         this.pieces.set(id, fresh);
       }
     }
+    const stone = stoneWallMaterials();
     for (const p of this.game.pieces) {
       let v = this.pieces.get(p.id);
       if (!v) { v = this.buildPiece(p); this.pieces.set(p.id, v); }
-      const m = p.id === hoverId ? this.mat.wallHover : p.locked ? this.mat.wallA : this.mat.wallLooseA;
+      const m = p.metal
+        ? (p.id === hoverId ? this.mat.wallHover : p.locked ? this.mat.wallA : this.mat.wallLooseA)
+        : (p.id === hoverId ? stone.hover : p.locked ? stone.base : stone.loose);
       for (const b of v.bodies) b.material = m;
     }
-    // Walls that can still be picked up breathe slightly brighter than the locked orange.
-    const pulse = 0.17 + 0.13 * (0.5 + 0.5 * Math.sin(this.time * 3));
-    this.mat.wallLooseA.emissiveIntensity = pulse;
+    // Walls that can still be picked up breathe slightly brighter than locked ones.
+    const breath = 0.5 + 0.5 * Math.sin(this.time * 3);
+    this.mat.wallLooseA.emissiveIntensity = 0.17 + 0.13 * breath;
+    stone.loose.emissiveIntensity = 0.08 + 0.14 * breath;
   }
 
   private syncWalkers(simDt: number): void {

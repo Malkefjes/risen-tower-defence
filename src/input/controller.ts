@@ -1,9 +1,10 @@
-import { REASON_TEXT, TOWER_REASON_TEXT, type Game, type PlacementCheck } from "../sim/game";
+import { REASON_TEXT, TOWER_REASON_TEXT, type Game, type PlacedPiece, type PlacementCheck } from "../sim/game";
+import { WALL_DECK } from "../sim/world";
 import { SHAPE_IDS } from "../sim/pieces";
 import { TOWER_INFO, TOWER_KINDS, type TowerKind } from "../sim/towers";
 import type { Cell } from "../sim/types";
 import { BuildWheel, type WheelItem } from "../ui/buildWheel";
-import { pieceIcon, towerIcon, type Hud } from "../ui/hud";
+import { pieceIcon, platingIcon, towerIcon, type Hud } from "../ui/hud";
 import type { GameView, Overlay } from "../render/view";
 
 const DRAG_THRESHOLD = 5;
@@ -40,7 +41,9 @@ export class Controller {
   private pressedAt = 0;
   /** The build wheel, and which one is open (Q walls, E towers). */
   private wheel!: BuildWheel;
-  private wheelKind: "walls" | "towers" | null = null;
+  private wheelKind: "walls" | "towers" | "mods" | null = null;
+  /** The wall whose modification wheel is open (right mouse held on it). */
+  private modTarget: PlacedPiece | null = null;
 
   constructor(private game: Game, private view: GameView, private hud: Hud) {}
 
@@ -48,7 +51,12 @@ export class Controller {
     this.wheel = new BuildWheel(document.getElementById("app")!);
     el.addEventListener("contextmenu", e => e.preventDefault());
     el.addEventListener("pointerdown", e => {
-      if (e.button === 2) { if (this.selectedUid !== null) this.rotate(); else if (this.buildKind) this.clearSelection(); return; }
+      if (e.button === 2) {
+        if (this.selectedUid !== null) this.rotate();
+        else if (this.buildKind) this.clearSelection();
+        else this.openMods(e.clientX, e.clientY);
+        return;
+      }
       el.setPointerCapture(e.pointerId);
       this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, button: e.button };
       this.pressedAt = performance.now();
@@ -84,6 +92,7 @@ export class Controller {
       this.updateHover();
     }, { passive: false });
 
+    window.addEventListener("pointerup", e => { if (e.button === 2 && this.wheelKind === "mods") this.closeWheel(); });
     window.addEventListener("keydown", e => this.onKey(e));
     window.addEventListener("keyup", e => {
       const k = e.key.toLowerCase();
@@ -97,6 +106,7 @@ export class Controller {
 
   private wheelItems(): WheelItem[] {
     const g = this.game;
+    if (this.wheelKind === "mods") return [{ icon: sized(platingIcon()), off: !g.canPlate(this.modTarget ?? undefined) }];
     return this.wheelKind === "walls"
       ? SHAPE_IDS.map(sh => { const n = g.handCount(sh); return { icon: sized(pieceIcon(sh)), count: n, off: n <= 0 }; })
       : TOWER_KINDS.map(k => ({ icon: sized(towerIcon(k)), off: g.ore("metal") < g.towerCost(k) }));
@@ -108,12 +118,33 @@ export class Controller {
     this.wheel.show(this.wheelItems());
   }
 
-  /** Releasing the key picks the highlighted item. */
+  /** The wall under the cursor: its deck if the cursor is on top of one, else the ground cell. */
+  private wallAt(clientX: number, clientY: number): PlacedPiece | undefined {
+    for (const y of [WALL_DECK, 0]) {
+      const p = this.view.pickAtHeight(clientX, clientY, y);
+      const piece = p && this.game.pieceAt(Math.floor(p.x), Math.floor(p.z));
+      if (piece) return piece;
+    }
+    return undefined;
+  }
+
+  /** Right mouse held on a wall: its modification wheel (metal plating, for now). */
+  private openMods(clientX: number, clientY: number): void {
+    const piece = this.wallAt(clientX, clientY);
+    if (!piece || !this.game.canPlaceNow()) return;
+    this.modTarget = piece;
+    this.wheelKind = "mods";
+    this.wheel.show(this.wheelItems());
+  }
+
+  /** Releasing the key (or the right button) picks the highlighted item. */
   private closeWheel(): void {
-    const i = this.wheel.picked(), kind = this.wheelKind;
+    const i = this.wheel.picked(), kind = this.wheelKind, target = this.modTarget;
     this.wheel.hide();
     this.wheelKind = null;
+    this.modTarget = null;
     if (i === null || !this.game.canPlaceNow()) return;
+    if (kind === "mods") { if (target) this.game.plate(target.id); return; }
     if (kind === "walls") {
       const piece = this.game.hand.find(h => h.shape === SHAPE_IDS[i]);
       if (!piece) return;
@@ -292,7 +323,11 @@ export class Controller {
     const firing = this.toolDown && !holding && !this.wheelKind && this.game.hotbar.held === "multitool";
     this.game.mineInput = { firing, onSpot: firing && this.view.cursorOnHotspot() };
     if (this.wheelKind && this.lastPointer) {
-      const c = this.view.avatarScreen();
+      // Build wheels sit on the character; a wall's modification wheel sits on that wall.
+      const t = this.modTarget;
+      const c = this.wheelKind === "mods" && t
+        ? this.view.screenOf(t.cells.reduce((a, q) => a + q[0] + 0.5, 0) / t.cells.length, WALL_DECK, t.cells.reduce((a, q) => a + q[1] + 0.5, 0) / t.cells.length)
+        : this.view.avatarScreen();
       this.wheel.update(this.wheelItems(), c.x, c.y, this.lastPointer.x, this.lastPointer.y);
     }
     if (ml) this.updateHover();

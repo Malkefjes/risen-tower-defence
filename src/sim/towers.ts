@@ -53,7 +53,7 @@ export const defaultTuning = (): Tuning => ({
   wallCost: 25,
   platingCost: 50,
   startStone: 400,
-  startMetal: 100,
+  startMetal: 150,
   mineTime: 25 / 3,
   reach: 1.5,
   sprint: 1.4,

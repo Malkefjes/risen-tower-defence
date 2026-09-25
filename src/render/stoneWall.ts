@@ -20,7 +20,16 @@ const palette = () => ({
   stoneLight: std("#727786"),
   stoneDark: std("#454a57"),
   snow: std("#f1f4fa", { roughness: 1 }),
+  /** The main course, swapped for these while a piece can be picked up, or is under the cursor. */
+  loose: std("#5d6270", { emissive: "#9aa0b4", emissiveIntensity: 0.15 }),
+  hover: std("#7d8292", { emissive: "#c9cee0", emissiveIntensity: 0.35 }),
 });
+
+/** Stone wall materials the view swaps on a piece's `body` mesh (see `stoneWallPiece`). */
+export function stoneWallMaterials(): { base: THREE.MeshStandardMaterial; loose: THREE.MeshStandardMaterial; hover: THREE.MeshStandardMaterial } {
+  M ??= palette();
+  return { base: M.stone, loose: M.loose, hover: M.hover };
+}
 
 export function stoneWallPiece(cells: readonly Cell[], joins?: (x: number, y: number) => boolean): THREE.Object3D {
   M ??= palette();
@@ -49,6 +58,7 @@ export function stoneWallPiece(cells: readonly Cell[], joins?: (x: number, y: nu
   for (const [mat, list] of parts) {
     const mesh = new THREE.Mesh(mergeGeometries(list), mat);
     mesh.castShadow = mesh.receiveShadow = true;
+    if (mat === m.stone) mesh.name = "body";
     g.add(mesh);
     for (const l of list) l.dispose();
   }
