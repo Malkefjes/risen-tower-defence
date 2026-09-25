@@ -20,6 +20,14 @@ describe("avatar movement", () => {
     expect(a.speed).toBe(0);
   });
 
+  it("sprints faster while sprint is held, and eases back when it's released", () => {
+    const a = new Avatar(0.5, 0.5);
+    run(a, { x: 1, y: 0, jump: false, sprint: true }, world({}), 1);
+    expect(a.speed).toBeCloseTo(T.speed * T.sprint);
+    run(a, { x: 1, y: 0, jump: false }, world({}), 1);
+    expect(a.speed).toBeCloseTo(T.speed);
+  });
+
   it("is blocked by rocks and slides along them", () => {
     const rocks: Record<string, number> = {};
     for (let y = -2; y < 12; y++) rocks[`3,${y}`] = Infinity;

@@ -134,7 +134,7 @@ const approach = (v: number, target: number, rate: number, dt: number) => v + (t
 
 /** What the avatar is doing this frame, as the animator needs it. */
 export interface RigMotion {
-  /** Horizontal speed and the top running speed, cells per second. */
+  /** Horizontal speed and the top running speed (not sprinting), cells per second. */
   speed: number;
   topSpeed: number;
   grounded: boolean;
@@ -169,6 +169,7 @@ export class RigAnimator {
   private leapW = 0;
   private landW = 0;
   private readyW = 0;
+  private sprintW = 0;
   private time = 0;
   private rootY = 0;
   private readonly joints: THREE.Group[];
@@ -185,13 +186,17 @@ export class RigAnimator {
     this.airW = approach(this.airW, m.grounded ? 0 : 1, 14, dt);
     this.leapW = approach(this.leapW, moving, 6, dt);
     this.readyW = approach(this.readyW, m.ready ? 1 : 0, 10, dt);
+    // Sprinting: anything above the top running speed blends in the sprint stride.
+    const over = smooth((m.speed / Math.max(0.01, m.topSpeed) - 1.02) / 0.3);
+    this.sprintW = approach(this.sprintW, m.grounded ? over : this.sprintW, 6, dt);
     if (m.landed) this.landW = Math.max(this.landW, m.speed > 0.5 ? 0.35 : 1);
     this.landW = Math.max(0, this.landW - dt * 5);
     // Stride phase follows distance travelled, so the feet match the ground speed.
-    this.phase += m.speed * dt * this.tuning.stride;
+    // Sprint strides are longer, so the cadence rises less than the speed.
+    this.phase += m.speed * dt * this.tuning.stride * (1 - 0.2 * this.sprintW);
 
     const idle = this.pose(() => this.idlePose(t));
-    const run = this.pose(() => this.runPose(this.phase));
+    const run = this.pose(() => this.runPose(this.phase, this.sprintW));
     const rise = m.jumpSpeed > 0 ? Math.max(-1, Math.min(1, m.vz / m.jumpSpeed)) : 0;
     const air = this.mix(this.pose(() => this.tuckPose(rise)), this.pose(() => this.leapPose(rise)), this.leapW);
     let p = this.mix(idle, run, this.runW);
@@ -239,15 +244,17 @@ export class RigAnimator {
     this.arm(0, 0.05, -0.2); this.arm(1, 0.05, -0.2);
     this.torso(0, 0, Math.sin(t * 2) * 0.004);
   }
-  private runPose(r: number): void {
+  /** Running stride; `sprint` (0..1) swings legs and arms wider and leans further forward. */
+  private runPose(r: number, sprint = 0): void {
+    const swing = 0.6 + 0.2 * sprint, fold0 = 1.3 + 0.25 * sprint;
     for (const i of [0, 1]) {
       const ph = r + i * Math.PI;
-      const fold = 1.3 * ((1 + Math.cos(ph - 0.45)) / 2) ** 2;
-      this.leg(i, -Math.sin(ph) * 0.6, 0.1 + fold);
+      const fold = fold0 * ((1 + Math.cos(ph - 0.45)) / 2) ** 2;
+      this.leg(i, -Math.sin(ph) * swing, 0.1 + fold);
     }
-    this.arm(0, Math.sin(r) * 0.6 - 0.1, -1.25);
-    this.arm(1, -Math.sin(r) * 0.6 - 0.1, -1.25);
-    this.torso(0.14, Math.sin(r) * 0.06);
+    this.arm(0, Math.sin(r) * swing - 0.1, -1.25);
+    this.arm(1, -Math.sin(r) * swing - 0.1, -1.25);
+    this.torso(0.14 + 0.12 * sprint, Math.sin(r) * 0.06);
   }
   /** Running leap: knee driven up, trailing leg back; reaching down as the jump falls. */
   private leapPose(rise: number): void {

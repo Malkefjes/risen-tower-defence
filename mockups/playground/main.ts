@@ -102,6 +102,7 @@ const knobs: Knob[] = [
   { label: "Air control", min: 0, max: 1, step: 0.05, get: () => T.airControl, set: v => { T.airControl = v; } },
   { label: "Stride (lower = longer)", min: 2, max: 7, step: 0.1, get: () => anim.tuning.stride, set: v => { anim.tuning.stride = v; } },
   { label: "Camera follow", min: 1, max: 20, step: 0.5, get: () => view.follow, set: v => { view.follow = v; } },
+  { label: "Sprint (× run speed)", min: 1, max: 2.5, step: 0.05, get: () => T.sprint, set: v => { T.sprint = v; } },
 ];
 try {
   const saved = JSON.parse(localStorage.getItem(STORE) ?? "null") as number[] | null;
@@ -234,7 +235,7 @@ function frame(now: number): void {
   while (acc >= TICK) {
     prev.x = avatar.x; prev.y = avatar.y; prev.z = avatar.z; prev.facing = avatar.facing;
     const m = moveInput();
-    avatar.step(TICK, { x: m.x, y: m.y, jump: jumpQueued }, heightAt, T);
+    avatar.step(TICK, { x: m.x, y: m.y, jump: jumpQueued, sprint: keys.has("shift") }, heightAt, T);
     if (jumpQueued) jumpQueued = false;
     landed ||= avatar.landed;
     acc -= TICK;

@@ -312,7 +312,8 @@ function frame(now: number): void {
   while (acc >= TICK) {
     prev.x = avatar.x; prev.y = avatar.y; prev.z = avatar.z; prev.facing = avatar.facing;
     const m = moveInput();
-    avatar.step(TICK, { x: m.x, y: m.y, jump: jumpQueued }, heightAt, T);
+    // Sprint is a travel mode: firing the tool drops back to running speed.
+    avatar.step(TICK, { x: m.x, y: m.y, jump: jumpQueued, sprint: keys.has("shift") && !firing }, heightAt, T);
     jumpQueued = false;
     landed ||= avatar.landed;
     if (mining && target_) {

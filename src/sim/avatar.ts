@@ -14,6 +14,8 @@ export type HeightAt = (cx: number, cy: number) => number;
 export interface AvatarTuning {
   /** Top running speed, cells per second. */
   speed: number;
+  /** Top speed multiplier while sprinting. */
+  sprint: number;
   /** How fast speed changes on the ground, cells per second squared. */
   accel: number;
   /** Share of `accel` available in the air (0 = no steering, 1 = full). */
@@ -33,6 +35,7 @@ export interface AvatarTuning {
 /** Tuned by Erik in the movement playground (2026-09-25). */
 export const defaultAvatarTuning = (): AvatarTuning => ({
   speed: 5,
+  sprint: 1.4,
   accel: 40,
   airControl: 0.5,
   turnSpeed: 20,
@@ -48,6 +51,8 @@ export interface AvatarInput {
   y: number;
   /** Jump pressed this tick. */
   jump: boolean;
+  /** Sprint held (the caller decides when sprinting is allowed). */
+  sprint?: boolean;
 }
 
 const EPS = 1e-4;
@@ -85,7 +90,8 @@ export class Avatar {
     let ix = input.x, iy = input.y;
     const il = Math.hypot(ix, iy);
     if (il > 1) { ix /= il; iy /= il; }
-    const wantX = ix * t.speed, wantY = iy * t.speed;
+    const top = t.speed * (input.sprint ? t.sprint : 1);
+    const wantX = ix * top, wantY = iy * top;
     const rate = t.accel * (this.grounded ? 1 : t.airControl) * dt;
     const dx = wantX - this.vx, dy = wantY - this.vy, dl = Math.hypot(dx, dy);
     if (dl <= rate) { this.vx = wantX; this.vy = wantY; }
