@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { createMaterials, EVENING } from "../../src/render/models";
 import { itemIcons } from "../../src/render/icons";
-import { createOreNode, polishMetal, type NodeKind, type OreNodeModel } from "../../src/render/ore";
+import { createOreNode, type NodeKind, type OreNodeModel } from "../../src/render/ore";
 import { createRig, RigAnimator } from "../../src/render/rig";
 import { Avatar, defaultAvatarTuning } from "../../src/sim/avatar";
 import { Hotbar, STACK_MAX, type ItemKind } from "../../src/sim/inventory";
@@ -15,7 +15,6 @@ THREE.ColorManagement.enabled = false;
 const CAM_OFFSET = new THREE.Vector3(20, 16.33, 20);
 const container = document.getElementById("view")!;
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-polishMetal(renderer);
 renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
