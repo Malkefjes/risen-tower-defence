@@ -154,7 +154,7 @@ export function enemyLook(look: EnemyLook): Enemy {
     const skull = plate(0.17, 0.14, 0.3, m.chitin); skull.position.z = 0.08; head.add(skull);
     for (const s of [-1, 1]) {
       const l = legChain(body, s * 0.12, -0.08, -0.14, 0.26, 0.3, 0.2, 0.05, s > 0 ? 0 : Math.PI);
-      l.lift = 0.45; l.swing = 0.55;
+      l.lift = 0.22; l.swing = 0.32;
       legs.push(l);
       const sh = joint(body, s * 0.15, 0.08, 0.2);
       sh.add(seg(0.16, 0.03, 0.025, m.chitin));
@@ -173,6 +173,7 @@ export function enemyLook(look: EnemyLook): Enemy {
   const tipPos = new THREE.Vector3(), rootPos = new THREE.Vector3();
   /** Half the foot's thickness: the tip sits this far above the snow. */
   const FOOT_R = 0.015;
+  let smoothY = -1, lastT = -1;
   root.traverse(o => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).receiveShadow = true; });
   return {
     object: root,
@@ -187,11 +188,17 @@ export function enemyLook(look: EnemyLook): Enemy {
       if (head) head.rotation.y = Math.sin(t * 0.9) * 0.2;
       // Keep the lowest foot on the snow: raise or lower the body to meet it, so feet
       // never sink in and the stride's natural rise and fall shows in the body.
+      // The body glides toward that height rather than snapping, so the stride reads as
+      // a smooth prowl; it never lets a foot sink more than a sliver.
       body.position.y = baseY;
       root.updateMatrixWorld(true);
       let low = Infinity;
       for (const l of legs) low = Math.min(low, l.tip.getWorldPosition(tipPos).y - root.getWorldPosition(rootPos).y);
-      if (isFinite(low)) body.position.y += FOOT_R - low;
+      const want = isFinite(low) ? baseY + FOOT_R - low : baseY;
+      const dt = lastT < 0 ? 1 : Math.min(0.1, Math.max(0, t - lastT));
+      lastT = t;
+      smoothY = smoothY < 0 ? want : smoothY + (want - smoothY) * Math.min(1, dt * 8);
+      body.position.y = Math.max(smoothY, want - 0.012);
       if (tail) { tail.rotation.y = Math.sin(f * 0.5) * 0.35 * w + Math.sin(t * 1.3) * 0.1; tail.rotation.x = Math.sin(t * 1.1) * 0.06; }
     },
   };
