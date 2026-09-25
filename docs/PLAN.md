@@ -67,6 +67,16 @@ Each milestone is a playable build that answers one question. I propose we stop 
 - **Fabricator:** walls come from a queue with the next 3 shapes, one hold slot and a paid reroll, printed with ore. Replaces the supply drop.
 - **Build range:** you can only build within a radius of the avatar (a tuning slider, so we can test with it large or small).
 - Waves and the wave button stay for now, so only one big thing changes at a time.
+
+#### M1a part 2 plan (approved 2026-09-25)
+Brings the ore playground into the game, plus the build wheel.
+- **From the playground:** sprint (Shift, 1.4×, not while firing), longer beam and grip, hold LMB to mine with move-while-mining and torso twist, screen-space reach (1.5-cell gap), 3×3 stone and metal nodes breaking in three stages with a shrinking footprint and the hotspot glint (+20%), 200 stone / 100 metal per stage arriving at once, the 6-slot hotbar (multitool in slot 1, stacks of 1000, "x200" counts, Full when a chunk won't fit), icons rendered from the models, the fading "+N".
+- **Ore replaces credits:** pay straight from the hotbar (no delivery to the ship). Walls cost stone per cell (start 25), Twin 100 metal, Gatling 250, start with 400 stone and 100 metal; pick-up refunds stone, selling refunds metal. Credits and flat income go.
+- **Nodes block enemies** like terrain (mining one down only opens paths). Frostfall: 3 stone near the ship, 2 metal further out toward the enemy path. A mined-out node grows back at the start of the next planning phase if its space is clear and it wouldn't cut off the path.
+- **Build wheel:** hold Q for walls (7 shapes with counts, x0 greyed), E for towers; centred on the character; the centre picks nothing; slices are cones that run past the wheel; release picks. The wall bar goes; supply drops show a short "+1 T +2 L" notice. No costs in the wheel yet. Look picked from the ore playground (A/B/C).
+- **Keys:** 1–6 are hotbar slots only (1 drops a held wall or tower); LMB places when holding a wall or tower, otherwise fires the tool. Mining runs on real time (game speed doesn't change it; pause freezes it).
+- **Tuning (K):** wall stone cost, tower metal costs, starting stock, node mine time, reach, sprint.
+- **Order:** nodes in the sim → mining and hotbar in `Game` → costs → rendering (shared with the playground) → input → HUD → tuning → docs, headless check, publish.
 - **Answers:** is walking out and mining fun, or a chore? Does building near yourself feel good?
 
 ### M1b: The planet reacts
