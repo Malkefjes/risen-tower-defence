@@ -39,10 +39,14 @@ scene.add(ground);
 // ------------------------------------------------------------------ ore nodes
 
 const NODE_YIELD: Record<NodeKind, number> = { stone: 1000, metal: 500 };
-interface Node { x: number; y: number; n: number; kind: NodeKind; amount: number; max: number; model: OreNodeModel; emptyFor: number }
+interface Node {
+  x: number; y: number; n: number; kind: NodeKind; amount: number; max: number; model: OreNodeModel; emptyFor: number;
+  /** The node's mining hotspot: appears on the first hit, moves only when a stage breaks off. */
+  spot: THREE.Vector3 | null;
+}
 const node = (x: number, y: number, n: number, kind: NodeKind, seed: number): Node => {
   const max = NODE_YIELD[kind];
-  return { x, y, n, kind, amount: max, max, model: createOreNode(n, seed, kind), emptyFor: 0 };
+  return { x, y, n, kind, amount: max, max, model: createOreNode(n, seed, kind), emptyFor: 0, spot: null };
 };
 // One node size (3×3), like Rust. Stone on the left, metal on the right.
 const nodes: Node[] = [
@@ -99,7 +103,7 @@ const anim = new RigAnimator(rig);
 const MINE_TIME = 25 / 3; // seconds per node (about 2.8 s per break stage)
 const RESPAWN = 20; // seconds an empty node stays gone
 /** Mining speed while the cursor is on the hotspot, and how long it takes hits before it hops. */
-const HOTSPOT_BONUS = 1.2, HOTSPOT_HOP = 1.2, HOTSPOT_RADIUS = 0.32;
+const HOTSPOT_BONUS = 1.2, HOTSPOT_RADIUS = 0.32;
 const carried: Record<NodeKind, number> = { stone: 0, metal: 0 };
 
 // ------------------------------------------------------------------ input
@@ -152,31 +156,31 @@ const glintTex = (() => {
   g.beginPath(); g.moveTo(32, 2); g.lineTo(35, 29); g.lineTo(62, 32); g.lineTo(35, 35); g.lineTo(32, 62); g.lineTo(29, 35); g.lineTo(2, 32); g.lineTo(29, 29); g.closePath(); g.fill();
   return new THREE.CanvasTexture(c);
 })();
-const glint = new THREE.Sprite(new THREE.SpriteMaterial({ map: glintTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+// Drawn on top of everything, so the rocks can never hide it.
+const glint = new THREE.Sprite(new THREE.SpriteMaterial({ map: glintTex, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
 glint.visible = false;
 glint.renderOrder = 5;
 scene.add(glint);
-const hotspot = { node: null as Node | null, pos: new THREE.Vector3(), from: new THREE.Vector3(), to: new THREE.Vector3(), move: 1, hit: 0 };
+/** The glint shown for the node in reach; glides when that node's spot moves. */
+const hotspot = { node: null as Node | null, pos: new THREE.Vector3(), from: new THREE.Vector3(), move: 1 };
 const raycaster = new THREE.Raycaster();
 
-/** Put the hotspot on a new point of the node, preferring one on the side facing the camera. */
-function hopHotspot(nd: Node, instant: boolean): void {
+/** Give the node a new hotspot on one of its remaining rocks, preferring the side facing the camera. */
+function placeSpot(nd: Node): void {
   const pts = nd.model.surfacePoints();
-  if (!pts.length) return;
+  if (!pts.length) { nd.spot = null; return; }
   const toCam = CAM_OFFSET.clone().normalize();
   const c = new THREE.Vector3(nd.x + nd.n / 2, 0, nd.y + nd.n / 2);
-  const good = pts.filter(p => p.clone().sub(c).setY(0).dot(toCam) > -0.1 && p.distanceTo(hotspot.to) > 0.35);
-  const pick = (good.length ? good : pts)[Math.floor(Math.random() * (good.length || pts.length))]!;
-  hotspot.from.copy(instant ? pick : hotspot.pos);
-  hotspot.to.copy(pick);
-  hotspot.move = instant ? 1 : 0;
-  hotspot.hit = 0;
+  const good = pts.filter(p => p.clone().sub(c).setY(0).dot(toCam) > -0.1 && (!nd.spot || p.distanceTo(nd.spot) > 0.35));
+  const list = good.length ? good : pts;
+  nd.spot = list[Math.floor(Math.random() * list.length)]!.clone();
 }
 
 /** Is the cursor on the hotspot of this node? */
 function cursorOnHotspot(nd: Node): boolean {
   raycaster.setFromCamera(mouse, camera);
   const hit = raycaster.intersectObject(nd.model.object, true)[0];
+  if (!nd.spot) return false;
   if (hit && hit.point.distanceTo(hotspot.pos) < HOTSPOT_RADIUS) return true;
   // Also accept aiming straight at the glint itself.
   const onScreen = hotspot.pos.clone().project(camera);
@@ -247,10 +251,10 @@ function frame(now: number): void {
   // Mining: hold E within reach of a node. You stand still while mining.
   const target_ = nodeInReach();
   const mining = !!target_ && mouseDown;
-  // The hotspot lives on the node in reach.
-  if (target_ !== hotspot.node) { hotspot.node = target_; if (target_) hopHotspot(target_, true); }
+  // The first hit on a node reveals its hotspot.
+  if (mining && target_ && !target_.spot) placeSpot(target_);
+  if (target_ !== hotspot.node) { hotspot.node = target_; if (target_?.spot) { hotspot.pos.copy(target_.spot); hotspot.move = 1; } }
   const onSpot = !!target_ && cursorOnHotspot(target_);
-  if (mining && onSpot) { hotspot.hit += dt; if (hotspot.hit >= HOTSPOT_HOP) hopHotspot(target_!, false); }
 
   acc += dt;
   let landed = false;
@@ -266,7 +270,8 @@ function frame(now: number): void {
       carried[target_.kind] += got;
       const broke = target_.model.setAmount(target_.amount / target_.max);
       for (const p of broke) breakBurst(p, target_.kind);
-      if (broke.length && target_.amount > 0) hopHotspot(target_, false);
+      // A stage broke off: the hotspot moves to one of the rocks that are left.
+      if (broke.length && target_.amount > 0) { hotspot.from.copy(hotspot.pos); hotspot.move = 0; placeSpot(target_); }
     }
     acc -= TICK;
   }
@@ -274,7 +279,7 @@ function frame(now: number): void {
   for (const nd of nodes) {
     if (nd.amount > 0) continue;
     nd.emptyFor += dt;
-    if (nd.emptyFor >= RESPAWN && !nodeUnderAvatar(nd)) { nd.amount = nd.max; nd.emptyFor = 0; nd.model.setAmount(1); }
+    if (nd.emptyFor >= RESPAWN && !nodeUnderAvatar(nd)) { nd.amount = nd.max; nd.emptyFor = 0; nd.spot = null; nd.model.setAmount(1); }
   }
   shake = Math.max(0, shake - dt);
   const alpha = acc / TICK;
@@ -306,9 +311,9 @@ function frame(now: number): void {
 
   // The glint glides to its new spot, and flares while it's being hit.
   hotspot.move = Math.min(1, hotspot.move + dt * 5);
-  hotspot.pos.lerpVectors(hotspot.from, hotspot.to, 1 - (1 - hotspot.move) ** 2);
-  glint.visible = !!target_ && target_.amount > 0;
-  glint.position.copy(hotspot.pos).add(new THREE.Vector3(0, 0.03, 0));
+  if (target_?.spot) hotspot.pos.lerpVectors(hotspot.from, target_.spot, 1 - (1 - hotspot.move) ** 2);
+  glint.visible = !!target_?.spot && target_.amount > 0;
+  glint.position.copy(hotspot.pos).add(new THREE.Vector3(0, -0.05, 0));
   glint.scale.setScalar((mining && onSpot ? 0.46 : 0.36) * (1 + Math.sin(time * 6) * 0.12));
   glint.material.rotation = time * 0.8;
 
