@@ -6,7 +6,7 @@ import { computeField, keysOf, type FlowField } from "./pathfinding";
 import { pieceCells, type ShapeId } from "./pieces";
 import { Rng } from "./rng";
 import { BOLT_SPEED, defaultTuning, TOWER_INFO, towerCells, type Tower, type TowerKind, type Tuning } from "./towers";
-import { cellKey, type Cell } from "./types";
+import { cellKey, parseKey, type Cell } from "./types";
 import { WALL_DECK, World, type MapDef } from "./world";
 
 export const TICK = 1 / 60;
@@ -116,7 +116,7 @@ export type GameEvent =
   /** A smelter's HP hit 0: it's gone, with what was in it. */
   | { type: "smelter-destroyed"; smelter: Smelter }
   /** Enemies chewed through a wall cell: it's gone, and so is any tower standing on it. */
-  | { type: "wall-broken"; piece: PlacedPiece; cell: Cell }
+  | { type: "wall-broken"; piece: PlacedPiece }
   | { type: "tower-destroyed"; tower: Tower }
   | { type: "repaired"; piece: PlacedPiece }
   | { type: "avatar-landed" }
@@ -308,7 +308,7 @@ export class Game {
     this.world.walls.clear();
     this.world.buildings.clear();
     this.world.targets.clear();
-    this.world.wallHp.clear();
+    this.world.pieceHp.clear();
     this.towerCellsMap.clear();
     this.smelters = [];
     this.pieces = []; this.towers = []; this.walkers = []; this.shots = [];
@@ -435,7 +435,8 @@ export class Game {
     const paid = this.hotbar.remove("stone", this.wallCost(check.cells.length));
     const piece: PlacedPiece = { id: this.nextId++, shape, rot, at, cells: check.cells, locked: this.phase === "wave", paid, metal: false, plated: 0 };
     this.pieces.push(piece);
-    for (const [x, y] of piece.cells) { this.world.walls.set(cellKey(x, y), piece.id); this.world.wallHp.set(cellKey(x, y), this.tuning.wallHp); }
+    for (const [x, y] of piece.cells) this.world.walls.set(cellKey(x, y), piece.id);
+    this.world.pieceHp.set(piece.id, this.tuning.wallHp);
     this.field = computeField(this.world);
     this.events.push({ type: "placed", piece });
     this.noise(this.tuning.noiseWall);
@@ -457,7 +458,8 @@ export class Game {
     const piece = this.pieces.find(p => p.id === pieceId);
     if (!this.canPickUp(piece)) return null;
     this.pieces.splice(this.pieces.indexOf(piece), 1);
-    for (const [x, y] of piece.cells) { this.world.walls.delete(cellKey(x, y)); this.world.wallHp.delete(cellKey(x, y)); }
+    for (const [x, y] of piece.cells) this.world.walls.delete(cellKey(x, y));
+    this.world.pieceHp.delete(piece.id);
     this.field = computeField(this.world);
     this.hotbar.add("stone", piece.paid);
     if (piece.plated) this.hotbar.add("alloy", piece.plated);
@@ -478,29 +480,24 @@ export class Game {
     const piece = this.pieces.find(p => p.id === pieceId);
     if (!this.canPlate(piece)) return false;
     piece.plated = this.hotbar.remove("alloy", this.tuning.platingCost);
-    // Plating toughens the whole piece, keeping each cell's share of damage.
-    for (const [x, y] of piece.cells) {
-      const k = cellKey(x, y);
-      this.world.wallHp.set(k, (this.world.wallHp.get(k) ?? this.tuning.wallHp) * this.tuning.platedHpMult);
-    }
+    // Plating toughens the whole piece, keeping its share of damage.
+    this.world.pieceHp.set(piece.id, (this.world.pieceHp.get(piece.id) ?? this.tuning.wallHp) * this.tuning.platedHpMult);
     piece.metal = true;
     this.field = computeField(this.world);
     this.events.push({ type: "plated", piece });
     return true;
   }
 
-  /** Full HP of one cell of this piece: stone, or plated (tougher). */
+  /** Full HP of a piece: stone, or plated (tougher). */
   wallMaxHp(piece: PlacedPiece): number { return this.tuning.wallHp * (piece.metal ? this.tuning.platedHpMult : 1); }
 
-  /** HP left in a piece and its full HP, over the cells it still has. */
+  /** HP left in a piece and its full HP. */
   pieceHp(piece: PlacedPiece): { hp: number; max: number } {
     const max = this.wallMaxHp(piece);
-    let hp = 0;
-    for (const [x, y] of piece.cells) hp += this.world.wallHp.get(cellKey(x, y)) ?? max;
-    return { hp, max: max * piece.cells.length };
+    return { hp: this.world.pieceHp.get(piece.id) ?? max, max };
   }
 
-  /** Stone to repair a piece: its share of the wall price for the HP it's missing (broken cells are gone). */
+  /** Stone to repair a piece: its share of the wall price for the HP it's missing. */
   repairCost(piece: PlacedPiece): number {
     const { hp, max } = this.pieceHp(piece);
     return max > hp ? Math.ceil(((max - hp) / max) * this.wallCost(piece.cells.length)) : 0;
@@ -515,8 +512,7 @@ export class Game {
     const piece = this.pieces.find(p => p.id === pieceId);
     if (!this.canRepair(piece)) return false;
     this.hotbar.remove("stone", this.repairCost(piece));
-    const max = this.wallMaxHp(piece);
-    for (const [x, y] of piece.cells) this.world.wallHp.set(cellKey(x, y), max);
+    this.world.pieceHp.set(piece.id, this.wallMaxHp(piece));
     this.field = computeField(this.world);
     this.events.push({ type: "repaired", piece });
     return true;
@@ -529,25 +525,25 @@ export class Game {
     this.world.hpToCost = (ENEMY_SPEED * t.enemySpeed) / (Math.max(1, t.wallClawers) * Math.max(0.01, t.enemyDamage));
   }
 
-  /** Enemies chewed a wall cell to 0: it's gone, and so is any tower that stood on it. */
-  private breakWall(key: string): void {
-    const id = this.world.walls.get(key);
+  /**
+   * Enemies chewed a piece to 0: the whole shape goes at once (so the gap fits the same
+   * piece again), and so does any tower standing on it (a 2×2 on two pieces goes if either does).
+   */
+  private breakPiece(id: number): void {
     const piece = this.pieces.find(p => p.id === id);
-    this.world.walls.delete(key);
-    this.world.wallHp.delete(key);
-    const [x, y] = key.split(",").map(Number) as [number, number];
-    if (piece) {
-      piece.cells = piece.cells.filter(([cx, cy]) => cx !== x || cy !== y);
-      if (!piece.cells.length) this.pieces.splice(this.pieces.indexOf(piece), 1);
-    }
-    const tower = this.towerAt(x, y);
-    if (tower) {
+    const cells = piece ? piece.cells : [...this.world.walls].filter(([, v]) => v === id).map(([k]) => parseKey(k));
+    for (const [x, y] of cells) {
+      this.world.walls.delete(cellKey(x, y));
+      const tower = this.towerAt(x, y);
+      if (!tower) continue;
       this.towers.splice(this.towers.indexOf(tower), 1);
       for (const [tx, ty] of tower.cells) this.towerCellsMap.delete(cellKey(tx, ty));
       this.events.push({ type: "tower-destroyed", tower });
     }
+    this.world.pieceHp.delete(id);
+    if (piece) this.pieces.splice(this.pieces.indexOf(piece), 1);
     this.field = computeField(this.world);
-    if (piece) this.events.push({ type: "wall-broken", piece, cell: [x, y] });
+    if (piece) this.events.push({ type: "wall-broken", piece });
   }
 
   /** Undo the most recent unlocked placement. */
@@ -631,9 +627,10 @@ export class Game {
   /** An enemy claws what's at `key`: a wall cell, the ship or a smelter. At 0 HP it's destroyed. */
   private damageTarget(key: string, amount: number): void {
     if (this.world.walls.has(key)) {
-      const hp = (this.world.wallHp.get(key) ?? this.world.defaultWallHp) - amount;
-      if (hp > 0) this.world.wallHp.set(key, hp);
-      else this.breakWall(key);
+      const id = this.world.walls.get(key)!;
+      const hp = (this.world.pieceHp.get(id) ?? this.world.defaultWallHp) - amount;
+      if (hp > 0) this.world.pieceHp.set(id, hp);
+      else this.breakPiece(id);
       return;
     }
     if (this.world.nexus.has(key)) {
@@ -839,8 +836,8 @@ export class Game {
    */
   private moveWalkers(dt: number): void {
     const gone: Walker[] = [];
-    /** Enemies clawing each wall cell this tick: only `wallClawers` of them do damage. */
-    const clawing = new Map<string, number>();
+    /** Enemies clawing each wall piece this tick: only `wallClawers` of them do damage. */
+    const clawing = new Map<number, number>();
     for (const w of this.walkers) {
       w.px = w.x; w.py = w.y;
       if (!this.world.targets.size) { gone.push(w); continue; }
@@ -850,8 +847,8 @@ export class Game {
         // Chewing a wall: keep at it while it's still the quickest way on.
         const n = this.world.walls.has(k) ? this.field.next(w.cx, w.cy) : null;
         if (n && cellKey(n[0], n[1]) === k) {
-          const c = clawing.get(k) ?? 0;
-          if (c < this.tuning.wallClawers) { clawing.set(k, c + 1); if (!w.practice) this.damageTarget(k, this.tuning.enemyDamage * dt); }
+          const pid = this.world.walls.get(k)!, c = clawing.get(pid) ?? 0;
+          if (c < this.tuning.wallClawers) { clawing.set(pid, c + 1); if (!w.practice) this.damageTarget(k, this.tuning.enemyDamage * dt); }
           continue;
         }
         w.attacking = null; // gone, or no longer in the way: walk on from here

@@ -432,7 +432,7 @@ export class GameView {
     for (const ev of events) {
       if (ev.type === "placed" || ev.type === "plated") this.onPlaced(ev.piece);
       else if (ev.type === "smelter-destroyed") this.onKilled(ev.smelter.cx, ev.smelter.cy, 26, this.debrisMat);
-      else if (ev.type === "wall-broken") { this.onKilled(ev.cell[0] + 0.5, ev.cell[1] + 0.5, 18, this.stoneDebrisMat); this.shake = Math.max(this.shake, 0.08); }
+      else if (ev.type === "wall-broken") { for (const [x, y] of ev.piece.cells) this.onKilled(x + 0.5, y + 0.5, 12, this.stoneDebrisMat); this.shake = Math.max(this.shake, 0.12); }
       else if (ev.type === "tower-destroyed") this.onKilled(ev.tower.cx, ev.tower.cy, 22, this.debrisMat);
       else if (ev.type === "tower-built") { const v = this.towers.get(ev.tower.id); if (v) v.drop = 0.12; }
       else if (ev.type === "shot") this.onShot(ev.shot);

@@ -60,7 +60,7 @@ export interface Tuning {
   smelterHp: number;
   /** Damage per second one enemy does to the building it's clawing. */
   enemyDamage: number;
-  /** HP of a stone wall cell; plating multiplies it. At most `wallClawers` enemies claw one wall cell at a time. */
+  /** HP of a stone wall piece (it breaks as a whole); plating multiplies it. At most `wallClawers` enemies claw one piece at a time. */
   wallHp: number;
   platedHpMult: number;
   wallClawers: number;
@@ -109,7 +109,7 @@ export const defaultTuning = (): Tuning => ({
   startHp: 400,
   smelterHp: 150,
   enemyDamage: 2,
-  wallHp: 300,
+  wallHp: 600,
   platedHpMult: 3,
   wallClawers: 2,
   enemyHp: 6,

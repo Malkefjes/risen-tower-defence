@@ -72,15 +72,18 @@ export class World {
    * Enemies path to the nearest one and attack it from a neighbouring cell.
    */
   readonly targets = new Set<string>();
-  /** HP left in each wall cell. Walls are slow obstacles: enemies can chew through them. */
-  readonly wallHp = new Map<string, number>();
+  /**
+   * HP left in each wall piece, by piece id. Walls are slow obstacles: enemies chew
+   * through a whole piece, and it breaks as a whole (every cell of its shape).
+   */
+  readonly pieceHp = new Map<number, number>();
   /**
    * How much a wall's HP weighs in pathfinding, in cells of walking per HP: the time
    * it takes to chew through (at the most enemies that can claw one cell at once)
    * turned into distance at walking speed. Set by the game from its tuning.
    */
   hpToCost = 0.37;
-  /** HP of a wall cell with no entry in `wallHp` (walls set up directly, as in tests). */
+  /** HP of a wall piece with no entry in `pieceHp` (walls set up directly, as in tests). */
   defaultWallHp = 300;
   private staticBounds: Bounds;
 
@@ -161,7 +164,7 @@ export class World {
     mark(this.buildings.keys());
     mark(this.nexus);
     if (extra && extraWallHp === undefined) mark(extra);
-    mark(this.walls.keys(), 2, k => this.wallHp.get(k) ?? this.defaultWallHp);
+    mark(this.walls.keys(), 2, k => this.pieceHp.get(this.walls.get(k)!) ?? this.defaultWallHp);
     if (extra && extraWallHp !== undefined) mark(extra, 2, () => extraWallHp);
     return { grid, cost };
   }
