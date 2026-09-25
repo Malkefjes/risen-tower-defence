@@ -74,14 +74,48 @@ describe("avatar in the game", () => {
     g.avatarInput = { x: 0, y: 0, jump: false };
     expect(g.avatar.z).toBeCloseTo(WALL_DECK);
     expect(g.avatar.x).toBeLessThan(7);
-    // A second jump from the deck, with a gentle push, lands on the tower.
+    // A second jump from the deck, steering until over the tower, lands on it.
     ticks(g, 30);
     g.avatarInput = { x: 0.6, y: 0, jump: true };
-    ticks(g, 25);
+    for (let i = 0; i < 60; i++) { if (g.avatar.x > 7.4) g.avatarInput.x = 0; ticks(g, 1); }
     g.avatarInput = { x: 0, y: 0, jump: false };
     ticks(g, 40);
     expect(g.avatar.z).toBeCloseTo(WALL_DECK + 0.45);
     expect(g.avatar.x + g.avatarTuning.radius).toBeGreaterThan(7);
+  });
+
+  it("a tower leaves a rim of wall around it: jump onto the rim from the snow, then onto the tower", () => {
+    const g = new Game(open({ start: [3, 5] }), { seed: 1, tuning: { startMetal: 500 } });
+    g.world.walls.set("6,5", 1);
+    g.buildTower("twin", [6, 5]);
+    // The tower is out of reach from the snow...
+    expect(WALL_DECK + 0.45).toBeGreaterThan(g.avatarTuning.jumpHeight + g.avatarTuning.stepUp);
+    // ...but a jump lands on the rim in front of it.
+    g.avatarInput = { x: 1, y: 0, jump: true };
+    for (let i = 0; i < 60; i++) { g.stepAvatar(); if (g.avatar.grounded && g.avatar.z > 0) g.avatarInput.x = 0; }
+    expect(g.avatar.z).toBeCloseTo(WALL_DECK);
+    // From the rim, a short hop gets on top of the tower.
+    g.avatarInput = { x: 1, y: 0, jump: true };
+    for (let i = 0; i < 60; i++) { g.stepAvatar(); if (g.avatar.x > 6.5) g.avatarInput.x = 0; }
+    expect(g.avatar.z).toBeCloseTo(WALL_DECK + 0.45);
+  });
+
+  it("walking beside a wall with a tower on it is unchanged: the wall still blocks at ground level", () => {
+    const g = new Game(open({ start: [3, 4] }), { seed: 1, tuning: { startMetal: 500 } });
+    g.world.walls.set("6,5", 1);
+    g.buildTower("twin", [6, 5]);
+    // Run past along the row above it, then into it from the side.
+    g.avatarInput = { x: 1, y: 0, jump: false };
+    for (let i = 0; i < 90; i++) g.stepAvatar();
+    expect(g.avatar.x).toBeGreaterThan(8);
+    expect(g.avatar.z).toBe(0);
+    const h = new Game(open({ start: [3, 5] }), { seed: 1, tuning: { startMetal: 500 } });
+    h.world.walls.set("6,5", 1);
+    h.buildTower("twin", [6, 5]);
+    h.avatarInput = { x: 1, y: 0, jump: false };
+    for (let i = 0; i < 90; i++) h.stepAvatar();
+    expect(h.avatar.x + h.avatarTuning.radius).toBeLessThanOrEqual(6);
+    expect(h.avatar.z).toBe(0);
   });
 
   it("a new run puts the avatar back at the start", () => {

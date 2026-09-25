@@ -72,6 +72,8 @@ export class Avatar {
   landed = false;
   /** True on the tick the avatar left the ground by jumping. */
   jumped = false;
+  /** Grid steps per cell for this tick's collision (see `step`). */
+  private sub = 1;
   /** State at the start of the last tick, so the renderer can draw in between ticks. */
   prevX: number; prevY: number; prevZ = 0; prevFacing = 0;
 
@@ -86,7 +88,13 @@ export class Avatar {
 
   get speed(): number { return Math.hypot(this.vx, this.vy); }
 
-  step(dt: number, input: AvatarInput, heightAt: HeightAt, t: AvatarTuning, standable: Standable = () => true): void {
+  /**
+   * `sub`: how finely the world is described, in steps per cell. At 1, `heightAt`
+   * and `standable` get cell coordinates; at 8 they get eighth-of-a-cell
+   * coordinates, so a world can have thin features (the rim of a wall around a tower).
+   */
+  step(dt: number, input: AvatarInput, heightAt: HeightAt, t: AvatarTuning, standable: Standable = () => true, sub = 1): void {
+    this.sub = sub;
     this.landed = false;
     this.jumped = false;
     this.prevX = this.x; this.prevY = this.y; this.prevZ = this.z; this.prevFacing = this.facing;
@@ -140,40 +148,46 @@ export class Avatar {
     }
   }
 
-  /** Is the cell too tall to be inside of, at the current height? */
+  /** Is the grid cell too tall to be inside of, at the current height? */
   private solid(cx: number, cy: number, heightAt: HeightAt, t: AvatarTuning): boolean {
     return heightAt(cx, cy) > this.z + t.stepUp;
   }
 
+  /** Grid cells under the footprint, as [x0, x1, y0, y1] (inclusive). */
+  private span(r: number): [number, number, number, number] {
+    const S = this.sub;
+    return [Math.floor((this.x - r) * S), Math.floor((this.x + r - EPS) * S), Math.floor((this.y - r) * S), Math.floor((this.y + r - EPS) * S)];
+  }
+
   private moveAxis(axis: "x" | "y", d: number, heightAt: HeightAt, t: AvatarTuning): void {
     if (d === 0) return;
-    const r = t.radius;
+    const r = t.radius, S = this.sub;
     if (axis === "x") this.x += d; else this.y += d;
-    const x0 = Math.floor(this.x - r), x1 = Math.floor(this.x + r - EPS);
-    const y0 = Math.floor(this.y - r), y1 = Math.floor(this.y + r - EPS);
+    const [x0, x1, y0, y1] = this.span(r);
     for (let cy = y0; cy <= y1; cy++) for (let cx = x0; cx <= x1; cx++) {
       if (!this.solid(cx, cy, heightAt, t)) continue;
       if (axis === "x") {
-        this.x = d > 0 ? cx - r - EPS : cx + 1 + r + EPS;
+        this.x = d > 0 ? cx / S - r - EPS : (cx + 1) / S + r + EPS;
         this.vx = 0;
       } else {
-        this.y = d > 0 ? cy - r - EPS : cy + 1 + r + EPS;
+        this.y = d > 0 ? cy / S - r - EPS : (cy + 1) / S + r + EPS;
         this.vy = 0;
       }
       return;
     }
   }
 
-  /** Push the footprint out of any cell taller than the feet, along the shortest way out. */
+  /** Push the footprint out of anything taller than the feet that it can't land on, along the shortest way out. */
   private depenetrate(heightAt: HeightAt, t: AvatarTuning, standable: Standable, reach: number): void {
-    const r = t.radius;
+    const r = t.radius, S = this.sub;
     for (let i = 0; i < 4; i++) {
       let hit = false;
-      for (let cy = Math.floor(this.y - r); cy <= Math.floor(this.y + r - EPS) && !hit; cy++) {
-        for (let cx = Math.floor(this.x - r); cx <= Math.floor(this.x + r - EPS) && !hit; cx++) {
+      const [x0, x1, y0, y1] = this.span(r);
+      for (let cy = y0; cy <= y1 && !hit; cy++) {
+        for (let cx = x0; cx <= x1 && !hit; cx++) {
           if (!this.solid(cx, cy, heightAt, t) || (standable(cx, cy) && heightAt(cx, cy) <= reach)) continue;
           hit = true;
-          const left = this.x + r - cx, right = cx + 1 - (this.x - r), up = this.y + r - cy, down = cy + 1 - (this.y - r);
+          const left = this.x + r - cx / S, right = (cx + 1) / S - (this.x - r), up = this.y + r - cy / S, down = (cy + 1) / S - (this.y - r);
           const m = Math.min(left, right, up, down);
           if (m === left) this.x -= left + EPS; else if (m === right) this.x += right + EPS;
           else if (m === up) this.y -= up + EPS; else this.y += down + EPS;
@@ -185,8 +199,9 @@ export class Avatar {
 
   private supportHeight(heightAt: HeightAt, standable: Standable, r: number, reach: number): number {
     let best = 0;
-    for (let cy = Math.floor(this.y - r); cy <= Math.floor(this.y + r - EPS); cy++) {
-      for (let cx = Math.floor(this.x - r); cx <= Math.floor(this.x + r - EPS); cx++) {
+    const [x0, x1, y0, y1] = this.span(r);
+    for (let cy = y0; cy <= y1; cy++) {
+      for (let cx = x0; cx <= x1; cx++) {
         if (!standable(cx, cy)) continue;
         const h = heightAt(cx, cy);
         if (h <= reach && h > best) best = h;

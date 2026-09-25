@@ -117,9 +117,11 @@ export function createMaterials() {
     crystal: std("#8ff5e8", { emissive: P.crystal, emissiveIntensity: 0.9, roughness: 0.3 }),
     rift: std("#2a2140", { roughness: 1 }),
     riftRing: std(P.alien, { emissive: P.alien, emissiveIntensity: 0.6, transparent: true }),
-    ghostOk: std("#2fbfae", { transparent: true, opacity: 0.5, depthWrite: false, emissive: "#2fbfae", emissiveIntensity: 0.35 }),
-    ghostBad: std("#e0445e", { transparent: true, opacity: 0.5, depthWrite: false, emissive: "#e0445e", emissiveIntensity: 0.35 }),
-    footOk: new THREE.MeshBasicMaterial({ color: "#2fbfae", transparent: true, opacity: 0.35, depthWrite: false }),
+    // Blueprint of a wall or tower about to be placed: the colony orange when it fits;
+    // grey (with a red footprint) when it doesn't, so the two never look alike.
+    ghostOk: std(COLONY_ORANGE, { transparent: true, opacity: 0.5, depthWrite: false, emissive: "#ff8a4a", emissiveIntensity: 0.35 }),
+    ghostBad: std("#8a8599", { transparent: true, opacity: 0.45, depthWrite: false, emissive: "#5a5670", emissiveIntensity: 0.2 }),
+    footOk: new THREE.MeshBasicMaterial({ color: COLONY_ORANGE, transparent: true, opacity: 0.35, depthWrite: false }),
     footBad: new THREE.MeshBasicMaterial({ color: "#e0445e", transparent: true, opacity: 0.35, depthWrite: false }),
     path: new THREE.MeshBasicMaterial({ color: P.path }),
     pathFaint: new THREE.MeshBasicMaterial({ color: "#e9e4ff", transparent: true, opacity: 0.5 }),

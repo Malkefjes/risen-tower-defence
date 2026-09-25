@@ -11,6 +11,10 @@ import { WALL_DECK, World, type MapDef } from "./world";
 /** Random walls delivered at the start of every round. Unused walls carry over. */
 export const SUPPLY_PER_ROUND = 3;
 export const TICK = 1 / 60;
+/** The avatar collides with the world in eighths of a cell (for the rim around towers). */
+export const AVATAR_SUB = 8;
+/** Width of the wall rim left around a tower, in eighths of a cell. */
+const RIM = 1;
 
 export type Phase = "planning" | "wave" | "over";
 
@@ -184,6 +188,26 @@ export class Game {
 
   /** Trees can be cleared by a jump but never stood on. */
   readonly standable = (x: number, y: number): boolean => !this.world.isTree(x, y);
+
+  /**
+   * The avatar's view of the world, in eighths of a cell. Everything fills whole
+   * cells, except a tower: it leaves a thin rim of wall deck along its outer
+   * sides, so you can jump onto the wall next to a tower and then onto the tower.
+   */
+  readonly heightAtFine = (sx: number, sy: number): number => {
+    const S = AVATAR_SUB, cx = Math.floor(sx / S), cy = Math.floor(sy / S);
+    const tower = this.towerAt(cx, cy);
+    if (tower) {
+      const lx = sx - cx * S, ly = sy - cy * S;
+      const same = (x: number, y: number) => this.towerAt(x, y) === tower;
+      const rim = (lx < RIM && !same(cx - 1, cy)) || (lx >= S - RIM && !same(cx + 1, cy))
+        || (ly < RIM && !same(cx, cy - 1)) || (ly >= S - RIM && !same(cx, cy + 1));
+      if (rim) return WALL_DECK;
+    }
+    return this.heightAt(cx, cy);
+  };
+  readonly standableFine = (sx: number, sy: number): boolean =>
+    this.standable(Math.floor(sx / AVATAR_SUB), Math.floor(sy / AVATAR_SUB));
 
 
   /** Cells under the avatar's footprint. */
@@ -470,7 +494,7 @@ export class Game {
     this.avatarTuning.sprint = this.tuning.sprint;
     // Sprint is a travel mode: firing the tool drops back to running speed.
     const input = { ...this.avatarInput, sprint: this.avatarInput.sprint && !this.mineInput.firing };
-    this.avatar.step(dt, input, this.heightAt, this.avatarTuning, this.standable);
+    this.avatar.step(dt, input, this.heightAtFine, this.avatarTuning, this.standableFine, AVATAR_SUB);
     this.avatarInput.jump = false;
     if (this.avatar.landed) this.events.push({ type: "avatar-landed" });
     // Mining is the player's own action, so it runs on real time too.
