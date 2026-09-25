@@ -12,8 +12,9 @@ const std = (color: string, o: THREE.MeshStandardMaterialParameters = {}) =>
 
 export function createShipMaterials() {
   return {
-    hull: std("#e4e8f0", { roughness: 0.6 }),
-    hullShade: std("#c3c9d6", { roughness: 0.65 }),
+    // Wall greys: the hull matches the wall deck, shaded parts the wall steel.
+    hull: std("#4a5266", { roughness: 0.6 }),
+    hullShade: std("#3d4457", { roughness: 0.6 }),
     orange: colonyOrange(),
     orangeDark: colonyOrange(),
     steel: std("#3d4457", { roughness: 0.55 }),
