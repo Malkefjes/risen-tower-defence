@@ -2,7 +2,7 @@ import * as THREE from "three";
 
 /**
  * An ore node (Erik's pick: the B1 ore body from mockups/ore-b, without the
- * crater): a mound of dark rock streaked with dull gold, sitting on the snow.
+ * crater): a mound of grey stone streaked with silver ore, sitting on the snow.
  * `setAmount(0..1)` shrinks it as it's mined out.
  */
 
@@ -11,10 +11,11 @@ const std = (color: string, o: THREE.MeshStandardMaterialParameters = {}) =>
 let M: ReturnType<typeof palette> | undefined;
 // Created on first use, after colour management is switched off.
 const palette = () => ({
-  body: std("#3f3a36"),
-  bodyWarm: std("#4d4238"),
-  gold: std("#d9a441", { metalness: 0.4, roughness: 0.45, emissive: "#8a5a14", emissiveIntensity: 0.4 }),
-  goldBright: std("#efc25c", { metalness: 0.45, roughness: 0.35, emissive: "#a36b18", emissiveIntensity: 0.45 }),
+  // Grey stone with silver ore. The silver glows a little so it reads cool against the warm evening light.
+  body: std("#4a4f5c"),
+  bodyWarm: std("#555a67"),
+  gold: std("#dfe7f0", { metalness: 0.5, roughness: 0.3, emissive: "#9fb1c6", emissiveIntensity: 0.45 }),
+  goldBright: std("#f6faff", { metalness: 0.5, roughness: 0.25, emissive: "#c3d2e4", emissiveIntensity: 0.55 }),
 });
 
 function rng(seed: number) {

@@ -111,8 +111,8 @@ function moveInput(): { x: number; y: number } {
 // ------------------------------------------------------------------ effects
 
 const sparkGeo = new THREE.BoxGeometry(0.035, 0.035, 0.035);
-const sparkMat = new THREE.MeshBasicMaterial({ color: "#ffe29a" });
-const chipMat = new THREE.MeshStandardMaterial({ color: "#d9a441", flatShading: true });
+const sparkMat = new THREE.MeshBasicMaterial({ color: "#e8f4ff" });
+const chipMat = new THREE.MeshStandardMaterial({ color: "#d6dde8", metalness: 0.5, roughness: 0.3, flatShading: true });
 const sparks: { m: THREE.Mesh; v: THREE.Vector3; life: number }[] = [];
 let shake = 0;
 /** A rock breaking off: a burst of ore chunks and a small shake. */
@@ -127,7 +127,7 @@ function breakBurst(at: THREE.Vector3): void {
   }
 }
 const chunkGeo = new THREE.DodecahedronGeometry(0.06, 0);
-const rockMat = new THREE.MeshStandardMaterial({ color: "#3f3a36", flatShading: true });
+const rockMat = new THREE.MeshStandardMaterial({ color: "#4a4f5c", flatShading: true });
 /** Does the avatar stand in this node's footprint (so it can't respawn on top of them)? */
 function nodeUnderAvatar(nd: Node): boolean {
   const r = T.radius;
