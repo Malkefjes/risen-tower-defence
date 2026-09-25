@@ -40,6 +40,8 @@ export interface Walker {
   id: number;
   /** Continuous position; a cell's center is (x + 0.5, y + 0.5). */
   x: number; y: number;
+  /** Position before the last tick, so the view can draw between ticks. */
+  px?: number; py?: number;
   /** Cell it last stood in, and the cell it's walking to. */
   cx: number; cy: number;
   tx: number; ty: number;
@@ -540,6 +542,7 @@ export class Game {
   private moveWalkers(dt: number): void {
     const arrived: Walker[] = [];
     for (const w of this.walkers) {
+      w.px = w.x; w.py = w.y;
       let budget = w.speed * dt;
       while (budget > 0) {
         const gx = w.tx + 0.5, gy = w.ty + 0.5, dx = gx - w.x, dy = gy - w.y, L = Math.hypot(dx, dy);

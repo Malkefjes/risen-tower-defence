@@ -72,7 +72,9 @@ function frame(now: number): void {
   hud.frame(dt, (x, y, z) => view.screenOf(x, y, z));
   syncTools();
   // Draw moving things between the last two ticks, so they stay smooth at any refresh rate.
-  view.render(dt, simDt, overlay, events, Math.min(1, avatarAcc / TICK));
+  // The world's clock for animation runs every frame (not just on ticks), at game speed.
+  const worldDt = controller.paused ? 0 : dt * controller.speed;
+  view.render(dt, simDt, overlay, events, Math.min(1, avatarAcc / TICK), worldDt, Math.min(1, acc / TICK));
   // Numbers for headless checks: draws and triangles last frame, and enemies on the map.
   (window as unknown as { perfInfo: object }).perfInfo = { calls: view.renderer.info.render.calls, tris: view.renderer.info.render.triangles, walkers: game.walkers.length, phase: game.phase, active: game.activeSpawners() };
   requestAnimationFrame(frame);

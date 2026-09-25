@@ -106,7 +106,7 @@ export class GameView {
   private barGeo = new THREE.PlaneGeometry(0.5, 0.07);
   private barFillGeo = new THREE.PlaneGeometry(0.5, 0.07).translate(0.25, 0, 0);
   private barBgMat = new THREE.MeshBasicMaterial({ color: "#241f3d" });
-  private barFillMat = new THREE.MeshBasicMaterial({ color: "#ff8a5c" });
+  private barFillMat = new THREE.MeshBasicMaterial({ color: "#e0262b" });
   private towerGhosts: Record<TowerKind, THREE.Object3D>;
   private rangeRing: THREE.Mesh;
   private rangeDisc: THREE.Mesh;
@@ -394,7 +394,7 @@ export class GameView {
   // ------------------------------------------------------------------ frame
 
   /** `alpha` is how far the simulation is between its last tick and the next (0..1). */
-  render(frameDt: number, simDt: number, o: Overlay, events: readonly GameEvent[], alpha = 1): void {
+  render(frameDt: number, simDt: number, o: Overlay, events: readonly GameEvent[], alpha = 1, worldDt = simDt, worldAlpha = 1): void {
     this.time += frameDt;
     const t = this.time;
     // Sync first so shots from this frame find their towers and targets.
@@ -411,7 +411,7 @@ export class GameView {
     }
     this.mining.onEvents(events);
     const landed = events.some(e => e.type === "avatar-landed");
-    this.syncWalkers(simDt);
+    this.syncWalkers(worldDt, worldAlpha);
     this.aimTowers(simDt);
     this.updateBolts(simDt);
     this.updateGhost(o);
@@ -544,8 +544,12 @@ export class GameView {
     stone.loose.emissiveIntensity = 0.08 + 0.14 * breath;
   }
 
-  /** Enemies are leapers: they climb up out of the cave mouth, walk with their stride, flash when hit. */
-  private syncWalkers(simDt: number): void {
+  /**
+   * Enemies are leapers: they climb up out of the cave mouth, walk with their stride, flash when hit.
+   * Drawn between the last two ticks (`alpha`) and animated on the world's clock every frame
+   * (`dt`, 0 while paused), so they move smoothly at any refresh rate.
+   */
+  private syncWalkers(dt: number, alpha: number): void {
     const alive = new Set<number>();
     for (const w of this.game.walkers) {
       alive.add(w.id);
@@ -561,20 +565,21 @@ export class GameView {
         this.walkers.set(w.id, o);
       }
       const e = o.userData.enemy as Enemy;
-      o.userData.t += simDt;
-      o.userData.flash = Math.max(0, ((o.userData.flash as number) ?? 0) - simDt);
+      o.userData.t += dt;
+      o.userData.flash = Math.max(0, ((o.userData.flash as number) ?? 0) - dt);
       e.flash((o.userData.flash as number) > 0 ? 1 : 0);
-      e.update(o.userData.t as number, simDt > 0);
-      this.syncBar(w.id, w.x, w.y, w.hp / w.maxHp);
+      e.update(o.userData.t as number, true);
+      const x = (w.px ?? w.x) + (w.x - (w.px ?? w.x)) * alpha, y = (w.py ?? w.y) + (w.y - (w.py ?? w.y)) * alpha;
+      this.syncBar(w.id, x, y, w.hp / w.maxHp);
       // Climbing out: below the snow at the mouth, up on it half a cell out.
-      const [fx, fy] = o.userData.from as [number, number], out = Math.hypot(w.x - fx, w.y - fy);
-      o.position.set(w.x, -0.25 * Math.max(0, 1 - out / 0.5), w.y);
+      const [fx, fy] = o.userData.from as [number, number], out = Math.hypot(x - fx, y - fy);
+      o.position.set(x, -0.25 * Math.max(0, 1 - out / 0.5), y);
       const dx = w.tx + 0.5 - w.x, dz = w.ty + 0.5 - w.y;
       if (dx * dx + dz * dz > 1e-6) {
         const want = Math.atan2(dx, dz);
         let d = want - o.rotation.y;
         d = Math.atan2(Math.sin(d), Math.cos(d));
-        o.rotation.y += d * Math.min(1, simDt * 14);
+        o.rotation.y += d * Math.min(1, dt * 8);
       }
     }
     for (const [id, o] of this.walkers) if (!alive.has(id)) { this.scene.remove(o); this.walkers.delete(id); }
