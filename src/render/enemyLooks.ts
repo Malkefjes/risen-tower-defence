@@ -14,14 +14,13 @@ const std = (color: string, o: THREE.MeshStandardMaterialParameters = {}) =>
   new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0, flatShading: true, ...o });
 let M: ReturnType<typeof palette> | undefined;
 // Created on first use, after colour management is switched off.
-const palette = () => ({
-  // Deep purple all over (Erik), with a faint glow so it stays purple in the warm evening light.
-  chitin: std("#5a2a8c", { roughness: 0.3, emissive: "#2a0f4a", emissiveIntensity: 0.3 }),
-  chitinDark: std("#3a1760", { roughness: 0.35, emissive: "#1a0833", emissiveIntensity: 0.3 }),
-  hide: std("#6e3aa0", { roughness: 0.6, emissive: "#301352", emissiveIntensity: 0.25 }),
-  bone: std("#8452b8", { roughness: 0.4, emissive: "#351660", emissiveIntensity: 0.25 }),
-  eye: new THREE.MeshBasicMaterial({ color: "#0d1a2a" }),
-});
+// One dark purple for the whole creature (Erik), soft and matte with smooth shading
+// so it reads as living tissue, not ice or glass; a faint glow keeps it purple at dusk.
+const palette = () => {
+  const flesh = new THREE.MeshStandardMaterial({ color: "#2a0f44", roughness: 0.8, metalness: 0, emissive: "#160626", emissiveIntensity: 0.3 });
+  return { chitin: flesh, chitinDark: flesh, hide: flesh, bone: flesh, eye: new THREE.MeshBasicMaterial({ color: "#0d1a2a" }) };
+};
+void std;
 
 const mesh = (g: THREE.BufferGeometry, m: THREE.Material, x = 0, y = 0, z = 0) => {
   const o = new THREE.Mesh(g, m);
@@ -31,13 +30,14 @@ const mesh = (g: THREE.BufferGeometry, m: THREE.Material, x = 0, y = 0, z = 0) =
 };
 /** A tapered limb segment hanging down from its pivot (length along -y). */
 const seg = (len: number, r0: number, r1: number, m: THREE.Material) => {
-  const g = new THREE.CylinderGeometry(r0, r1, len, 5);
+  // Round, with rounded ends, so limbs read as flesh, not cut rods.
+  const g = new THREE.CapsuleGeometry((r0 + r1) / 2, Math.max(0.001, len - (r0 + r1) / 2), 3, 8);
   g.translate(0, -len / 2, 0);
   return mesh(g, m);
 };
 /** A chitin plate: a flattened, faceted shell. */
 const plate = (sx: number, sy: number, sz: number, m: THREE.Material) => {
-  const g = new THREE.DodecahedronGeometry(0.5, 0);
+  const g = new THREE.IcosahedronGeometry(0.5, 2);
   g.scale(sx, sy, sz);
   return mesh(g, m);
 };
@@ -47,7 +47,7 @@ const blade = (len: number, m: THREE.Material) => {
   s.moveTo(0, 0);
   s.quadraticCurveTo(len * 0.55, -len * 0.35, len * 0.25, -len);
   s.quadraticCurveTo(len * 0.25, -len * 0.45, -len * 0.08, -len * 0.05);
-  const g = new THREE.ExtrudeGeometry(s, { depth: 0.02, bevelEnabled: false });
+  const g = new THREE.ExtrudeGeometry(s, { depth: 0.012, curveSegments: 10, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.01, bevelSegments: 3 });
   g.translate(0, 0, -0.01);
   g.rotateY(-Math.PI / 2); // curve sweeps toward +z
   return mesh(g, m);
@@ -166,7 +166,7 @@ export function enemyLook(look: EnemyLook): Enemy {
     tail = joint(body, 0, 0.0, -0.22);
     let t: THREE.Object3D = tail;
     for (let i = 0; i < 6; i++) { const s = seg(0.13, 0.045 - i * 0.006, 0.04 - i * 0.006, i % 2 ? m.chitinDark : m.chitin); s.rotation.x = Math.PI / 2 - 0.12; const j = joint(t, 0, 0, i ? -0.12 : 0); j.add(s); t = j; }
-    const sting = new THREE.ConeGeometry(0.03, 0.12, 4); sting.rotateX(-Math.PI / 2);
+    const sting = new THREE.ConeGeometry(0.03, 0.12, 10); sting.rotateX(-Math.PI / 2);
     t.add(mesh(sting, m.bone, 0, 0, -0.18));
     bobH = 0.045;
   }
