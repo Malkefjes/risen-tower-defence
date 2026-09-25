@@ -54,7 +54,20 @@ for (const nd of nodes) {
   nd.model.setAmount(1);
   scene.add(nd.model.object);
 }
-const nodeAt = (x: number, y: number) => nodes.find(nd => nd.amount > 0 && x >= nd.x && x < nd.x + nd.n && y >= nd.y && y < nd.y + nd.n);
+/**
+ * Cells a node still blocks, shrinking as it breaks: the full 3×3, then a plus
+ * shape (centre and its four neighbours), then only the centre cell.
+ */
+function blocks(nd: Node, x: number, y: number): boolean {
+  if (nd.amount <= 0) return false;
+  const dx = x - (nd.x + 1), dy = y - (nd.y + 1);
+  if (Math.abs(dx) > 1 || Math.abs(dy) > 1) return false;
+  const f = nd.amount / nd.max;
+  if (f > 2 / 3) return true;
+  if (f > 1 / 3) return Math.abs(dx) + Math.abs(dy) <= 1;
+  return dx === 0 && dy === 0;
+}
+const nodeAt = (x: number, y: number) => nodes.find(nd => blocks(nd, x, y));
 // Nodes are solid; everything else is snow.
 const heightAt = (x: number, y: number) => (nodeAt(x, y) ? Infinity : 0);
 
@@ -64,10 +77,12 @@ function nodeInReach(): Node | null {
   let best: Node | null = null, bestD = REACH;
   for (const nd of nodes) {
     if (nd.amount <= 0) continue;
-    const dx = Math.max(nd.x - avatar.x, 0, avatar.x - (nd.x + nd.n));
-    const dy = Math.max(nd.y - avatar.y, 0, avatar.y - (nd.y + nd.n));
-    const d = Math.hypot(dx, dy);
-    if (d < bestD) { bestD = d; best = nd; }
+    // Distance to the nearest cell the node still blocks.
+    for (let y = nd.y; y < nd.y + nd.n; y++) for (let x = nd.x; x < nd.x + nd.n; x++) {
+      if (!blocks(nd, x, y)) continue;
+      const d = Math.hypot(Math.max(x - avatar.x, 0, avatar.x - (x + 1)), Math.max(y - avatar.y, 0, avatar.y - (y + 1)));
+      if (d < bestD) { bestD = d; best = nd; }
+    }
   }
   return best;
 }
@@ -130,10 +145,10 @@ const glintTex = (() => {
   c.width = c.height = 64;
   const g = c.getContext("2d")!;
   const rg = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-  rg.addColorStop(0, "rgba(255,255,255,1)"); rg.addColorStop(0.18, "rgba(255,248,225,.9)"); rg.addColorStop(0.45, "rgba(255,230,170,.25)"); rg.addColorStop(1, "rgba(255,230,170,0)");
+  rg.addColorStop(0, "rgba(255,255,255,.9)"); rg.addColorStop(0.08, "rgba(255,248,225,.75)"); rg.addColorStop(0.28, "rgba(255,230,170,.18)"); rg.addColorStop(1, "rgba(255,230,170,0)");
   g.fillStyle = rg; g.fillRect(0, 0, 64, 64);
   // A four-point star so it reads as a glint, not just a blob.
-  g.fillStyle = "rgba(255,255,255,.85)";
+  g.fillStyle = "rgba(255,255,255,.7)";
   g.beginPath(); g.moveTo(32, 2); g.lineTo(35, 29); g.lineTo(62, 32); g.lineTo(35, 35); g.lineTo(32, 62); g.lineTo(29, 35); g.lineTo(2, 32); g.lineTo(29, 29); g.closePath(); g.fill();
   return new THREE.CanvasTexture(c);
 })();
@@ -191,6 +206,7 @@ const rockMat = new THREE.MeshStandardMaterial({ color: "#4a4f5c", flatShading: 
 /** Does the avatar stand in this node's footprint (so it can't respawn on top of them)? */
 function nodeUnderAvatar(nd: Node): boolean {
   const r = T.radius;
+  // Respawning restores the full 3×3, so keep it clear of the avatar.
   return avatar.x + r > nd.x && avatar.x - r < nd.x + nd.n && avatar.y + r > nd.y && avatar.y - r < nd.y + nd.n;
 }
 /** A spark, or a small chip of the node's material. */
@@ -293,7 +309,7 @@ function frame(now: number): void {
   hotspot.pos.lerpVectors(hotspot.from, hotspot.to, 1 - (1 - hotspot.move) ** 2);
   glint.visible = !!target_ && target_.amount > 0;
   glint.position.copy(hotspot.pos).add(new THREE.Vector3(0, 0.03, 0));
-  glint.scale.setScalar((mining && onSpot ? 0.7 : 0.52) * (1 + Math.sin(time * 6) * 0.12));
+  glint.scale.setScalar((mining && onSpot ? 0.46 : 0.36) * (1 + Math.sin(time * 6) * 0.12));
   glint.material.rotation = time * 0.8;
 
   const left = target_ ? `  ·  node ${Math.ceil(target_.amount)} / ${target_.max}` : "";
