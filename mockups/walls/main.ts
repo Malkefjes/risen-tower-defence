@@ -12,7 +12,7 @@ import "./style.css";
 
 // Wall playground: every piece is placed as a stone wall; right-click holds open a
 // wheel on that wall with Metal plating, which turns the whole piece into the
-// Armored deck (the wall towers stand on). Stone looks A, B, C to pick from.
+// Armored deck (the wall towers stand on). Stone looks C, C1, C2 to pick from.
 
 THREE.ColorManagement.enabled = false;
 
@@ -50,16 +50,16 @@ const pieces: Piece[] = [];
 /** cell -> piece id */
 const walls = new Map<string, number>();
 let nextId = 1;
-let look: StoneLook = "A";
+let look: StoneLook = "C";
 const LOOK_KEY = "risen.walls.stoneLook";
-try { const l = localStorage.getItem(LOOK_KEY); if (l === "A" || l === "B" || l === "C") look = l; } catch { /* storage blocked */ }
+try { const l = localStorage.getItem(LOOK_KEY); if (l === "C" || l === "C1" || l === "C2") look = l; } catch { /* storage blocked */ }
 
 /** Walls fuse only with walls of the same material, so stone and metal meet at a clean seam. */
 function rebuildWalls(): void {
   for (const p of pieces) {
     if (p.obj) { scene.remove(p.obj); p.obj.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).geometry.dispose(); }); }
     const joins = (x: number, y: number) => { const id = walls.get(cellKey(x, y)); return id !== undefined && pieces.find(q => q.id === id)!.metal === p.metal; };
-    p.obj = p.metal ? models.create("wallPiece", { cells: p.cells, joins }) : stoneWallPiece(look, p.cells, joins, p.id * 97);
+    p.obj = p.metal ? models.create("wallPiece", { cells: p.cells, joins }) : stoneWallPiece(look, p.cells, joins);
     scene.add(p.obj);
   }
 }
@@ -196,7 +196,7 @@ function moveInput(): { x: number; y: number } {
 
 const looksEl = document.getElementById("looks")!;
 function drawLooks(): void {
-  looksEl.innerHTML = (["A", "B", "C"] as StoneLook[]).map(l => `<button class="chip" data-look="${l}" aria-pressed="${look === l}">${l}</button>`).join("");
+  looksEl.innerHTML = (["C", "C1", "C2"] as StoneLook[]).map(l => `<button class="chip" data-look="${l}" aria-pressed="${look === l}">${l}</button>`).join("");
 }
 looksEl.addEventListener("click", e => {
   const b = (e.target as HTMLElement).closest("button");
