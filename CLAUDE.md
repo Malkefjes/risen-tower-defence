@@ -6,7 +6,8 @@ Read this first in every session. Sessions do not share memory; this file and `d
 
 - **Done:** Phase 1 step 1 (map, supply drops, wall bar, placement with path preview, undo/pick-up, waves, camera). Phase 1 step 2: Twin tower (1×1) and its Gatling form (2×2) on walls, credits with flat income, selling (full refund in the phase built, 75% after, also mid-wave), enemy HP with growth, nexus HP and run over/restart, tuning panel (K) saved in localStorage. Turret look picked by Erik: design B "Twin" from `mockups/turrets/`.
 - **New direction (2026-09-25):** survival tower defense. Explore a planet, mine, build a base, defend it by mazing. Read `docs/PLAN.md` first: agreed decisions, milestones M0 to M5, idea bank, open questions. The old Phase 2+ roadmap in `docs/DESIGN.md` is superseded.
-- **Next:** Erik approves `docs/PLAN.md`, then M0 (Armored deck walls in the game, direction written into `docs/DESIGN.md`). Build one milestone at a time and stop for Erik to play after each.
+- **Done (M0):** Armored deck walls in the game (per-piece model `wallPiece`, outline logic in `src/render/pieceShape.ts`), design doc rewritten for the survival direction.
+- **Next:** the ship mockup, then M1a. Work one step at a time: describe exactly what you'll build next and wait for Erik's feedback before implementing.
 - Picks so far: walls = Armored deck, nexus/ship = Reactor core as starting point (`mockups/stronghold/`, published at https://claude.ai/artifact/DkXNNFtuUA26uCJPa3sLa5).
 - **Run locally:** double-click `start-dev.cmd` (Windows) or `npm install && npm run dev`, then http://localhost:5173.
 
@@ -45,7 +46,7 @@ Mockups: `node scripts/mockup.mjs <name>` builds `mockups/<name>/` (can import t
 
 - Art style: clean low-poly 3D with three.js, soft light and shadows. Replaces the earlier pixel-art decision.
 - Camera: orthographic, fixed iso-style angle (about 30 deg elevation, 45 deg rotation). Pan/zoom OK.
-- First world is snowy and cozy: cold world, warm colony (orange prefab walls, cyan nexus, violet aliens). Evening lighting is THE look (day/night presets were dropped).
+- First world is snowy and cozy: cold world, warm colony (palette: colony orange, cyan power, dark steel, white; violet aliens). Evening lighting is THE look (day/night presets were dropped).
 - Game logic never touches graphics; the renderer builds everything from named models so Erik's own models (e.g. Blockbench) can replace placeholders.
 - 8-direction movement, no corner cutting. Enemies take the fastest path. No map edge.
 - Visual reference: mockups/snow-test.html, Clean 3D view (published at https://claude.ai/artifact/4Y1EHcKtCrum2szcH6Diqd). mockups/look-test.html is the older pixel exploration.

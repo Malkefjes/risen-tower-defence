@@ -2,7 +2,7 @@ import * as THREE from "three";
 import type { Game, GameEvent, PlacedPiece, Shot } from "../sim/game";
 import type { Tower, TowerKind } from "../sim/towers";
 import type { Cell } from "../sim/types";
-import { createDefaultModels, createGlows, createMaterials, EVENING, hash, WALL_HEIGHT, type Glows, type Materials, type ModelLibrary, type TurretRig } from "./models";
+import { createDefaultModels, createGlows, createMaterials, DECK_TOP, EVENING, hash, type Glows, type Materials, type ModelLibrary, type TurretRig } from "./models";
 
 // Author colors as plain hex and light the way the mockups did.
 THREE.ColorManagement.enabled = false;
@@ -24,8 +24,8 @@ export interface Overlay {
   selectedTower: { cx: number; cy: number; range: number } | null;
 }
 
-/** Height of a wall's snow cap, where towers stand. */
-const TOP = WALL_HEIGHT + 0.07;
+/** Height of the wall deck, where towers stand. */
+const TOP = DECK_TOP;
 
 interface TowerView { obj: THREE.Object3D; rig: TurretRig; recoil: number[]; gun: number; spin: number; drop: number }
 interface Bolt { mesh: THREE.Mesh; from: THREE.Vector3; to: THREE.Vector3; walkerId: number; t: number; dur: number }
@@ -34,7 +34,7 @@ interface Flash { sprite: THREE.Sprite; life: number; max: number; size: number 
 const CAM_OFFSET = new THREE.Vector3(20, 16.33, 20); // ~30° elevation, 45° around: classic iso
 const ZOOM_MIN = 3.2, ZOOM_MAX = 11;
 
-interface PieceView { group: THREE.Group; drop: number; bodies: THREE.Mesh[] }
+interface PieceView { group: THREE.Object3D; drop: number; bodies: THREE.Mesh[]; cells: readonly Cell[] }
 
 export class GameView {
   readonly renderer: THREE.WebGLRenderer;
@@ -329,17 +329,11 @@ export class GameView {
   }
 
   private buildPiece(p: PlacedPiece): PieceView {
-    const group = new THREE.Group();
-    const variant = p.id % 2;
+    const group = this.models.create("wallPiece", { cells: p.cells, variant: p.id % 2 });
     const bodies: THREE.Mesh[] = [];
-    for (const [x, y] of p.cells) {
-      const cell = this.models.create("wall", { variant });
-      cell.position.set(x + 0.5, 0, y + 0.5);
-      bodies.push(cell.getObjectByName("body") as THREE.Mesh);
-      group.add(cell);
-    }
+    group.traverse(c => { if (c.name === "body") bodies.push(c as THREE.Mesh); });
     this.scene.add(group);
-    return { group, drop: 0, bodies };
+    return { group, drop: 0, bodies, cells: p.cells };
   }
 
   private syncPieces(hoverId: number | null): void {
@@ -575,7 +569,7 @@ export class GameView {
       v.group.position.y = 0.35 * k * k;
       if (v.drop === 0) {
         this.shake = 0.15;
-        v.group.children.forEach(c => { if (c.getObjectByName("body")) this.puff(c.position.x, c.position.z); });
+        for (const [x, y] of v.cells) this.puff(x + 0.5, y + 0.5);
       }
     }
     for (const v of this.towers.values()) {

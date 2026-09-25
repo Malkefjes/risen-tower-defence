@@ -1,166 +1,153 @@
-# Risen Tower Defence: Design
+# Risen: Design
 
 Snapshot of the living design doc, kept in the repo so every session can read it.
 Live version (editable by Erik): https://claude.ai/code/artifact/8a4e11d2-eea6-4144-9f29-23a844c9d1ec
 If the two disagree, ask Erik which is current, then update both.
+The build order lives in `docs/PLAN.md` (milestones M0 to M5, idea bank).
 
-Last synced: 2026-09-24.
-
-> **Direction change (2026-09-25):** Risen is becoming a survival tower defense: explore a planet, mine, build a base around your ship, defend it by mazing. See `docs/PLAN.md` for the agreed decisions and milestones. Sections below that conflict with it (rounds, credits, supply drops, the TFT-style shop and roadmap) will be marked retired in M0.
+Last synced: 2026-09-25. The live copy still describes the old round-based design until it's updated.
 
 ## Vision
 
-A browser tower defense game where you shape the enemy's path with Tetris-shaped walls and mount towers on top of them. Every piece is a choice between lengthening the maze and building a platform for firepower. It's made purely for Erik's own enjoyment, so fun and depth come before polish, onboarding or broad appeal.
+A survival tower defense for the browser. A high-tech colony explores hostile alien planets to mine their resources: we have the technology and the blueprints, the planet has the raw material. You land, explore on foot, pick a spot between ore nodes, call your ship down, and build a base you're proud of. You defend it the tower defense way: you shape the enemy's path with Tetris-shaped walls and mount towers on top of them. The more you take, the harder the planet pushes back. It's made purely for Erik's own enjoyment, so fun and depth come before polish, onboarding or broad appeal.
+
+Whether it ends up feeling more like tower defense or more like survival should come out of what's fun in play.
 
 ## Pillars
 
-1. **Shape the path.** Enemies take the fastest route to the nexus; you bend it with walls.
-2. **Walls are scarce and do many jobs.** Every piece is maze, tower platform, or both.
-3. **Read the land.** Terrain is free structure; each map is a puzzle about using it well.
-4. **Adapt live.** You can build mid-wave, and every placement becomes a commitment.
-5. **Different builds want different mazes.** Tower types, terrain, spawns and enemies change what the best layout looks like.
+1. **Shape the path.** Enemies take the fastest route to what they attack; you bend it with walls.
+2. **Walls are scarce and do many jobs.** Every piece is maze, tower platform, power line, or all three.
+3. **Read the land.** Terrain and ore nodes are fixed; where you settle and what you fortify is the puzzle.
+4. **Greed against safety.** Mining more, and growing bigger, draws bigger raids. You choose how far to push.
+5. **Your base, your presence.** You build near your avatar. While you're out mining, the base has to hold on its own.
+
+## Core loop
+
+- **Arrive:** a drop pod lands you on the planet. Explore on foot and find ore nodes.
+- **Settle:** call the ship down where you think you can hold it. The ship is your core: it holds your cargo, prints walls, and is how you leave. Losing it ends the run.
+- **Mine:** by hand at first (carry ore home), then extractors on nodes, then a rover and drones to haul.
+- **Build:** walls from the ship's fabricator, towers, refinery, generators.
+- **Defend:** raids are telegraphed (a threat meter, warnings with direction). They come from burrows around the map.
+- **Launch:** you choose when to leave. Launching triggers a final siege. The ship carries over to the next planet.
+
+One planet is one long run over several sessions, saved in the browser.
 
 ## Core mechanics
 
-### Map and terrain
+### Map, terrain and nodes
 
-- Open space on an underlying grid with no edge, with enemy spawner(s) and a nexus to defend. You can build outward forever, and enemies can always walk around, so strong mazes form a fortress around the nexus.
-- Start small but roomy, with a few natural obstacles: "how do I use this terrain with only these few walls?"
+- An underlying grid with no edge. Enemies can always walk around structures.
+- Ore nodes sit at fixed places, so the map decides where fights happen.
 - Terrain ideas: rocks (block, unbuildable), rough ground (slows enemies), high ground (tower range bonus).
+
+### Resources
+
+- Three resources: **raw ore**, **refined alloy**, **power**. The chain stays short on purpose, with no conveyor belts.
+- **Physical up to the ship:** ore is mined at nodes and physically brought home (carried, then hauled). Once at the ship, the refinery turns it into alloy without routing.
+- **Power** comes from generators and the ship, runs through connected walls, and is drawn by towers and industry.
 
 ### Enemies and pathing
 
-- Enemies always take the fastest path to the nexus, recalculated when walls change. They move in 8 directions but never cut a wall corner, so two diagonal walls form a closed seam.
+- Enemies take the fastest path to the nearest building (later: enemy types with preferred targets), recalculated when walls change. They move in 8 directions but never cut a wall corner, so two diagonal walls form a closed seam.
+- Every building can be attacked: ship, extractors, refinery, generators, stockpiles. Normal enemies walk around walls; wall breakers are a special enemy type.
+- Walls may never seal a building off from the spawns, and no placement may trap an enemy.
 - Live path preview while placing a piece. This is essential.
-- Enemy variety should put pressure on the maze: flyers, wall breakers, fast swarms, tanks.
 
 ### Walls
 
-- Tetris-shaped pieces, rotatable.
-- Walls can never fully block the path; at least one route must stay open. No placement may trap an enemy either.
-- Building is allowed during waves. If it turns into an exploit, we address it then.
-- Walls can be removed only in the planning phase they were built in; after that they lock. Walls placed mid-wave lock immediately.
-- New pieces arrive as a supply drop: 3 random walls into the wall bar each round, no popup. Unused walls carry over. Later: ways to specialize supply (blueprints, rerolls, special pieces).
+- Tetris-shaped pieces, rotatable, printed by the ship's fabricator from material. You see the next 3 shapes, can hold one, and can pay to reroll.
+- In real time: full refund for about 5 seconds after placing, then recycle for 50%.
+- Walls carry power from generators and the ship to towers.
 
 ### Towers
 
-- Towers can only be placed on top of walls.
-- Towers come in footprints (1×1, 2×1, 2×2, 3×3…). Bigger is stronger but eats walls that could have extended the maze.
-- Tower types should favor different maze shapes: splash likes switchbacks, beams like straight corridors, slows like corners.
+- Towers stand only on walls. A footprint may span walls from different pieces; a wall carrying a tower can't be removed until the tower is sold.
+- Footprints (1×1, 2×2, later more). Bigger is stronger per material, but eats walls that could have extended the maze.
+- First tower: the **Twin** (1×1), which grows into the **Gatling** (2×2).
+- Default targeting: the enemy with the most progress. Targeting options later.
+- Selling: full refund shortly after placing, 75% after (a tuning knob).
 
-## Run structure and economy
+### The avatar
 
-Runs are roguelite, inspired by TFT: you know every piece, but never which combination you'll get. That keeps the game unsolvable even for its creator.
-
-**Guardrail:** every shop and economy system must feed back into maze decisions. If the economy becomes the main game, pull it back.
-
-### Two channels per round
-
-| Channel | Gives | Decision type |
-| --- | --- | --- |
-| Wall supply | 3 random walls each round, free | Spatial: where does each shape fit my maze? |
-| Tower shop | Rotating towers bought with credits | Economic: buy, reroll or save? |
-
-Walls stay out of the shop: they have no identity on their own and would dilute it. Tower footprints link the two channels, because wall supply limits how many and how big your towers can be.
-
-### Systems (planned)
-
-- **Rounds and HP:** a big HP bar. Leaked enemies deal damage based on strength; the run ends at 0.
-- **Income and interest:** credits after each round, plus interest on savings later. Saved credits double as an emergency fund mid-wave.
-- **Shop rerolls:** spend credits to refresh the tower shop.
-- **Bench:** hold towers you can't place yet, such as a 3×3 tower waiting for its platform.
-- **Star-ups:** 3 copies combine into a 2★ tower, 3 of those into 3★. Leaning: same footprint, so upgrades never force a rebuild.
-- **Traits:** towers share traits that unlock bonuses. Traits should be spatial (e.g. same wall structure, covering the same path stretch), so team building and maze building become one decision.
-- **Wall supply levers:** pay credits to reroll a supply drop; maybe later buy an extra piece at a steep, rising cost. Special pieces (reinforced, conductive, raised) appear occasionally.
+- A builder: WASD moves it, it collides with walls, rocks and buildings.
+- You can only build and repair within a radius of the avatar (later also of drones).
+- Can't be hurt in M1; can be from M2, and respawns at the ship. No weapon for now.
 
 ## Setting
 
-Sci-fi: a colony lands on hostile planets using prefabs and blueprints.
+Sci-fi: a high-tech colony lands on hostile planets using a ship, prefabs and blueprints.
 
 - Each planet is a new map with its own terrain and threats.
-- Blueprints could drive unlocks and supply specialization.
-- Later layer: walls carry power, so towers only work if their walls connect to the nexus or a reactor.
+- Blueprints and ship upgrades carry between planets.
 
 The first world, Frostfall, is a snowy planet with a cozy mood: cold world, warm colony.
 
 ## Visual direction
 
-Locked: clean low-poly 3D, rendered with three.js through a fixed isometric-style camera. The fortress should read as a place: a small, cozy colony on a hostile planet. References: `mockups/snow-test.html` (Clean 3D view); `mockups/look-test.html` is the older pixel exploration, kept as history.
+Locked: clean low-poly 3D, rendered with three.js through a fixed isometric-style camera. The base should read as a stronghold: a high-tech colony holding ground on a hostile planet.
 
-- **Style:** simple low-poly shapes, soft light and shadows, rounded prefab blocks. Lighting carries much of the mood.
-- **First world: snow.** Blue-white snow, orange prefab modules like a polar research station, a cyan nexus, violet aliens.
+- **Palette:** colony orange, cyan power, dark steel, and white (snow and light accents). Violet belongs to the aliens.
+- **Walls: Armored deck** (from `mockups/stronghold/`): cells of a piece fuse into one hull and neighbouring pieces keep a seam. Dark steel plinth, orange armor, steel gun deck on top, a thin cyan power line along the outside. The power line is dim until power exists, then lights on powered walls.
+- **Ship:** gets its own mockup, with its engine core based on the Reactor core (nexus A in `mockups/stronghold/`).
+- **Turret:** Twin / Gatling (design B from `mockups/turrets/`).
+- **Style:** simple low-poly shapes, soft light and shadows. Lighting carries much of the mood.
 - **Evening is the look:** a low orange sun, lavender sky. Day and night presets were dropped.
-- **Plain walls for now:** wall lamps and lit windows were removed for simplicity (they looked off). Revisit later; any light must never look like it cuts through blocks.
-- **Camera:** orthographic, fixed angle (about 30° elevation, 45° rotation). Pan and zoom are fine; rotation can be considered later.
+- **No lamps or lit windows on walls:** they looked off. Any light must never look like it cuts through blocks.
+- **Camera:** orthographic, fixed angle (about 30° elevation, 45° rotation). Follows the avatar; you can pan away freely to watch the base, with keys to snap back to the avatar or the ship.
 - **Low walls** so towers and enemies behind them stay visible.
 - **Art is swappable:** game logic never knows about graphics. Everything is drawn from named models; code-built placeholders now, Erik's models (e.g. made in Blockbench) later.
 - **Feel matters from day one:** pieces snap and drop with a small shake, the path preview flows, enemies move smoothly and flash on hit, snow falls.
-- **No popups that interrupt play.** Use small non-blocking notices.
+- **No popups that interrupt play**, and no instructional text in the UI. Show state, not instructions.
 
-Not locked yet: exact palette, wall height, zoom range, final model shapes.
-
-## Roadmap
-
-| Phase | Scope | Question it answers |
-| --- | --- | --- |
-| 1. Core maze | Step 1 (done): map, camera, supply drops, wall bar, placement, path preview, undo, walkers. Step 2 (done): Twin/Gatling towers, credits, selling, enemy HP, player HP, tuning panel | Does placing pieces feel good? How many walls per round? |
-| 2. Tower variety | 3–4 towers with different reach and footprints | Do different builds want different mazes? |
-| 3. Roguelite layer | Shop, rerolls, bench, star-ups, interest | Does the economy add tension without taking over? |
-| 4. Depth | Traits, enemy variety, more terrain | Does it stay unsolvable over many runs? |
-| 5. Identity | Final visuals, planets, meta progression | Does it feel like its own game? |
-
-## Phase 1 details
-
-Goal: prove that shaping a path with Tetris walls feels good, and find how scarce walls should be.
-
-- One handmade map (Frostfall) with a rift, a nexus, rocks and pines, in a world with no edge.
-- Round loop: untimed planning, then a wave. Pause and speed control.
-- Controls: R or right-click rotates; scroll zooms; drag or WASD pans; 1–9 selects walls; Q builds a Twin, E a Gatling; click a tower to inspect it, X sells; Z undoes; Enter starts the wave; K opens tuning.
-- Undo in the planning phase takes a whole piece back into the wall bar.
-
-**Step 2 (built):**
-
-- One tower type in 1×1 and 2×2, bought from a fixed build menu next to the wall bar (stand-in until the Phase 3 shop). The look is design B, "Twin", from `mockups/turrets/`: orange colony plating, two alternating barrels; the 2×2 is the Gatling, a spinning four-barrel cluster.
-- Towers sit on walls, and a 2×2 may span walls from different pieces. A wall carrying a tower can't be picked up.
-- Towers can be sold, so a build can change when a better tower comes along: full refund in the planning phase it was built, 75% after (a tuning knob). Selling is allowed mid-wave.
-- Targeting: the enemy with the most progress (closest to the nexus). Targeting options come later.
-- Credits: flat income per round only, no kill bounty. Towers cost credits.
-- Enemies get HP and scale per wave. Player starts at 20 HP; each leak costs 1 (scaled by enemy strength once enemy types exist). At 0 a non-blocking "Run over" notice offers a restart.
-- Tuning panel (hidden, toggled by a key) with sliders: walls per round, income, enemy HP and growth, enemy speed, tower damage, range, fire rate and cost.
-
-Out of scope for Phase 1: other terrain, multiple spawners, more tower or enemy types, shop, traits, star-ups, final art, sound.
-
-Success: placing pieces is satisfying and readable, a walls-per-round range feels tight but fair, and Erik catches himself choosing between mazing and building platforms.
+Not locked yet: zoom range, final model shapes.
 
 ## Decisions
 
 | Topic | Decision |
 | --- | --- |
 | Platform | Browser, TypeScript + Vite + three.js, repo Malkefjes/risen-tower-defence |
-| Genre | Mazing tower defense with Tetris walls |
+| Genre | Survival tower defense: explore, mine, build a base, defend it by mazing with Tetris walls |
 | Roles | Erik: vision and design. Claude: code |
+| Run structure | One planet = one long saved run; ends with a launch you choose and a final siege |
+| Carries over | The ship (upgrades, modules, look), blueprints and tech |
+| Core | The ship replaces the nexus; losing it ends the run |
+| Player | Avatar builder; hand mining, then extractors, rover, drones |
+| Building range | Only near the avatar (later drones) |
+| Resources | Ore, alloy, power; physical up to the ship |
+| Threat | Grows with extraction and base size; raids are telegraphed |
+| Attack targets | Every building; walls are walked around (wall breakers excepted) |
+| Wall supply | Fabricator: next 3, hold one, paid reroll |
+| Wall removal | Full refund for ~5 s after placing, then recycle for 50% |
+| Power | Through walls, from generators and the ship |
 | Visual style | Clean low-poly 3D, fixed iso-style camera, evening light |
+| Palette | Colony orange, cyan power, dark steel, white; violet aliens |
+| Walls look | Armored deck |
 | Map | No edge; enemies can always go around |
 | Movement | 8 directions, no corner cutting |
-| Building during waves | Allowed; mid-wave walls lock immediately |
-| Wall removal | Only in the planning phase it was built; then locked |
-| Wall supply | 3 random walls into the wall bar each round, no popup; unused walls carry over |
-| Tower supply | Rotating shop with credits, rerolls, bench (Phase 3) |
-| Income | Credits per round, TFT-style; interest later |
-| Run structure | Roguelite runs with an HP bar |
-| Progression in a run | Star-ups and traits |
-| Map size | Start small and grow |
 | Tower sizes | Multiple footprints on wall blocks; a footprint may span several wall pieces |
-| Tower selling | Towers can be sold to change the build |
-| Targeting | Most progress (closest to nexus) by default; options later |
 | First tower | Twin (1×1), grows into the Gatling (2×2) |
-| Selling | Full refund in the phase built, 75% after; allowed mid-wave |
-| Setting | Sci-fi colony; first world is snowy |
+| Targeting | Most progress by default; options later |
+| Setting | Sci-fi colony on hostile planets; first world is snowy Frostfall |
+
+## Retired (kept for the record)
+
+These were part of the round-based Phase 1 design. They stay in the game until the milestone that replaces them (see `docs/PLAN.md`).
+
+| Retired | Replaced by |
+| --- | --- |
+| Rounds: untimed planning phase, then a wave started with a button | Real time with telegraphed raids (M1b) |
+| Nexus and nexus HP bar | The ship; every building has its own HP (M1a, M2) |
+| Credits with flat income per round | Ore, then alloy (M1a, M3) |
+| Supply drop of 3 random walls per round | Fabricator with next 3, hold and reroll (M1a) |
+| Walls removable only in the planning phase they were built | Undo window, then recycle (M1b) |
+| WASD pans the camera | WASD moves the avatar; drag and arrows pan (M1a) |
+| TFT-style tower shop, rerolls, bench, interest | Towers built from material; shop ideas parked in the idea bank |
+| Star-ups and traits | Parked in the idea bank; revisit once the survival loop works |
+| Roadmap phases 1 to 5 (core maze, tower variety, roguelite layer, depth, identity) | Milestones M0 to M5 in `docs/PLAN.md` |
 
 ## Open questions
 
-- Star-ups: keep the same footprint, or grow?
-- Economy numbers: income, interest, tower and reroll costs. Income is flat per round for now.
-- Wall supply rate: how many pieces per round? The key tuning knob, found through play.
-- Trait design: which traits, and how spatial should they be?
-- Meta-structure: runs across planets, unlocks between runs?
+- Economy numbers: ore per trip, costs of walls, towers and buildings. Found through play, with the tuning panel.
+- How fast should the threat meter climb, and what exactly feeds it?
+- Enemy target preferences: which types go for what?
+- Meta between planets: what exactly carries over, and how is it earned?

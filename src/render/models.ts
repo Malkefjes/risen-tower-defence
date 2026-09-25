@@ -1,4 +1,7 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import type { Cell } from "../sim/types";
+import { cellBounds, pieceOutline, SIDES, type OutlineCell, type Side } from "./pieceShape";
 
 /**
  * Every visible thing is created by name through the ModelLibrary. Today the
@@ -14,6 +17,8 @@ export interface ModelParams {
   scale?: number;
   /** Deterministic seed for small random variation. */
   seed?: number;
+  /** World cells of a whole piece, for models built per piece. */
+  cells?: readonly Cell[];
 }
 export type ModelFactory = (p: ModelParams) => THREE.Object3D;
 
@@ -58,6 +63,8 @@ export const EVENING = {
 } as const;
 
 export const WALL_HEIGHT = 0.55;
+/** Top of the Armored deck walls: where towers stand. */
+export const DECK_TOP = 0.58;
 
 export function roundedBox(w: number, h: number, d: number, r: number): THREE.BufferGeometry {
   const s = new THREE.Shape(), x = -w / 2 + r, y = -d / 2 + r, W = w - 2 * r, D = d - 2 * r;
@@ -94,6 +101,9 @@ export function createMaterials() {
     steel: std(P.steel, { roughness: 0.6 }),
     steelLight: std(P.steelLight, { roughness: 0.6 }),
     gun: std("#3d4457", { roughness: 0.55 }),
+    deck: std("#4a5266", { roughness: 0.6 }),
+    /** Cyan power line on walls. Dim until power exists; brightens on powered walls later. */
+    power: std("#7ff5e6", { emissive: "#4fdcca", emissiveIntensity: 0.4, roughness: 0.4 }),
     gunDark: std("#2c3142", { roughness: 0.6 }),
     plate: std("#b4bccd", { roughness: 0.5 }),
     accent: std(P.wallA, { roughness: 0.7 }),
@@ -176,6 +186,14 @@ export function createDefaultModels(mat: Materials, glow: Glows): ModelLibrary {
     return g;
   });
   lib.register("ghostWall", () => new THREE.Mesh(geo.wall, mat.ghostOk));
+
+  /**
+   * A whole wall piece in the Armored deck style, in world coordinates. Cells of
+   * the piece fuse into one hull; open sides are inset so neighbouring pieces
+   * keep a seam. The orange armor is one mesh named "body" (the view swaps its
+   * material for hover and pick-up states).
+   */
+  lib.register("wallPiece", ({ cells = [], variant = 0 }) => armoredPiece(mat, cells, variant));
 
   lib.register("rock", ({ scale = 13, seed = 0 }) => {
     const g = new THREE.Group(), k = scale / 13;
@@ -275,6 +293,49 @@ export function createDefaultModels(mat: Materials, glow: Glows): ModelLibrary {
   lib.register("gatling", () => twinModel(mat, true));
 
   return lib;
+}
+
+function armoredPiece(mat: Materials, cells: readonly Cell[], variant: number): THREE.Object3D {
+  const parts = new Map<THREE.Material, THREE.BufferGeometry[]>();
+  const add = (m: THREE.Material, x0: number, x1: number, y0: number, y1: number, z0: number, z1: number) => {
+    const g = new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0);
+    g.translate((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+    let list = parts.get(m);
+    if (!list) parts.set(m, list = []);
+    list.push(g);
+  };
+  const box = (m: THREE.Material, c: OutlineCell, inset: number, y0: number, y1: number) => {
+    const b = cellBounds(c, inset);
+    add(m, b.x0, b.x1, y0, y1, b.z0, b.z1);
+  };
+  /** A thin strip on one open face of a cell. */
+  const strip = (m: THREE.Material, c: OutlineCell, side: Side, inset: number, depth: number, y0: number, y1: number) => {
+    const b = cellBounds(c, inset), d = depth / 2;
+    if (side === "n") add(m, b.x0, b.x1, y0, y1, b.z0 - d, b.z0 + d);
+    else if (side === "s") add(m, b.x0, b.x1, y0, y1, b.z1 - d, b.z1 + d);
+    else if (side === "w") add(m, b.x0 - d, b.x0 + d, y0, y1, b.z0, b.z1);
+    else add(m, b.x1 - d, b.x1 + d, y0, y1, b.z0, b.z1);
+  };
+  const body = variant ? mat.wallB : mat.wallA;
+  for (const c of pieceOutline(cells)) {
+    box(mat.gunDark, c, 0.03, 0, 0.12);
+    box(body, c, 0.07, 0.1, 0.5);
+    box(mat.deck, c, 0.05, 0.5, DECK_TOP);
+    add(mat.gunDark, c.x + 0.22, c.x + 0.78, DECK_TOP, DECK_TOP + 0.01, c.y + 0.22, c.y + 0.78);
+    for (const side of SIDES) {
+      if (!c.open[side]) continue;
+      strip(mat.power, c, side, 0.07, 0.02, 0.4, 0.43);
+      strip(mat.gun, c, side, 0.07, 0.03, 0.12, 0.17);
+    }
+  }
+  const g = new THREE.Group();
+  for (const [m, list] of parts) {
+    const mesh = shadowed(new THREE.Mesh(mergeGeometries(list), m));
+    if (m === body) mesh.name = "body";
+    g.add(mesh);
+    for (const l of list) l.dispose();
+  }
+  return g;
 }
 
 /** Cylinder lying along +z, starting at the origin (a barrel). */

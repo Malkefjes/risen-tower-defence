@@ -53,7 +53,7 @@ Whether it plays more like tower defense or survival should come out of what's f
 
 Each milestone is a playable build that answers one question. I propose we stop after each one: Erik plays, we talk, then we go on (or change course).
 
-### M0: Groundwork (small)
+### M0: Groundwork (small) (done 2026-09-25)
 - Bring the Armored deck walls into the game: cells of one piece fuse into one hull, pieces keep a seam, and towers stand on the steel deck.
 - Write the agreed direction into `docs/DESIGN.md`. Old parts that are replaced get marked "retired" there, with what replaced them.
 - **Answers:** does the base look like a stronghold in the real game?
