@@ -62,7 +62,7 @@ const joint = (parent: THREE.Object3D, x: number, y: number, z: number) => {
 
 export interface Enemy { object: THREE.Group; update(t: number, walking: boolean): void }
 
-interface Leg { hip: THREE.Group; knee: THREE.Group; phase: number; lift: number; swing: number }
+interface Leg { hip: THREE.Group; knee: THREE.Group; phase: number; lift: number; swing: number; /** The foot's tip, for keeping it on the ground. */ tip: THREE.Object3D }
 
 /** A digitigrade leg: thigh forward, shin back, a long foot bone forward again. */
 function legChain(parent: THREE.Object3D, x: number, y: number, z: number, thigh: number, shin: number, foot: number, r: number, phase: number): Leg {
@@ -76,7 +76,8 @@ function legChain(parent: THREE.Object3D, x: number, y: number, z: number, thigh
   const ankle = joint(knee, 0, -shin, 0);
   ankle.add(seg(foot, r * 0.5, r * 0.3, m.chitinDark));
   ankle.rotation.x = -1.0;
-  return { hip, knee, phase, lift: 0.35, swing: 0.45 };
+  const tip = joint(ankle, 0, -foot, 0);
+  return { hip, knee, phase, lift: 0.35, swing: 0.45, tip };
 }
 
 export function enemyLook(look: EnemyLook): Enemy {
@@ -87,7 +88,6 @@ export function enemyLook(look: EnemyLook): Enemy {
   const legs: Leg[] = [];
   const arms: { j: THREE.Group; rest: number; phase: number }[] = [];
   let tail: THREE.Group | null = null, head: THREE.Group | null = null;
-  let bobH = 0.03;
 
   if (look === "A") {
     // Gaunt: hunched biped, torso pitched forward, a crested head low and ahead.
@@ -110,7 +110,6 @@ export function enemyLook(look: EnemyLook): Enemy {
     tail = joint(body, 0, 0.0, -0.25);
     let t: THREE.Object3D = tail;
     for (let i = 0; i < 4; i++) { const s = seg(0.14, 0.05 - i * 0.01, 0.04 - i * 0.01, i % 2 ? m.chitinDark : m.chitin); s.rotation.x = Math.PI / 2 - 0.2; const j = joint(t, 0, 0, i ? -0.13 : 0); j.add(s); t = j; }
-    bobH = 0.03;
   } else if (look === "B") {
     // Crawler: low and long, six short legs, a segmented arched back, mantis blades held up.
     body.position.y = 0.26;
@@ -133,7 +132,8 @@ export function enemyLook(look: EnemyLook): Enemy {
       const knee = joint(hip, 0, -0.16, 0);
       knee.add(seg(0.22, 0.022, 0.012, m.chitinDark));
       knee.rotation.z = -s * 1.5;
-      legs.push({ hip, knee, phase: (i % 2 === 0) === (s > 0) ? 0 : Math.PI, lift: 0.25, swing: 0.35 });
+      const tip = joint(knee, 0, -0.22, 0);
+      legs.push({ hip, knee, phase: (i % 2 === 0) === (s > 0) ? 0 : Math.PI, lift: 0.25, swing: 0.35, tip });
     }
     for (const s of [-1, 1]) {
       const sh = joint(body, s * 0.14, 0.14, 0.3);
@@ -143,7 +143,6 @@ export function enemyLook(look: EnemyLook): Enemy {
       el.add(blade(0.36, m.bone)); el.rotation.x = 2.4;
       arms.push({ j: sh, rest: -0.9, phase: s > 0 ? 0 : Math.PI });
     }
-    bobH = 0.012;
   } else {
     // Leaper: long springing hind legs, torso leaning forward, spines down the back, a long tail.
     body.position.y = 0.52;
@@ -168,16 +167,17 @@ export function enemyLook(look: EnemyLook): Enemy {
     for (let i = 0; i < 6; i++) { const s = seg(0.13, 0.045 - i * 0.006, 0.04 - i * 0.006, i % 2 ? m.chitinDark : m.chitin); s.rotation.x = Math.PI / 2 - 0.12; const j = joint(t, 0, 0, i ? -0.12 : 0); j.add(s); t = j; }
     const sting = new THREE.ConeGeometry(0.03, 0.12, 10); sting.rotateX(-Math.PI / 2);
     t.add(mesh(sting, m.bone, 0, 0, -0.18));
-    bobH = 0.045;
   }
 
   const baseY = body.position.y;
+  const tipPos = new THREE.Vector3(), rootPos = new THREE.Vector3();
+  /** Half the foot's thickness: the tip sits this far above the snow. */
+  const FOOT_R = 0.015;
   root.traverse(o => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).receiveShadow = true; });
   return {
     object: root,
     update(t: number, walking: boolean) {
       const w = walking ? 1 : 0, f = t * (look === "B" ? 11 : look === "C" ? 7 : 9);
-      body.position.y = baseY + Math.abs(Math.sin(f)) * bobH * w + Math.sin(t * 2) * 0.006;
       for (const l of legs) {
         const s = Math.sin(f + l.phase);
         if (look === "B") { l.hip.rotation.y = s * l.swing * w; l.knee.rotation.x = Math.max(0, Math.cos(f + l.phase)) * l.lift * w; }
@@ -185,6 +185,13 @@ export function enemyLook(look: EnemyLook): Enemy {
       }
       for (const a of arms) a.j.rotation.x = a.rest + Math.sin(f + a.phase) * 0.18 * w + Math.sin(t * 1.7 + a.phase) * 0.05;
       if (head) head.rotation.y = Math.sin(t * 0.9) * 0.2;
+      // Keep the lowest foot on the snow: raise or lower the body to meet it, so feet
+      // never sink in and the stride's natural rise and fall shows in the body.
+      body.position.y = baseY;
+      root.updateMatrixWorld(true);
+      let low = Infinity;
+      for (const l of legs) low = Math.min(low, l.tip.getWorldPosition(tipPos).y - root.getWorldPosition(rootPos).y);
+      if (isFinite(low)) body.position.y += FOOT_R - low;
       if (tail) { tail.rotation.y = Math.sin(f * 0.5) * 0.35 * w + Math.sin(t * 1.3) * 0.1; tail.rotation.x = Math.sin(t * 1.1) * 0.06; }
     },
   };
