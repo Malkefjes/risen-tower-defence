@@ -6,7 +6,7 @@ import * as THREE from "three";
  * All face +z, stand on y = 0, and animate a walk from `update(t, walking)`.
  *   A: a gaunt, a hunched biped on digitigrade legs with two scything blades.
  *   B: a crawler, low and six-legged, a segmented back and mantis blades held high.
- *   C: a leaper, long springing hind legs, blades and small claws (Erik's pick: no eyes, no horns).
+ *   C: a leaper, long springing hind legs and two blades (Erik's pick: no eyes, horns or chest claws).
  */
 export type EnemyLook = "A" | "B" | "C";
 
@@ -162,11 +162,6 @@ export function enemyLook(look: EnemyLook): Enemy {
       sh.rotation.set(0.7, 0, s * 0.25);
       const el = joint(sh, 0, -0.16, 0); el.add(blade(0.3, m.bone)); el.rotation.x = -0.3;
       arms.push({ j: sh, rest: 0.7, phase: s > 0 ? Math.PI : 0 });
-      const small = joint(body, s * 0.1, -0.05, 0.22);
-      small.add(seg(0.12, 0.018, 0.012, m.chitinDark));
-      const claw = new THREE.ConeGeometry(0.018, 0.07, 3); claw.translate(0, -0.15, 0.02);
-      small.add(mesh(claw, m.bone)); small.rotation.x = 0.9;
-      arms.push({ j: small, rest: 0.9, phase: s > 0 ? 0 : Math.PI });
     }
     tail = joint(body, 0, 0.0, -0.22);
     let t: THREE.Object3D = tail;
