@@ -74,7 +74,7 @@ const rig = createRig();
 scene.add(rig.object);
 const anim = new RigAnimator(rig);
 
-const MINE_RATE = 6; // ore per second
+const MINE_RATE = 12; // ore per second
 const RESPAWN = 20; // seconds an empty node stays gone
 let carried = 0;
 
