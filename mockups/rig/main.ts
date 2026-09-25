@@ -158,7 +158,7 @@ function poseArm(l: ReturnType<typeof limb>, swing: number, bend: number): void 
   l.mid.rotation.x = bend;
 }
 
-type Pose = "walk" | "idle" | "mine";
+type Pose = "walk" | "idle" | "mine" | "build";
 let pose: Pose = "walk";
 
 /**
@@ -181,16 +181,24 @@ function animate(t: number, dt: number): void {
       const lift = 0.7 * ((1 + Math.cos(ph)) / 2) ** 2;
       poseLeg(legs[i]!, -swing, lift + 0.1);
     });
+    // Both arms relaxed: the tool just hangs from the right hand.
     poseArm(arms[0]!, Math.sin(s) * 0.35, -0.35);
-    poseArm(arms[1]!, -0.25 + Math.sin(s + Math.PI) * 0.1, -0.9);
+    poseArm(arms[1]!, Math.sin(s + Math.PI) * 0.35, -0.35);
     // Gentle, rounded bob: lowest as each foot lands, highest as the other leg passes under.
     body.position.y = -0.006 + Math.cos(2 * s) * 0.006;
     body.rotation.set(0.03, Math.sin(s) * 0.03, 0);
   } else if (pose === "idle") {
     poseLeg(legs[0]!, 0, 0.06); poseLeg(legs[1]!, 0, 0.06);
-    poseArm(arms[0]!, 0.05, -0.2); poseArm(arms[1]!, -0.2, -0.9);
+    poseArm(arms[0]!, 0.05, -0.2); poseArm(arms[1]!, 0.05, -0.2);
     body.position.y = Math.sin(t * 2) * 0.004;
     body.rotation.set(0, 0, 0);
+  } else if (pose === "build") {
+    // Tool at the ready, aimed where a piece is being placed.
+    poseLeg(legs[0]!, -0.12, 0.14); poseLeg(legs[1]!, 0.1, 0.08);
+    poseArm(arms[1]!, -0.95 + Math.sin(t * 3) * 0.03, -0.35);
+    poseArm(arms[0]!, -0.35, -0.8);
+    body.position.y = -0.008;
+    body.rotation.set(0.06, -0.06, 0);
   } else {
     poseLeg(legs[0]!, -0.3, 0.3); poseLeg(legs[1]!, 0.25, 0.1);
     poseArm(arms[1]!, -1.25 + Math.sin(t * 14) * 0.02, -0.25);
@@ -203,12 +211,14 @@ function animate(t: number, dt: number): void {
     const a = l.top.rotation.x, b = a + l.mid.rotation.x;
     return HIP_Y - FOOT_H - (THIGH * Math.cos(a) + SHIN * Math.cos(b));
   });
-  const target = pose === "idle" ? 0 : -softMin(drops[0]!, drops[1]!) * SCALE;
+  const target = pose === "idle" || pose === "build" ? 0 : -softMin(drops[0]!, drops[1]!) * SCALE;
   rootY += (target - rootY) * Math.min(1, dt * 14);
   rig.root.position.y = rootY;
-  // Keep the multitool level whatever the arm does; fire the beam while mining.
+  // At the ready (mining, building) the tool is held level; relaxed it hangs, tipped down in the hand.
   const arm = arms[1]!;
-  rig.tool.rotation.x = -(arm.top.rotation.x + arm.mid.rotation.x);
+  const ready = pose === "mine" || pose === "build";
+  const wantTilt = ready ? -(arm.top.rotation.x + arm.mid.rotation.x) : 0.9;
+  rig.tool.rotation.x += (wantTilt - rig.tool.rotation.x) * Math.min(1, dt * 12);
   rig.beam.visible = pose === "mine";
   rig.beam.scale.z = 0.28 + Math.sin(t * 40) * 0.02;
 }
@@ -231,9 +241,9 @@ const sparks: { m: THREE.Mesh; v: THREE.Vector3; life: number }[] = [];
 
 let spinning = true, closeUp = true;
 const press = (ids: string[], on: string) => ids.forEach(id => document.getElementById(id)!.setAttribute("aria-pressed", String(id === on)));
-(["walk", "idle", "mine"] as Pose[]).forEach(p => {
+(["walk", "idle", "mine", "build"] as Pose[]).forEach(p => {
   const id = `p${p[0]!.toUpperCase()}${p.slice(1)}`;
-  document.getElementById(id)!.addEventListener("click", () => { pose = p; press(["pWalk", "pIdle", "pMine"], id); });
+  document.getElementById(id)!.addEventListener("click", () => { pose = p; press(["pWalk", "pIdle", "pMine", "pBuild"], id); });
 });
 document.getElementById("zClose")!.addEventListener("click", () => { closeUp = true; press(["zClose", "zGame"], "zClose"); });
 document.getElementById("zGame")!.addEventListener("click", () => { closeUp = false; press(["zClose", "zGame"], "zGame"); });
