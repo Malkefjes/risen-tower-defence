@@ -9,11 +9,12 @@ import { EVENING, roundedBox } from "./models";
 
 const std = (color: string, o: THREE.MeshStandardMaterialParameters = {}) =>
   new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0, flatShading: true, ...o });
+// The wall palette: orange armor, deck grey and the dark plinth grey, with cyan power.
 const M = {
-  suit: std("#eef1f6", { roughness: 0.6 }),
-  orange: std(EVENING.wallA),
-  steel: std("#3d4457", { roughness: 0.55 }),
-  steelDark: std("#2c3142", { roughness: 0.6 }),
+  suit: std(EVENING.wallA, { roughness: 0.75 }),
+  orange: std("#2c3142", { roughness: 0.6 }),
+  steel: std("#2c3142", { roughness: 0.6 }),
+  steelDark: std("#4a5266", { roughness: 0.6 }),
   power: std("#7ff5e6", { emissive: "#4fdcca", emissiveIntensity: 0.8, roughness: 0.4 }),
 };
 const mesh = (g: THREE.BufferGeometry, m: THREE.Material, x = 0, y = 0, z = 0) => {
@@ -91,7 +92,7 @@ export function createRig(): Rig {
   torso.add(box(HW * 0.84, 0.042, 0.02, M.power, 0, headY + HH * 0.45, HW / 2 + bulge(0.028, HH)));
 
   const PACK_H = 0.2, PACK_D = 0.065, backZ = -HIPS_D / 2 - PACK_D / 2;
-  torso.add(exactBox(HIPS_W * 0.8, PACK_H, PACK_D, 0.025, M.steel, 0, TORSO_TOP - PACK_H, backZ));
+  torso.add(exactBox(HIPS_W * 0.8, PACK_H, PACK_D, 0.025, M.steelDark, 0, TORSO_TOP - PACK_H, backZ));
   torso.add(mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.015, 14).rotateX(Math.PI / 2), M.power, 0, TORSO_TOP - 0.06, backZ - PACK_D / 2 - 0.005));
 
   const legs = [-1, 1].map(sx => {
