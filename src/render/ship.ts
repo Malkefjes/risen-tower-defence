@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { roundedBox } from "./models";
+import { colonyOrange } from "./palette";
 
 /**
  * The player's ship, the Rocket (3×3 footprint). Picked by Erik from
@@ -9,12 +10,12 @@ import { roundedBox } from "./models";
 const std = (color: string, o: THREE.MeshStandardMaterialParameters = {}) =>
   new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0, flatShading: true, ...o });
 
-export function createShipMaterials(orange: string) {
+export function createShipMaterials() {
   return {
     hull: std("#e4e8f0", { roughness: 0.6 }),
     hullShade: std("#c3c9d6", { roughness: 0.65 }),
-    orange: std(orange),
-    orangeDark: std("#a8432d"),
+    orange: colonyOrange(),
+    orangeDark: colonyOrange(),
     steel: std("#3d4457", { roughness: 0.55 }),
     steelDark: std("#2c3142", { roughness: 0.6 }),
     steelLight: std("#8a94ab", { roughness: 0.5 }),
@@ -170,8 +171,8 @@ export type ShipRig = ReturnType<typeof buildRocket> & { materials: ShipMaterial
  * The ship as a model: centered on its 3×3 footprint, front turned toward the
  * camera. `userData.rig` exposes the door and core for animation.
  */
-export function shipModel(orange: string): THREE.Object3D {
-  const materials = createShipMaterials(orange);
+export function shipModel(): THREE.Object3D {
+  const materials = createShipMaterials();
   const rocket = buildRocket(materials);
   const root = new THREE.Group();
   rocket.group.rotation.y = Math.PI / 4;

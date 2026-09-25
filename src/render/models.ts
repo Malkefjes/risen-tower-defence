@@ -3,6 +3,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import type { Cell } from "../sim/types";
 import { WALL_DECK } from "../sim/world";
 import { cellBounds, pieceOutline, SIDES, type OutlineCell, type Side } from "./pieceShape";
+import { colonyOrange, COLONY_ORANGE } from "./palette";
 import { shipModel } from "./ship";
 
 /**
@@ -53,7 +54,7 @@ export const EVENING = {
   /** Sun position relative to the camera target. Low and from the west: long shadows. */
   sunOffset: [-15, 4.2, 4] as const,
   snow: "#f1f4fa",
-  wallA: "#d9573a",
+  wallA: COLONY_ORANGE,
   wallB: "#cc4f34",
   rock: "#5d6379",
   pine: "#2f5d5a",
@@ -93,7 +94,7 @@ export function createMaterials() {
   return {
     snow: std(P.snow, { roughness: 1 }),
     /** The wall orange Erik picked: the base colour with a soft warm glow. */
-    wallA: std(P.wallA, { emissive: "#ff8a4a", emissiveIntensity: 0.17 }),
+    wallA: colonyOrange(),
     wallB: std(P.wallB),
     /** Walls of pieces that can still be picked up: a soft pulse marks them. */
     wallLooseA: std(P.wallA, { emissive: "#ff8a4a", emissiveIntensity: 0.15 }),
@@ -111,8 +112,8 @@ export function createMaterials() {
     power: std("#7ff5e6", { emissive: "#4fdcca", emissiveIntensity: 0.4, roughness: 0.4 }),
     gunDark: std("#2c3142", { roughness: 0.6 }),
     plate: std("#b4bccd", { roughness: 0.5 }),
-    accent: std(P.wallA, { roughness: 0.7 }),
-    accentDark: std("#a8432d", { roughness: 0.7 }),
+    accent: colonyOrange(),
+    accentDark: colonyOrange(),
     crystal: std("#8ff5e8", { emissive: P.crystal, emissiveIntensity: 0.9, roughness: 0.3 }),
     rift: std("#2a2140", { roughness: 1 }),
     riftRing: std(P.alien, { emissive: P.alien, emissiveIntensity: 0.6, transparent: true }),
@@ -293,7 +294,7 @@ export function createDefaultModels(mat: Materials, glow: Glows): ModelLibrary {
   });
 
   /** The player's ship, the Rocket, centered on its 3×3 footprint. */
-  lib.register("ship", () => shipModel(EVENING.wallA));
+  lib.register("ship", () => shipModel());
 
   /** Twin (1×1): hex mount, orange colony head, two barrels that fire in turn. */
   lib.register("twin", () => twinModel(mat, false));

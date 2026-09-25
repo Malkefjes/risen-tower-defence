@@ -46,6 +46,7 @@ Mockups: `node scripts/mockup.mjs <name>` builds `mockups/<name>/` (can import t
 - `src/sim/` game rules, no graphics: `avatar.ts` (player movement, jumping onto walls), `world.ts` (map, walls, no-edge bounds), `pathfinding.ts` (flow field, 8-way, no corner cutting), `pieces.ts`, `game.ts` (supply drops, hand, placement rules, towers, combat, credits, HP, waves), `towers.ts` (tower kinds, stats, tuning defaults), `maps.ts`.
 - `src/render/` three.js: `models.ts` (named model library, materials, evening palette), `view.ts` (scene, camera, sync with sim, effects), `ship.ts` (the Rocket), `rig.ts` (player rig + animator), `pieceShape.ts`.
 - `src/input/controller.ts` mouse/keyboard to actions; `src/ui/hud.ts` DOM overlay; `src/ui/tuning.ts` tuning sliders; `src/main.ts` fixed-step loop (60 ticks/s).
+- Every orange part (walls, towers, ship, rig bands) uses `colonyOrange()` from `src/render/palette.ts`: one colour, glow and finish, so all oranges match. Don't create other oranges.
 - Rendering uses `THREE.ColorManagement.enabled = false` and legacy-like light intensities to match the mockups.
 
 ## Locked decisions (see design doc for the full list)

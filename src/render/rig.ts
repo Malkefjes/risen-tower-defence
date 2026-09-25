@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { EVENING, roundedBox } from "./models";
+import { roundedBox } from "./models";
+import { colonyOrange } from "./palette";
 
 /**
  * The player rig (picked by Erik from mockups/rig): a slim humanoid exo-rig with a
@@ -13,7 +14,7 @@ const std = (color: string, o: THREE.MeshStandardMaterialParameters = {}) =>
 // startup, and materials made before that would convert these hex colours (orange turns red).
 const palette = () => ({
   suit: std("#eef1f6", { roughness: 0.6 }),
-  orange: std(EVENING.wallA),
+  orange: colonyOrange(),
   steel: std("#3d4457", { roughness: 0.55 }),
   steelDark: std("#2c3142", { roughness: 0.6 }),
   power: std("#7ff5e6", { emissive: "#4fdcca", emissiveIntensity: 0.8, roughness: 0.4 }),
