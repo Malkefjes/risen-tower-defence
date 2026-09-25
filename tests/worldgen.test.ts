@@ -40,6 +40,13 @@ describe("generated world", () => {
     expect(ore.some(o => o.kind === "metal" && Math.hypot(o.x + 1, o.y + 1) < 30)).toBe(true);
   });
 
+  it("never puts trees in touching cells", () => {
+    const at = new Set([...map.trees, ...(map.deadTrees ?? [])].map(t => cellKey(t.x, t.y)));
+    for (const t of [...map.trees, ...(map.deadTrees ?? [])]) {
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (dx || dy) expect(at.has(cellKey(t.x + dx, t.y + dy))).toBe(false);
+    }
+  });
+
   it("lets enemies from every cave reach the ship", () => {
     const g = new Game(map, { seed: 1 });
     for (const [x, y] of g.world.spawners) expect(isFinite(g.field.at(x, y))).toBe(true);

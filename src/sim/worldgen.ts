@@ -209,6 +209,12 @@ export function generateWorld(seed: number, opts: WorldGenOptions = {}): Generat
 
   // --- Trees, dead pines and crystal by zone.
   const trees: TreeDef[] = [], dead: TreeDef[] = [], crystals: TreeDef[] = [];
+  // Trees never stand in touching cells (Erik): each has a free tile all round it.
+  const isTree = (x: number, y: number) => { const k = cells.get(cellKey(x, y)); return k === "tree" || k === "dead"; };
+  const treeNear = (x: number, y: number) => {
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && isTree(x + dx, y + dy)) return true;
+    return false;
+  };
   for (let y = -R; y < R; y++) for (let x = -R; x < R; x++) {
     if (!free(x, y)) continue;
     const z = zonesAt(x + 0.5, y + 0.5);
@@ -216,11 +222,11 @@ export function generateWorld(seed: number, opts: WorldGenOptions = {}): Generat
     const g = grove(x / 7, y / 7), r = rocky(x / 5, y / 5), roll = rand();
     if (z.wastes > 0.5) {
       if (r > 0.62 && roll < (r - 0.55) * 0.9 * z.wastes) { crystals.push({ x, y, s: 0.7 + rand() * 0.6 }); cells.set(cellKey(x, y), "crystal"); }
-      else if (g > 0.6 && roll < 0.12) { dead.push({ x, y, s: 0.9 + rand() * 0.3 }); cells.set(cellKey(x, y), "dead"); }
+      else if (g > 0.6 && roll < 0.12 && !treeNear(x, y)) { dead.push({ x, y, s: 0.9 + rand() * 0.3 }); cells.set(cellKey(x, y), "dead"); }
     } else if (z.highlands > 0.5) {
-      if (g > 0.72 && roll < 0.12) { trees.push({ x, y, s: 0.8 + rand() * 0.25 }); cells.set(cellKey(x, y), "tree"); }
+      if (g > 0.72 && roll < 0.12 && !treeNear(x, y)) { trees.push({ x, y, s: 0.8 + rand() * 0.25 }); cells.set(cellKey(x, y), "tree"); }
     } else {
-      if ((g > 0.5 && roll < (g - 0.42) * 1.5) || roll < 0.01) { trees.push({ x, y, s: 0.85 + rand() * 0.35 }); cells.set(cellKey(x, y), "tree"); }
+      if (((g > 0.5 && roll < (g - 0.42) * 1.5) || roll < 0.01) && !treeNear(x, y)) { trees.push({ x, y, s: 0.85 + rand() * 0.35 }); cells.set(cellKey(x, y), "tree"); }
     }
   }
 
