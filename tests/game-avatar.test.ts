@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Game } from "../src/sim/game";
-import { WALL_DECK, type MapDef } from "../src/sim/world";
+import { rockTop, TREE_HURDLE, WALL_DECK, type MapDef } from "../src/sim/world";
 
 const open = (extra: Partial<MapDef> = {}): MapDef => ({
   name: "test", spawners: [[0, 0]], nexus: [[20, 0]], rocks: [], trees: [], start: [5, 5], ...extra,
@@ -19,13 +19,16 @@ describe("avatar in the game", () => {
     expect(g.avatar.x).toBeGreaterThan(10);
   });
 
-  it("the ship and rocks are solid; walls are decks; towers stand on them", () => {
-    const g = new Game(open({ rocks: [{ x: 7, y: 5, h: 10 }] }), { seed: 1, tuning: { startMetal: 500 } });
+  it("the ship is solid; rocks, walls and towers have tops; trees are hurdles", () => {
+    const g = new Game(open({ rocks: [{ x: 7, y: 5, h: 10 }], trees: [{ x: 8, y: 5, s: 1 }] }), { seed: 1, tuning: { startMetal: 500 } });
     g.world.walls.set("3,3", 1);
     g.buildTower("twin", [3, 3]);
     g.world.walls.set("4,3", 1);
     expect(g.heightAt(20, 0)).toBe(Infinity);
-    expect(g.heightAt(7, 5)).toBe(Infinity);
+    expect(g.heightAt(7, 5)).toBeCloseTo(rockTop(10));
+    expect(g.heightAt(8, 5)).toBe(TREE_HURDLE);
+    expect(g.standable(8, 5)).toBe(false);
+    expect(g.standable(7, 5)).toBe(true);
     expect(g.heightAt(3, 3)).toBeCloseTo(WALL_DECK + 0.45);
     expect(g.heightAt(4, 3)).toBe(WALL_DECK);
     expect(g.heightAt(9, 9)).toBe(0);
@@ -88,5 +91,64 @@ describe("avatar in the game", () => {
     g.reset();
     expect(g.avatar.x).toBe(5.5);
     expect(g.avatar.y).toBe(5.5);
+  });
+
+  /** Run toward +x and jump when the avatar reaches `jumpAt`; returns the highest it stood. */
+  const hop = (g: Game, jumpAt: number, seconds: number) => {
+    let jumped = false, stood = 0;
+    for (let i = 0; i < seconds * 60; i++) {
+      g.avatarInput.x = 1; g.avatarInput.y = 0;
+      if (!jumped && g.avatar.x >= jumpAt) { g.avatarInput.jump = true; jumped = true; }
+      g.stepAvatar();
+      if (g.avatar.grounded) stood = Math.max(stood, g.avatar.z);
+    }
+    return stood;
+  };
+
+  it("can jump onto a rock", () => {
+    const g = new Game(open({ start: [3, 5], rocks: [{ x: 6, y: 5, h: 13 }] }), { seed: 1 });
+    g.avatarInput = { x: 1, y: 0, jump: false };
+    // Stop on top of it: run, jump, then let go once over the rock.
+    for (let i = 0; i < 120; i++) {
+      g.avatarInput.x = g.avatar.x > 6.5 ? 0 : 1;
+      if (g.avatar.x >= 5.3 && g.avatar.grounded && g.avatar.z === 0) g.avatarInput.jump = true;
+      g.stepAvatar();
+    }
+    expect(g.avatar.z).toBeCloseTo(rockTop(13));
+    expect(Math.floor(g.avatar.x)).toBe(6);
+  });
+
+  it("can hop onto an ore node and up to its peak", () => {
+    const g = new Game(open({ start: [2, 6], ore: [{ x: 6, y: 5, kind: "stone" }] }), { seed: 1 });
+    expect(hop(g, 5.2, 2)).toBeGreaterThan(0.5);
+  });
+
+  it("clears a tree with a jump but never lands on it", () => {
+    const g = new Game(open({ start: [3, 5], trees: [{ x: 6, y: 5, s: 1 }] }), { seed: 1 });
+    let onTree = false;
+    let jumped = false;
+    for (let i = 0; i < 120; i++) {
+      g.avatarInput.x = 1;
+      if (!jumped && g.avatar.x >= 5.0) { g.avatarInput.jump = true; jumped = true; }
+      g.stepAvatar();
+      if (g.avatar.grounded && Math.floor(g.avatar.x) === 6 && g.avatar.z > 0) onTree = true;
+    }
+    expect(onTree).toBe(false);
+    expect(g.avatar.x).toBeGreaterThan(7.5);
+    // Without jumping, it blocks.
+    const h = new Game(open({ start: [3, 5], trees: [{ x: 6, y: 5, s: 1 }] }), { seed: 1 });
+    h.avatarInput = { x: 1, y: 0, jump: false };
+    for (let i = 0; i < 120; i++) h.stepAvatar();
+    expect(h.avatar.x).toBeLessThan(6);
+  });
+
+  it("slides off a tree it comes down on", () => {
+    const g = new Game(open({ start: [6, 5], trees: [{ x: 6, y: 5, s: 1 }] }), { seed: 1 });
+    g.avatar.place(6.4, 5.5, 2);
+    g.avatar.grounded = false;
+    for (let i = 0; i < 90; i++) g.stepAvatar();
+    expect(g.avatar.grounded).toBe(true);
+    expect(g.avatar.z).toBe(0);
+    expect(Math.floor(g.avatar.x) === 6 && Math.floor(g.avatar.y) === 5).toBe(false);
   });
 });

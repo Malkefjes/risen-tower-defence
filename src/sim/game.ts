@@ -1,6 +1,6 @@
 import { Avatar, defaultAvatarTuning, type AvatarInput, type AvatarTuning } from "./avatar";
 import { Hotbar } from "./inventory";
-import { nodeArea, nodeFootprint, nodeMax, ORE_STAGES, stagesLeft, viewGap, type OreKind, type OreNode } from "./ore";
+import { nodeArea, nodeCellTop, nodeFootprint, nodeMax, ORE_STAGES, stagesLeft, viewGap, type OreKind, type OreNode } from "./ore";
 import { computeField, keysOf, type FlowField } from "./pathfinding";
 import { pieceCells, SHAPE_IDS, type ShapeId } from "./pieces";
 import { Rng } from "./rng";
@@ -167,15 +167,24 @@ export class Game {
 
   /**
    * How tall each cell is for the avatar: walls are decks and towers stand on
-   * top of them, both climbable by jumping; terrain and the ship are solid;
-   * everything else is snow.
+   * top of them; rocks and ore nodes can be jumped onto; trees can be jumped
+   * over (see `standable`); the ship is solid; everything else is snow.
    */
   readonly heightAt = (x: number, y: number): number => {
-    if (this.world.isTerrain(x, y) || this.world.isNexus(x, y) || this.world.isOre(x, y)) return Infinity;
+    if (this.world.isNexus(x, y)) return Infinity;
+    const k = cellKey(x, y);
+    const terrain = this.world.terrainTop.get(k);
+    if (terrain !== undefined) return terrain;
+    const oreId = this.world.ore.get(k);
+    if (oreId !== undefined) return nodeCellTop(this.nodes.find(n => n.id === oreId)!, x, y);
     const tower = this.towerAt(x, y);
     if (tower) return WALL_DECK + TOWER_INFO[tower.kind].top;
-    return this.world.walls.has(cellKey(x, y)) ? WALL_DECK : 0;
+    return this.world.walls.has(k) ? WALL_DECK : 0;
   };
+
+  /** Trees can be cleared by a jump but never stood on. */
+  readonly standable = (x: number, y: number): boolean => !this.world.isTree(x, y);
+
 
   /** Cells under the avatar's footprint. */
   avatarCells(): Set<string> {
@@ -461,7 +470,7 @@ export class Game {
     this.avatarTuning.sprint = this.tuning.sprint;
     // Sprint is a travel mode: firing the tool drops back to running speed.
     const input = { ...this.avatarInput, sprint: this.avatarInput.sprint && !this.mineInput.firing };
-    this.avatar.step(dt, input, this.heightAt, this.avatarTuning);
+    this.avatar.step(dt, input, this.heightAt, this.avatarTuning, this.standable);
     this.avatarInput.jump = false;
     if (this.avatar.landed) this.events.push({ type: "avatar-landed" });
     // Mining is the player's own action, so it runs on real time too.

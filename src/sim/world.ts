@@ -7,6 +7,14 @@ export interface TreeDef { x: number; y: number; s: number }
 /** Height of a wall's deck, in cells: where towers stand and the avatar can run. */
 export const WALL_DECK = 0.58;
 
+/** Top of a rock of map height `h` (the rock model grows with h): 0.64 to 0.96 cells, all within a jump. */
+export const rockTop = (h: number): number => 0.64 + (h - 10) * 0.053;
+/**
+ * Trees are taller than a jump, but the avatar can clear them as if they were
+ * this high (through the thin top of the crown). They can't be stood on.
+ */
+export const TREE_HURDLE = 0.7;
+
 export interface MapDef {
   name: string;
   spawners: Cell[];
@@ -33,6 +41,9 @@ export const WORLD_MARGIN = 3;
 export class World {
   readonly map: MapDef;
   readonly terrain = new Set<string>();
+  /** How high each terrain cell is for the avatar (rocks: their top; trees: a hurdle). */
+  readonly terrainTop = new Map<string, number>();
+  readonly trees = new Set<string>();
   readonly nexus = new Set<string>();
   readonly spawners: Cell[];
   /** cell key -> id of the placed piece occupying it */
@@ -44,8 +55,8 @@ export class World {
   constructor(map: MapDef) {
     this.map = map;
     this.spawners = map.spawners.map(c => [c[0], c[1]] as Cell);
-    for (const r of map.rocks) this.terrain.add(cellKey(r.x, r.y));
-    for (const t of map.trees) this.terrain.add(cellKey(t.x, t.y));
+    for (const r of map.rocks) { const k = cellKey(r.x, r.y); this.terrain.add(k); this.terrainTop.set(k, rockTop(r.h)); }
+    for (const t of map.trees) { const k = cellKey(t.x, t.y); this.terrain.add(k); this.trees.add(k); this.terrainTop.set(k, TREE_HURDLE); }
     for (const [x, y] of map.nexus) this.nexus.add(cellKey(x, y));
     const oreCells = (map.ore ?? []).flatMap(o => nodeArea({ id: 0, kind: o.kind, x: o.x, y: o.y, amount: 0, max: nodeMax(o.kind) }));
     const all: Cell[] = [...map.spawners, ...map.nexus, ...[...this.terrain].map(parseKey), ...oreCells];
@@ -57,6 +68,7 @@ export class World {
   isSpawner(x: number, y: number): boolean { return this.spawners.some(s => s[0] === x && s[1] === y); }
 
   isOre(x: number, y: number): boolean { return this.ore.has(cellKey(x, y)); }
+  isTree(x: number, y: number): boolean { return this.trees.has(cellKey(x, y)); }
 
   /** Blocks movement (terrain, walls, ore, or extra hypothetical cells). */
   isBlocked(x: number, y: number, extra?: ReadonlySet<string>): boolean {

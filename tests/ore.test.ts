@@ -25,10 +25,12 @@ describe("ore nodes", () => {
     expect(stagesLeft(node(2 / 3))).toBe(2);
   });
 
-  it("block enemies and the avatar, and can't be built on", () => {
+  it("block enemies, can be climbed by the avatar, and can't be built on", () => {
     const g = new Game(map(), { seed: 1 });
     expect(g.world.isBlocked(9, 5)).toBe(true);
-    expect(g.heightAt(8, 4)).toBe(Infinity);
+    // The avatar can climb it: a mound, highest in the middle.
+    expect(g.heightAt(9, 5)).toBeGreaterThan(g.heightAt(8, 4));
+    expect(g.heightAt(9, 5)).toBeLessThan(1);
     const check = g.checkPlacement("O", 0, [9, 5]);
     expect(check.ok).toBe(false);
     if (!check.ok) expect(check.reason).toBe("occupied");
@@ -152,5 +154,14 @@ describe("Frostfall", () => {
       expect(g.world.isTerrain(x, y) || g.world.isNexus(x, y) || g.world.isSpawner(x, y)).toBe(false);
     }
     expect(g.routes()[0]!.length).toBeGreaterThan(0);
+  });
+
+  it("keeps its nodes out of the zone around the ship", async () => {
+    const { FROSTFALL } = await import("../src/sim/maps");
+    const { nodeArea, SHIP_CLEARANCE } = await import("../src/sim/ore");
+    const g = new Game(FROSTFALL, { seed: 1 });
+    for (const n of g.nodes) for (const [x, y] of nodeArea(n)) for (const [sx, sy] of FROSTFALL.nexus) {
+      expect(Math.max(Math.abs(x - sx), Math.abs(y - sy)) - 1).toBeGreaterThanOrEqual(SHIP_CLEARANCE);
+    }
   });
 });

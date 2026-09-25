@@ -3,13 +3,18 @@
  * Pure logic, no graphics. Positions are in cells (x east, y south), z is height.
  *
  * The world is described by `HeightAt`: the standing height of each cell
- * (0 for snow, the deck height for walls, Infinity for things that can't be
- * climbed, like rocks and the ship). A cell only blocks the avatar if its top
+ * (0 for snow, the deck height for walls, the top of a rock or ore node,
+ * Infinity for the ship). A cell only blocks the avatar if its top
  * is higher than the avatar's feet plus a small step, so from the ground a
  * wall is an obstacle, but a jump high enough clears it and you land on its deck.
  */
 
 export type HeightAt = (cx: number, cy: number) => number;
+/**
+ * Can the avatar stand on this cell's top? Cells that aren't standable (trees)
+ * can be jumped over, but never landed on: land on one and you slide off its side.
+ */
+export type Standable = (cx: number, cy: number) => boolean;
 
 export interface AvatarTuning {
   /** Top running speed, cells per second. */
@@ -81,7 +86,7 @@ export class Avatar {
 
   get speed(): number { return Math.hypot(this.vx, this.vy); }
 
-  step(dt: number, input: AvatarInput, heightAt: HeightAt, t: AvatarTuning): void {
+  step(dt: number, input: AvatarInput, heightAt: HeightAt, t: AvatarTuning, standable: Standable = () => true): void {
     this.landed = false;
     this.jumped = false;
     this.prevX = this.x; this.prevY = this.y; this.prevZ = this.z; this.prevFacing = this.facing;
@@ -110,8 +115,13 @@ export class Avatar {
     this.moveAxis("x", this.vx * dt, heightAt, t);
     this.moveAxis("y", this.vy * dt, heightAt, t);
 
-    // Ground: the highest cell under the footprint that isn't above the feet.
-    const support = this.supportHeight(heightAt, t);
+    // Anything whose top the feet passed on the way down this tick can be landed on.
+    const reach = Math.max(this.z, this.prevZ) + t.stepUp;
+    // Sinking into something you can't land on (coming down on a tree): slide out of it.
+    this.depenetrate(heightAt, t, standable, reach);
+
+    // Ground: the highest standable cell under the footprint that isn't above the feet.
+    const support = this.supportHeight(heightAt, standable, t.radius, reach);
     if (this.grounded) {
       if (support < this.z - t.stepUp) this.grounded = false; // walked off a ledge
       else this.z = support;
@@ -154,13 +164,32 @@ export class Avatar {
     }
   }
 
-  private supportHeight(heightAt: HeightAt, t: AvatarTuning): number {
+  /** Push the footprint out of any cell taller than the feet, along the shortest way out. */
+  private depenetrate(heightAt: HeightAt, t: AvatarTuning, standable: Standable, reach: number): void {
     const r = t.radius;
+    for (let i = 0; i < 4; i++) {
+      let hit = false;
+      for (let cy = Math.floor(this.y - r); cy <= Math.floor(this.y + r - EPS) && !hit; cy++) {
+        for (let cx = Math.floor(this.x - r); cx <= Math.floor(this.x + r - EPS) && !hit; cx++) {
+          if (!this.solid(cx, cy, heightAt, t) || (standable(cx, cy) && heightAt(cx, cy) <= reach)) continue;
+          hit = true;
+          const left = this.x + r - cx, right = cx + 1 - (this.x - r), up = this.y + r - cy, down = cy + 1 - (this.y - r);
+          const m = Math.min(left, right, up, down);
+          if (m === left) this.x -= left + EPS; else if (m === right) this.x += right + EPS;
+          else if (m === up) this.y -= up + EPS; else this.y += down + EPS;
+        }
+      }
+      if (!hit) return;
+    }
+  }
+
+  private supportHeight(heightAt: HeightAt, standable: Standable, r: number, reach: number): number {
     let best = 0;
     for (let cy = Math.floor(this.y - r); cy <= Math.floor(this.y + r - EPS); cy++) {
       for (let cx = Math.floor(this.x - r); cx <= Math.floor(this.x + r - EPS); cx++) {
+        if (!standable(cx, cy)) continue;
         const h = heightAt(cx, cy);
-        if (h <= this.z + t.stepUp && h > best) best = h;
+        if (h <= reach && h > best) best = h;
       }
     }
     return best;

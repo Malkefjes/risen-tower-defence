@@ -13,6 +13,8 @@ export const ORE_KINDS: readonly OreKind[] = ["stone", "metal"];
 export interface OreNodeDef { x: number; y: number; kind: OreKind }
 
 export const NODE_SIZE = 3;
+/** Open ground a map keeps between any ore node and the ship, in cells. */
+export const SHIP_CLEARANCE = 4;
 export const ORE_STAGES = 3;
 /** Ore dropped by each stage that breaks off. */
 export const STAGE_YIELD: Record<OreKind, number> = { stone: 200, metal: 100 };
@@ -45,6 +47,15 @@ export function nodeFootprint(n: OreNode): Cell[] {
   if (s === 2) return [[cx, cy], [cx - 1, cy], [cx + 1, cy], [cx, cy - 1], [cx, cy + 1]];
   if (s === 1) return [[cx, cy]];
   return [];
+}
+
+/**
+ * How high a node cell is for the avatar: a mound that rises toward its peak,
+ * so it can be hopped up. The peak (the core) is just within a jump from the snow.
+ */
+export function nodeCellTop(n: OreNode, x: number, y: number): number {
+  const dx = Math.abs(x - (n.x + 1)), dy = Math.abs(y - (n.y + 1));
+  return dx + dy === 0 ? 0.95 : dx + dy === 1 ? 0.78 : 0.6;
 }
 
 /** All nine cells of a node, whatever its stage. */
