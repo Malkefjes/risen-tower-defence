@@ -14,10 +14,10 @@ const std = (color: string, o: THREE.MeshStandardMaterialParameters = {}) =>
   new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0, flatShading: true, ...o });
 let M: ReturnType<typeof palette> | undefined;
 // Created on first use, after colour management is switched off.
-// One dark purple for the whole creature (Erik), soft and matte with smooth shading
-// so it reads as living tissue, not ice or glass; a faint glow keeps it purple at dusk.
+// One very dark red for the whole creature (Erik; was dark purple), soft and matte with smooth shading
+// so it reads as living tissue, not ice or glass; a faint glow keeps the red at dusk.
 const palette = () => {
-  const flesh = new THREE.MeshStandardMaterial({ color: "#2a0f44", roughness: 0.8, metalness: 0, emissive: "#160626", emissiveIntensity: 0.3 });
+  const flesh = new THREE.MeshStandardMaterial({ color: "#1e0406", roughness: 0.8, metalness: 0, emissive: "#0c0102", emissiveIntensity: 0.3 });
   // Blades and the stinger are bone white (Erik), matte like the body.
   const bone = new THREE.MeshStandardMaterial({ color: "#e9e1cf", roughness: 0.7, metalness: 0 });
   return { chitin: flesh, chitinDark: flesh, hide: flesh, bone, eye: new THREE.MeshBasicMaterial({ color: "#0d1a2a" }) };
