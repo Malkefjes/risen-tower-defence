@@ -4,9 +4,10 @@ import type { Cell } from "./types";
 export type TowerKind = "twin" | "gatling";
 export const TOWER_KINDS: readonly TowerKind[] = ["twin", "gatling"];
 
-export const TOWER_INFO: Record<TowerKind, { name: string; size: number }> = {
-  twin: { name: "Twin", size: 1 },
-  gatling: { name: "Gatling", size: 2 },
+/** `top` is how high the tower stands above its wall deck, in cells (the avatar can stand on it). */
+export const TOWER_INFO: Record<TowerKind, { name: string; size: number; top: number }> = {
+  twin: { name: "Twin", size: 1, top: 0.45 },
+  gatling: { name: "Gatling", size: 2, top: 0.81 },
 };
 
 export interface TowerStats {

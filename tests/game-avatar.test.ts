@@ -19,14 +19,14 @@ describe("avatar in the game", () => {
     expect(g.avatar.x).toBeGreaterThan(10);
   });
 
-  it("the ship, rocks and towers are solid; walls are decks", () => {
+  it("the ship and rocks are solid; walls are decks; towers stand on them", () => {
     const g = new Game(open({ rocks: [{ x: 7, y: 5, h: 10 }] }), { seed: 1, tuning: { startCredits: 50 } });
     g.world.walls.set("3,3", 1);
     g.buildTower("twin", [3, 3]);
     g.world.walls.set("4,3", 1);
     expect(g.heightAt(20, 0)).toBe(Infinity);
     expect(g.heightAt(7, 5)).toBe(Infinity);
-    expect(g.heightAt(3, 3)).toBe(Infinity);
+    expect(g.heightAt(3, 3)).toBeCloseTo(WALL_DECK + 0.45);
     expect(g.heightAt(4, 3)).toBe(WALL_DECK);
     expect(g.heightAt(9, 9)).toBe(0);
   });
@@ -59,6 +59,26 @@ describe("avatar in the game", () => {
     // Enemies path as if the avatar weren't there.
     g.avatar.place(10.5, 0.5);
     expect(isFinite(g.field.at(0, 1))).toBe(true);
+  });
+
+  it("can climb from a wall deck onto a tower, but not from the snow", () => {
+    const g = new Game(open({ start: [2, 0] }), { seed: 1, tuning: { startCredits: 50 } });
+    for (let x = 4; x < 9; x++) g.world.walls.set(`${x},0`, 1);
+    g.buildTower("twin", [7, 0]);
+    // From the snow straight at the tower's wall: lands on the deck in front of it.
+    g.avatarInput = { x: 1, y: 0, jump: true };
+    ticks(g, 40);
+    g.avatarInput = { x: 0, y: 0, jump: false };
+    expect(g.avatar.z).toBeCloseTo(WALL_DECK);
+    expect(g.avatar.x).toBeLessThan(7);
+    // A second jump from the deck, with a gentle push, lands on the tower.
+    ticks(g, 30);
+    g.avatarInput = { x: 0.6, y: 0, jump: true };
+    ticks(g, 25);
+    g.avatarInput = { x: 0, y: 0, jump: false };
+    ticks(g, 40);
+    expect(g.avatar.z).toBeCloseTo(WALL_DECK + 0.45);
+    expect(g.avatar.x + g.avatarTuning.radius).toBeGreaterThan(7);
   });
 
   it("a new run puts the avatar back at the start", () => {

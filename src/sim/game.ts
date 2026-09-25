@@ -146,11 +146,14 @@ export class Game {
   }
 
   /**
-   * How tall each cell is for the avatar: walls are decks it can jump onto;
-   * terrain, the ship and towers are solid; everything else is snow.
+   * How tall each cell is for the avatar: walls are decks and towers stand on
+   * top of them, both climbable by jumping; terrain and the ship are solid;
+   * everything else is snow.
    */
   readonly heightAt = (x: number, y: number): number => {
-    if (this.world.isTerrain(x, y) || this.world.isNexus(x, y) || this.towerCellsMap.has(cellKey(x, y))) return Infinity;
+    if (this.world.isTerrain(x, y) || this.world.isNexus(x, y)) return Infinity;
+    const tower = this.towerAt(x, y);
+    if (tower) return WALL_DECK + TOWER_INFO[tower.kind].top;
     return this.world.walls.has(cellKey(x, y)) ? WALL_DECK : 0;
   };
 
