@@ -59,7 +59,7 @@ Each milestone is a playable build that answers one question. I propose we stop 
 - **Answers:** does the base look like a stronghold in the real game?
 
 ### M1a: Boots on the ground
-- **Avatar:** the player rig (`mockups/rig/`). Walks with WASD, jumps (Space) onto wall decks and runs along them; rocks, the Rocket and towers block it. Never blocks enemies. Pause moves off Space (proposed: P).
+- **Avatar:** the player rig (`mockups/rig/`). Walks with WASD, jumps (Space) onto wall decks and runs along them; rocks, the Rocket and towers block it. Never blocks enemies. Pause moves to P. Always a run cycle, never a walk.
 - **Camera:** follows the avatar. Dragging or arrow keys pan freely and stop following. One key snaps back to the avatar, another jumps to the ship.
 - **Ship replaces the nexus:** same role, new model (placeholder based on Reactor core until the ship mockup).
 - **Ore nodes on Frostfall:** a few nodes you can see. Stand next to one and hold the mine key to mine it by hand; the avatar carries a limited load and drops it off at the ship.

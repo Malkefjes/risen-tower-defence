@@ -162,8 +162,8 @@ function poseArm(l: ReturnType<typeof limb>, swing: number, bend: number): void 
   l.mid.rotation.x = bend;
 }
 
-type Pose = "walk" | "idle" | "mine" | "build" | "jump" | "hop";
-let pose: Pose = "walk";
+type Pose = "run" | "idle" | "mine" | "build" | "jump" | "hop";
+let pose: Pose = "run";
 
 /**
  * Walk in place. Each leg swings forward and back; the knee bends while the leg
@@ -205,26 +205,29 @@ function jumpPose(k: number): number {
 }
 
 let jumpK = -1;
+/** Run cycle speed (radians per second of the stride phase), flight bounce and matching ground speed. */
+const RUN_CADENCE = 9.5, RUN_BOUNCE = 0.025, RUN_SPEED = 1.8;
 
 function animate(t: number, dt: number): void {
-  const s = t * 6;
   const { legs, arms, body } = rig;
   if (jumpK >= 0) {
     jumpPose(jumpK);
-  } else if (pose === "walk" || pose === "hop") {
+  } else if (pose === "run" || pose === "hop") {
+    const r = t * RUN_CADENCE;
     [0, 1].forEach(i => {
-      const ph = s + i * Math.PI;
-      const swing = Math.sin(ph) * 0.38;
-      // Knee lift eases in and out (no hard start or stop) while the leg travels forward.
-      const lift = 0.7 * ((1 + Math.cos(ph)) / 2) ** 2;
-      poseLeg(legs[i]!, -swing, lift + 0.1);
+      const ph = r + i * Math.PI;
+      // Long stride: the hip swings well forward and back.
+      const hip = -Math.sin(ph) * 0.6;
+      // The knee folds as the leg swings through (heel kicks up behind), and stays soft in stance.
+      const fold = 1.3 * ((1 + Math.cos(ph - 0.45)) / 2) ** 2;
+      poseLeg(legs[i]!, hip, 0.1 + fold);
     });
-    // Both arms relaxed: the tool just hangs from the right hand.
-    poseArm(arms[0]!, Math.sin(s) * 0.35, -0.35);
-    poseArm(arms[1]!, Math.sin(s + Math.PI) * 0.35, -0.35);
-    // Gentle, rounded bob: lowest as each foot lands, highest as the other leg passes under.
-    body.position.y = -0.006 + Math.cos(2 * s) * 0.006;
-    body.rotation.set(0.03, Math.sin(s) * 0.03, 0);
+    // Arms pump opposite the legs with the elbows bent.
+    poseArm(arms[0]!, Math.sin(r) * 0.6 - 0.1, -1.25);
+    poseArm(arms[1]!, -Math.sin(r) * 0.6 - 0.1, -1.25);
+    // Forward lean and a little counter-twist; the body sits steady relative to the hips.
+    body.position.y = 0;
+    body.rotation.set(0.14, Math.sin(r) * 0.06, 0);
   } else if (pose === "idle") {
     poseLeg(legs[0]!, 0, 0.06); poseLeg(legs[1]!, 0, 0.06);
     poseArm(arms[0]!, 0.05, -0.2); poseArm(arms[1]!, 0.05, -0.2);
@@ -251,13 +254,16 @@ function animate(t: number, dt: number): void {
   });
   const airborne = jumpK >= CROUCH_END && jumpK < LAND_START;
   const grounded = jumpK >= 0 ? !airborne : pose !== "idle" && pose !== "build";
-  const target = grounded ? -softMin(drops[0]!, drops[1]!) * SCALE : 0;
+  let target = grounded ? -softMin(drops[0]!, drops[1]!) * SCALE : 0;
+  // Running: a short, rounded flight between steps. Lowest at mid-stance, highest mid-flight.
+  if (jumpK < 0 && (pose === "run" || pose === "hop")) target += RUN_BOUNCE * (1 - Math.cos(2 * t * RUN_CADENCE)) / 2;
   rootY += (target - rootY) * Math.min(1, dt * (jumpK >= 0 ? 40 : 14));
   rig.root.position.y = rootY;
   // At the ready (mining, building) the tool is held level; relaxed it hangs, tipped down in the hand.
   const arm = arms[1]!;
   const ready = pose === "mine" || pose === "build";
-  const wantTilt = ready ? -(arm.top.rotation.x + arm.mid.rotation.x) : 0.9;
+  // Relaxed, the tool points forward and down whatever the arm is doing.
+  const wantTilt = -(arm.top.rotation.x + arm.mid.rotation.x) + (ready ? 0 : 0.75);
   rig.tool.rotation.x += (wantTilt - rig.tool.rotation.x) * Math.min(1, dt * 12);
   rig.beam.visible = pose === "mine";
   rig.beam.scale.z = 0.28 + Math.sin(t * 40) * 0.02;
@@ -281,9 +287,9 @@ const sparks: { m: THREE.Mesh; v: THREE.Vector3; life: number }[] = [];
 
 let spinning = true, closeUp = true;
 const press = (ids: string[], on: string) => ids.forEach(id => document.getElementById(id)!.setAttribute("aria-pressed", String(id === on)));
-(["walk", "idle", "mine", "build", "jump", "hop"] as Pose[]).forEach(p => {
+(["run", "idle", "mine", "build", "jump", "hop"] as Pose[]).forEach(p => {
   const id = `p${p[0]!.toUpperCase()}${p.slice(1)}`;
-  document.getElementById(id)!.addEventListener("click", () => { pose = p; hopT = 0; inPlaceT = 0; press(["pWalk", "pIdle", "pMine", "pBuild", "pJump", "pHop"], id); });
+  document.getElementById(id)!.addEventListener("click", () => { pose = p; hopT = 0; inPlaceT = 0; press(["pRun", "pIdle", "pMine", "pBuild", "pJump", "pHop"], id); });
 });
 document.getElementById("zClose")!.addEventListener("click", () => { closeUp = true; press(["zClose", "zGame"], "zClose"); });
 document.getElementById("zGame")!.addEventListener("click", () => { closeUp = false; press(["zClose", "zGame"], "zGame"); });
@@ -312,7 +318,6 @@ hopWall.position.set(4, 0, 3);
 scene.add(hopWall);
 const W = (x: number, z: number) => new THREE.Vector3(4 + x, 0, 3 + z);
 type Leg = { kind: "walk" | "jump"; from: THREE.Vector3; to: THREE.Vector3; h0: number; h1: number; dur: number };
-const WALK_SPEED = 0.8;
 const hopPath: Leg[] = (() => {
   const g = 0, d = DECK_TOP;
   const pts: [string, THREE.Vector3, THREE.Vector3, number, number][] = [
@@ -325,7 +330,7 @@ const hopPath: Leg[] = (() => {
   ];
   return pts.map(([kind, from, to, h0, h1]) => ({
     kind: kind as Leg["kind"], from, to, h0, h1,
-    dur: kind === "jump" ? JUMP_TIME : from.distanceTo(to) / WALK_SPEED,
+    dur: kind === "jump" ? JUMP_TIME : from.distanceTo(to) / RUN_SPEED,
   }));
 })();
 const hopTotal = hopPath.reduce((a, l) => a + l.dur, 0);
