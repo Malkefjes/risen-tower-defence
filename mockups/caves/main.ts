@@ -53,7 +53,7 @@ for (const [x, z, s] of [[-3.5, -1, 1], [-2.5, -3, 0.9], [2.5, -3.5, 1.1], [4, 0
   scene.add(t);
 }
 const rig = createRig();
-rig.object.position.set(2.2, 0, 2.6);
+rig.object.position.set(3.1, 0, 0.6);
 rig.object.rotation.y = -2.3;
 scene.add(rig.object);
 const anim = new RigAnimator(rig);
