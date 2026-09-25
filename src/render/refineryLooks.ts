@@ -133,8 +133,12 @@ function lookA(): Refinery {
   g.add(cyl(0.77, 1.2, m.hull, 0, 0.3, 0, 24));
   g.add(cyl(0.79, 0.14, m.orange, 0, 0.93, 0, 24));
   g.add(cyl(0.6, 0.26, m.hullShade, 0, 1.5, 0, 24, 0.43));
-  const win = rbox(0.5, 0.31, 0.1, 0.03, m.molten, 0, 0.5, 0.73);
-  g.add(win, rbox(0.65, 0.43, 0.06, 0.03, m.steelDark, 0, 0.44, 0.7));
+  // A proper window into the furnace: the molten glow set back inside a frame of dark
+  // bars, top and bottom running the full width, the sides fitted between them.
+  const W = 0.5, H = 0.32, T = 0.07, D = 0.18, wy = 0.5, wz = 0.78;
+  g.add(box(W, H, 0.02, m.molten, 0, wy, wz + 0.02));
+  for (const y of [wy - T, wy + H]) g.add(box(W + 2 * T, T, D, m.steelDark, 0, y, wz));
+  for (const x of [-(W + T) / 2, (W + T) / 2]) g.add(box(T, H, D, m.steelDark, x, wy, wz));
   g.add(cyl(0.19, 1.1, m.hullShade, 0.12, 1.76, -0.12, 14));
   g.add(cyl(0.21, 0.12, m.orange, 0.12, 2.8, -0.12, 14));
   const puff = smoke(g, 0.12, 3.0, -0.12);
