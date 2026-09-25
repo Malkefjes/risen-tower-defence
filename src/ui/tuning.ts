@@ -48,7 +48,10 @@ const SECTIONS: { title: string; knobs: Knob[] }[] = [
     top("laneSpread", "Sideways spread (cells)", 0, 0.45, 0.01),
     top("startHp", "Ship HP", 10, 3000, 10),
     top("smelterHp", "Smelter HP", 10, 2000, 10),
-    top("enemyDamage", "Damage per second (to buildings)", 0, 20, 0.5),
+    top("enemyDamage", "Damage per second (to buildings and walls)", 0, 20, 0.5),
+    top("wallHp", "Stone wall HP (per cell)", 10, 3000, 10),
+    top("platedHpMult", "Plated wall HP (× stone)", 1, 10, 0.5),
+    top("wallClawers", "Enemies that can claw one wall cell", 1, 8, 1),
     top("activeCaves", "Caves sending enemies", 1, 12, 1),
   ] },
   { title: "Ship's gun", knobs: [

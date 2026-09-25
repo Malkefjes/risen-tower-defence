@@ -118,18 +118,25 @@ describe("placement", () => {
     }
   });
 
-  it("refuses to fully enclose the nexus", () => {
+  it("may fully enclose the ship: enemies will chew through", () => {
     const g = planningGame(open({ spawners: [[6, 0]], nexus: [[0, 0]] }));
     // Ring around the nexus, leaving (1,-1) and (1,0) open.
     [[-1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1], [1, 1]].forEach(([x, y], i) => g.world.walls.set(`${x},${y}`, 900 + i));
     g.field = computeField(g.world);
-    expect(isFinite(g.field.at(6, 0))).toBe(true);
+    const open1 = g.field.at(6, 0);
     const r = g.checkPlacement("O", 0, [1, -1]); // covers (1,-1) (2,-1) (1,0) (2,0)
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.reason).toBe("cuts-off-rift");
+    expect(r.ok).toBe(true);
+    // Sealed in: the only way is through a wall, which costs its chew time.
+    if (r.ok) expect(r.field.at(6, 0)).toBeGreaterThan(open1 + 50);
   });
 
-  it("refuses placing on an enemy and trapping one", () => {
+  it("can't seal a path with terrain alone", () => {
+    const rocks = [[-1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1], [1, 1], [1, -1]].map(([x, y]) => ({ x: x!, y: y!, h: 10 }));
+    const g = planningGame(open({ spawners: [[6, 0]], nexus: [[0, 0]], rocks }));
+    expect(isFinite(g.field.at(6, 0))).toBe(true);
+  });
+
+  it("refuses placing on an enemy; walling one in is allowed (it chews out)", () => {
     const g = planningGame(open({ spawners: [[0, 0]], nexus: [[20, 0]] }));
     g.startWave();
     g.walkers.push({ id: 999, x: 5.5, y: 0.5, cx: 5, cy: 0, tx: 5, ty: 0, speed: 1, hp: 1, maxHp: 1, pending: 0, practice: false });
@@ -140,8 +147,7 @@ describe("placement", () => {
     [[4, -1], [5, -1], [6, -1], [6, 0], [6, 1], [5, 1], [4, 1]].forEach(([x, y], i) => g.world.walls.set(`${x},${y}`, 900 + i));
     g.field = computeField(g.world);
     const trap = g.checkPlacement("I", 0, [2, 0]); // covers (1,0)..(4,0)
-    expect(trap.ok).toBe(false);
-    if (!trap.ok) expect(trap.reason).toBe("traps-walker");
+    expect(trap.ok).toBe(true);
   });
 
   it("pieces placed in planning lock when the wave starts; mid-wave placements lock at once", () => {

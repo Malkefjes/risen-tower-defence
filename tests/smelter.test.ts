@@ -59,11 +59,13 @@ describe("the smelter in the game", () => {
     const b = g.checkSmelter([10, 3]);
     expect(b.ok).toBe(false);
     if (!b.ok) expect(b.reason).toBe("occupied");
-    // A ring of walls round the ship with a 2-wide gap: a smelter can't plug it.
-    const ring = new Game(open({ nexus: [[0, 0]], spawners: [[12, 0]] }), { seed: 1, tuning: rich });
+    // A ring of rock round the ship with a 2-wide gap: a smelter can't plug it (walls
+    // could be chewed through, rock can't).
+    const rocks: { x: number; y: number; h: number }[] = [];
     for (let y = -2; y <= 2; y++) for (let x = -2; x <= 2; x++) {
-      if (Math.max(Math.abs(x), Math.abs(y)) === 2 && !(x === 2 && (y === 0 || y === 1))) ring.world.walls.set(`${x},${y}`, 900);
+      if (Math.max(Math.abs(x), Math.abs(y)) === 2 && !(x === 2 && (y === 0 || y === 1))) rocks.push({ x, y, h: 10 });
     }
+    const ring = new Game(open({ nexus: [[0, 0]], spawners: [[12, 0]], rocks }), { seed: 1, tuning: rich });
     const c = ring.checkSmelter([2, 0]);
     expect(c.ok).toBe(false);
     if (!c.ok) expect(c.reason).toBe("cuts-off-rift");

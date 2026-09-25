@@ -72,6 +72,16 @@ export class World {
    * Enemies path to the nearest one and attack it from a neighbouring cell.
    */
   readonly targets = new Set<string>();
+  /** HP left in each wall cell. Walls are slow obstacles: enemies can chew through them. */
+  readonly wallHp = new Map<string, number>();
+  /**
+   * How much a wall's HP weighs in pathfinding, in cells of walking per HP: the time
+   * it takes to chew through (at the most enemies that can claw one cell at once)
+   * turned into distance at walking speed. Set by the game from its tuning.
+   */
+  hpToCost = 0.37;
+  /** HP of a wall cell with no entry in `wallHp` (walls set up directly, as in tests). */
+  defaultWallHp = 300;
   private staticBounds: Bounds;
 
   constructor(map: MapDef) {
@@ -121,10 +131,12 @@ export class World {
   private terrainCache: { key: string; grid: Uint8Array } | null = null;
 
   /**
-   * Blocked cells over `b` as a grid (row-major, 1 = blocked): terrain, walls, ore, buildings
-   * and any `extra` cells. What pathfinding searches over.
+   * Cells over `b` as a grid (row-major) for pathfinding: 0 open, 1 solid (terrain,
+   * ore, buildings, the ship), 2 a wall (crossable, at the cost in `cost`: the time
+   * to chew through it, as distance). `extra` cells are solid, or walls with
+   * `extraWallHp` HP when that's given (a wall being placed).
    */
-  blockedGrid(b: Bounds, extra?: ReadonlySet<string>): Uint8Array {
+  blockedGrid(b: Bounds, extra?: ReadonlySet<string>, extraWallHp?: number): { grid: Uint8Array; cost: Float32Array } {
     const w = b.x1 - b.x0 + 1, h = b.y1 - b.y0 + 1, key = `${b.x0},${b.y0},${b.x1},${b.y1}`;
     if (this.terrainCache?.key !== key) {
       const grid = new Uint8Array(w * h);
@@ -134,19 +146,24 @@ export class World {
       }
       this.terrainCache = { key, grid };
     }
-    const grid = this.terrainCache.grid.slice();
-    const mark = (keys: Iterable<string>) => {
+    const grid = this.terrainCache.grid.slice(), cost = new Float32Array(w * h);
+    const mark = (keys: Iterable<string>, v = 1, hp?: (k: string) => number) => {
       for (const k of keys) {
         const [x, y] = parseKey(k);
-        if (x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1) grid[(y - b.y0) * w + (x - b.x0)] = 1;
+        if (x < b.x0 || x > b.x1 || y < b.y0 || y > b.y1) continue;
+        const i = (y - b.y0) * w + (x - b.x0);
+        if (grid[i] === 1) continue;
+        grid[i] = v;
+        if (hp) cost[i] = hp(k) * this.hpToCost;
       }
     };
-    mark(this.walls.keys());
     mark(this.ore.keys());
     mark(this.buildings.keys());
     mark(this.nexus);
-    if (extra) mark(extra);
-    return grid;
+    if (extra && extraWallHp === undefined) mark(extra);
+    mark(this.walls.keys(), 2, k => this.wallHp.get(k) ?? this.defaultWallHp);
+    if (extra && extraWallHp !== undefined) mark(extra, 2, () => extraWallHp);
+    return { grid, cost };
   }
 
   /** Walkable area: everything that exists, plus a margin. */

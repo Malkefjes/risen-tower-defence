@@ -21,7 +21,7 @@ export class FlowField {
     readonly bounds: Bounds,
     readonly dist: Float64Array,
     readonly extra?: ReadonlySet<string>,
-    /** Blocked cells over `bounds` (1 = blocked), as they were when the field was made. */
+    /** Cells over `bounds` as they were when the field was made: 0 open, 1 solid, 2 wall (crossable at a cost). */
     readonly blocked?: Uint8Array,
   ) {}
 
@@ -38,19 +38,23 @@ export class FlowField {
     return this.dist[(y - this.bounds.y0) * this.width + (x - this.bounds.x0)]!;
   }
 
-  /** Can an enemy step from (x,y) by (dx,dy)? Diagonals may not cut a blocked corner. */
+  /**
+   * Can an enemy step from (x,y) by (dx,dy)? Solid cells never; a wall cell yes (by
+   * chewing through it). Diagonals may not cut the corner of a wall or anything solid.
+   */
   canStep(x: number, y: number, dx: number, dy: number): boolean {
     const nx = x + dx, ny = y + dy;
-    if (!this.inBounds(nx, ny) || this.isBlocked(nx, ny)) return false;
+    if (!this.inBounds(nx, ny) || this.kind(nx, ny) === 1) return false;
     if (dx !== 0 && dy !== 0) {
-      if (this.isBlocked(x + dx, y) || this.isBlocked(x, y + dy)) return false;
+      if (this.kind(x + dx, y) !== 0 || this.kind(x, y + dy) !== 0) return false;
     }
     return true;
   }
 
-  private isBlocked(x: number, y: number): boolean {
-    if (this.blocked && this.inBounds(x, y)) return this.blocked[(y - this.bounds.y0) * this.width + (x - this.bounds.x0)] === 1;
-    return this.world.isBlocked(x, y, this.extra);
+  /** 0 open, 1 solid, 2 wall. */
+  private kind(x: number, y: number): number {
+    if (this.blocked && this.inBounds(x, y)) return this.blocked[(y - this.bounds.y0) * this.width + (x - this.bounds.x0)]!;
+    return this.world.isBlocked(x, y, this.extra) ? 1 : 0;
   }
 
   /** The next cell on the fastest route from (x,y), or null if none. */
@@ -81,13 +85,18 @@ export class FlowField {
 }
 
 /** Dijkstra outward from the nexus. `extra` adds hypothetical blocked cells (placement preview). */
-export function computeField(world: World, extra?: ReadonlySet<string>, extraCells?: Iterable<Cell>): FlowField {
+/**
+ * The flow field to the nearest target. Walls count as the time it takes to chew
+ * through them, so a maze that's quicker to walk gets walked and a full block gets
+ * chewed. `extraWallHp`: treat `extra` as a new wall with that HP (else as solid).
+ */
+export function computeField(world: World, extra?: ReadonlySet<string>, extraCells?: Iterable<Cell>, extraWallHp?: number): FlowField {
   const bounds = world.bounds(extraCells);
   const w = bounds.x1 - bounds.x0 + 1, h = bounds.y1 - bounds.y0 + 1;
   const dist = new Float64Array(w * h).fill(Infinity);
   // A number grid of blocked cells: building it once is far cheaper than looking up
   // text keys for every step of the search (big worlds have ~50,000 cells).
-  const blocked = world.blockedGrid(bounds, extra);
+  const { grid: blocked, cost } = world.blockedGrid(bounds, extra, extraWallHp);
   const field = new FlowField(world, bounds, dist, extra, blocked);
   const heap = new MinHeap();
 
@@ -108,9 +117,10 @@ export function computeField(world: World, extra?: ReadonlySet<string>, extraCel
       const nx = x + dx, ny = y + dy;
       if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
       const j = ny * w + nx;
-      if (blocked[j]) continue;
+      if (blocked[j] === 1) continue;
       if (dx !== 0 && dy !== 0 && (blocked[y * w + nx] || blocked[ny * w + x])) continue;
-      const nv = v + c;
+      // Stepping from the neighbour into here: if here is a wall, chewing it costs time.
+      const nv = v + c + (blocked[i] === 2 ? cost[i]! : 0);
       if (nv < dist[j]!) { dist[j] = nv; heap.push(nv, j); }
     }
   }
