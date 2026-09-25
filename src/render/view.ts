@@ -27,6 +27,9 @@ export interface Overlay {
 /** Height of the wall deck, where towers stand. */
 const TOP = DECK_TOP;
 
+/** Wrap v into [center - half, center + half). */
+const wrap = (v: number, center: number, half: number) => ((((v - center + half) % (2 * half)) + 2 * half) % (2 * half)) + center - half;
+
 interface TowerView { obj: THREE.Object3D; rig: TurretRig; recoil: number[]; gun: number; spin: number; drop: number }
 interface Bolt { mesh: THREE.Mesh; from: THREE.Vector3; to: THREE.Vector3; walkerId: number; t: number; dur: number }
 interface Flash { sprite: THREE.Sprite; life: number; max: number; size: number }
@@ -587,13 +590,16 @@ export class GameView {
     }
     this.puffs = this.puffs.filter(p => { if (p.life > 0) return true; this.scene.remove(p.mesh); return false; });
 
-    const N = this.snowSpeed.length;
+    // Flakes live in the world, not on the camera: they fall and drift on their own,
+    // and wrap around the edges of the area around the camera so it never runs out of snow.
+    const N = this.snowSpeed.length, H = 18, p = this.snowPos;
     for (let i = 0; i < N; i++) {
-      this.snowPos[i * 3 + 1]! -= this.snowSpeed[i]! * dt;
-      this.snowPos[i * 3]! += Math.sin(this.time + i) * 0.12 * dt;
-      if (this.snowPos[i * 3 + 1]! < 0) this.snowPos[i * 3 + 1] = 12;
+      p[i * 3 + 1]! -= this.snowSpeed[i]! * dt;
+      p[i * 3]! += Math.sin(this.time + i) * 0.12 * dt;
+      if (p[i * 3 + 1]! < 0) p[i * 3 + 1] = 12;
+      p[i * 3] = wrap(p[i * 3]!, this.target.x, H);
+      p[i * 3 + 2] = wrap(p[i * 3 + 2]!, this.target.z, H);
     }
-    this.snow.position.set(this.target.x, 0, this.target.z);
     this.snow.geometry.attributes.position!.needsUpdate = true;
   }
 

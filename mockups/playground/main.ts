@@ -91,7 +91,7 @@ const anim = new RigAnimator(rig);
 
 interface Knob { label: string; min: number; max: number; step: number; get(): number; set(v: number): void }
 const T: AvatarTuning = defaultAvatarTuning();
-const view = { follow: 6, zoom: 4.2 };
+const view = { follow: 4, zoom: 4.2 };
 const STORE = "risen.playground.v1";
 const knobs: Knob[] = [
   { label: "Run speed (cells/s)", min: 1, max: 8, step: 0.1, get: () => T.speed, set: v => { T.speed = v; } },
@@ -129,8 +129,8 @@ function renderPanel(): void {
   panel.querySelector("#reset")!.addEventListener("click", () => {
     const d = defaultAvatarTuning();
     Object.assign(T, d);
-    anim.tuning.stride = 3.8;
-    view.follow = 6;
+    anim.tuning.stride = 3;
+    view.follow = 4;
     save();
     renderPanel();
   });
@@ -208,6 +208,7 @@ const snow = new THREE.Points(sg, new THREE.PointsMaterial({ color: "#ffffff", s
 snow.frustumCulled = false;
 scene.add(snow);
 
+const wrap = (v: number, center: number, half: number) => ((((v - center + half) % (2 * half)) + 2 * half) % (2 * half)) + center - half;
 const speedEl = document.getElementById("speed")!;
 const TICK = 1 / 60;
 let acc = 0, last = performance.now(), time = 0, zoom = view.zoom;
@@ -252,12 +253,15 @@ function frame(now: number): void {
   }
   zoom += (view.zoom - zoom) * (1 - Math.exp(-dt * 8));
 
+  // Flakes live in the world and wrap around the camera's area, so they don't move with the camera.
   for (let i = 0; i < N; i++) {
     snowPos[i * 3 + 1]! -= snowSpeed[i]! * dt;
+    snowPos[i * 3]! += Math.sin(time * 0.7 + i) * 0.12 * dt;
     if (snowPos[i * 3 + 1]! < 0) snowPos[i * 3 + 1] = 12;
+    snowPos[i * 3] = wrap(snowPos[i * 3]!, target.x, 15);
+    snowPos[i * 3 + 2] = wrap(snowPos[i * 3 + 2]!, target.z, 15);
   }
   sg.attributes.position!.needsUpdate = true;
-  snow.position.set(target.x, 0, target.z);
 
   const a = container.clientWidth / Math.max(1, container.clientHeight);
   Object.assign(camera, { left: -zoom * a, right: zoom * a, top: zoom, bottom: -zoom });

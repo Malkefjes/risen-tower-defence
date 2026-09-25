@@ -149,7 +149,7 @@ export interface RigAnimTuning {
   /** Height of the flight bounce between running steps, rig units. */
   bounce: number;
 }
-export const defaultRigAnimTuning = (): RigAnimTuning => ({ stride: 3.8, bounce: 0.025 });
+export const defaultRigAnimTuning = (): RigAnimTuning => ({ stride: 3, bounce: 0.025 });
 
 /**
  * Drives the rig from movement: idle and run blend by speed, the air pose blends

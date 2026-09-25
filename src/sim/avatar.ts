@@ -30,13 +30,14 @@ export interface AvatarTuning {
   stepUp: number;
 }
 
+/** Tuned by Erik in the movement playground (2026-09-25). */
 export const defaultAvatarTuning = (): AvatarTuning => ({
-  speed: 3,
-  accel: 24,
-  airControl: 0.6,
-  turnSpeed: 14,
-  jumpHeight: 0.95,
-  jumpRise: 0.3,
+  speed: 5,
+  accel: 40,
+  airControl: 0.5,
+  turnSpeed: 20,
+  jumpHeight: 0.9,
+  jumpRise: 0.35,
   radius: 0.18,
   stepUp: 0.12,
 });
