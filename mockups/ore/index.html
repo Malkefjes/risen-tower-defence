@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Frostfall Ore Deposits</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&display=swap" />
+  </head>
+  <body>
+    <div id="app">
+      <div id="view"></div>
+      <div class="vignette"></div>
+      <div id="labels"></div>
+      <header class="top">
+        <div class="brand">RISEN <span>Ore deposit mockup</span></div>
+        <p class="sub">Three deposit styles, each as a 2×2 and a 3×3. Gold ore, set into the ground.</p>
+      </header>
+      <div class="bottom">
+        <div class="picker" role="group" aria-label="Focus a design">
+          <button id="fAll" class="chip" aria-pressed="true">All three</button>
+          <button id="fA" class="chip" aria-pressed="false"><b>A</b></button>
+          <button id="fB" class="chip" aria-pressed="false"><b>B</b></button>
+          <button id="fC" class="chip" aria-pressed="false"><b>C</b></button>
+        </div>
+        <p id="note" class="note"></p>
+      </div>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
