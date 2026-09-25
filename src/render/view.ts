@@ -99,7 +99,12 @@ export class GameView {
   private rangeDisc: THREE.Mesh;
   private animated: THREE.Object3D[] = [];
   private nexus: THREE.Object3D;
-  private ghostCells: THREE.Mesh[] = [];
+  /** Blueprint of the wall being placed: the stone wall's own shape, see-through. */
+  private wallGhost: THREE.Object3D | null = null;
+  private wallGhostSig = "";
+  private wallGhostOk = new THREE.MeshStandardMaterial({ color: "#7d8292", transparent: true, opacity: 0.72, depthWrite: false, emissive: "#5d6270", emissiveIntensity: 0.25, flatShading: true });
+  private wallGhostBad = new THREE.MeshStandardMaterial({ color: "#e0445e", transparent: true, opacity: 0.5, depthWrite: false, emissive: "#e0445e", emissiveIntensity: 0.35, flatShading: true });
+  private wallFootOk = new THREE.MeshBasicMaterial({ color: "#6a6f7c", transparent: true, opacity: 0.35, depthWrite: false });
   private ghostFeet: THREE.Mesh[] = [];
   private dashes: THREE.InstancedMesh;
   private dots: THREE.InstancedMesh;
@@ -169,11 +174,10 @@ export class GameView {
     this.scene.add(this.dashes, this.dots);
 
     for (let i = 0; i < 4; i++) {
-      const g = this.models.create("ghostWall") as THREE.Mesh;
       const f = new THREE.Mesh(new THREE.PlaneGeometry(0.96, 0.96), this.mat.footOk);
       f.rotation.x = -Math.PI / 2;
-      this.ghostCells.push(g); this.ghostFeet.push(f);
-      this.scene.add(g, f);
+      this.ghostFeet.push(f);
+      this.scene.add(f);
     }
 
     const sq = new THREE.BufferGeometry().setFromPoints([
@@ -686,18 +690,34 @@ export class GameView {
     }
   }
 
+  /** The wall blueprint: always a stone wall (every wall is placed as stone), grey if it fits, red if not. */
   private updateGhost(o: Overlay): void {
     const g = o.ghost;
-    const lift = 0.3 + Math.sin(this.time * 4) * 0.05;
+    const sig = g ? g.cells.map(c => c.join(",")).join(";") : "";
+    if (sig !== this.wallGhostSig) {
+      this.wallGhostSig = sig;
+      if (this.wallGhost) {
+        this.scene.remove(this.wallGhost);
+        this.wallGhost.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).geometry.dispose(); });
+        this.wallGhost = null;
+      }
+      if (g) {
+        this.wallGhost = stoneWallPiece(g.cells);
+        this.wallGhost.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = false; });
+        this.scene.add(this.wallGhost);
+      }
+    }
+    if (this.wallGhost && g) {
+      this.wallGhost.position.y = 0.3 + Math.sin(this.time * 4) * 0.05;
+      const m = g.valid ? this.wallGhostOk : this.wallGhostBad;
+      this.wallGhost.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).material = m; });
+    }
     for (let i = 0; i < 4; i++) {
-      const c = g?.cells[i];
-      const mesh = this.ghostCells[i]!, foot = this.ghostFeet[i]!;
-      mesh.visible = foot.visible = !!c;
+      const c = g?.cells[i], foot = this.ghostFeet[i]!;
+      foot.visible = !!c;
       if (!c) continue;
-      mesh.position.set(c[0] + 0.5, lift, c[1] + 0.5);
-      mesh.material = g!.valid ? this.mat.ghostOk : this.mat.ghostBad;
       foot.position.set(c[0] + 0.5, 0.012, c[1] + 0.5);
-      foot.material = g!.valid ? this.mat.footOk : this.mat.footBad;
+      foot.material = g!.valid ? this.wallFootOk : this.mat.footBad;
     }
   }
 
