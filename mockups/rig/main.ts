@@ -86,44 +86,52 @@ const TORSO_Y = HIP_Y + WAIST_H * 0.5, TORSO_TOP = TORSO_Y + TORSO_H;
 const ARM_W = 0.062, UPPER_ARM = 0.17, FOREARM = 0.16;
 
 function buildRig() {
-  const root = new THREE.Group(), body = new THREE.Group();
+  // `body` is the upper-body pivot at hip height, so leaning and twisting turn the torso
+  // over the hips instead of sliding it off them. Its parts live in `torso`, in rig space.
+  const root = new THREE.Group(), body = new THREE.Group(), torso = new THREE.Group();
+  body.position.y = HIP_Y + HIP_Y;
+  torso.position.y = -HIP_Y;
+  body.add(torso);
   root.add(body);
 
-  // Waist and torso: the torso is exactly as wide as the hips and legs.
-  body.add(rbox(TORSO_W * 0.8, WAIST_H, TORSO_D * 0.7, 0.02, M.steelDark, 0, HIP_Y - WAIST_H * 0.5, -0.008));
-  body.add(rbox(TORSO_W, TORSO_H, TORSO_D, 0.045, M.suit, 0, TORSO_Y, 0));
+  // Pelvis: part of the hips (not the torso), centred over both hip joints.
+  root.add(rbox(TORSO_W * 0.88, WAIST_H, TORSO_D * 0.72, 0.02, M.steelDark, 0, HIP_Y - WAIST_H * 0.5, 0));
+
+  // Torso: exactly as wide as the hips and legs.
+  torso.add(rbox(TORSO_W, TORSO_H, TORSO_D, 0.045, M.suit, 0, TORSO_Y, 0));
   const chestZ = TORSO_D / 2 + bulge(0.045, TORSO_H);
-  body.add(box(TORSO_W * 0.62, 0.1, 0.02, M.orange, 0, TORSO_Y + 0.12, chestZ));
+  torso.add(box(TORSO_W * 0.62, 0.1, 0.02, M.orange, 0, TORSO_Y + 0.12, chestZ));
 
   // A short neck, then a square helmet with a front visor.
   const NECK_H = 0.04;
-  body.add(mesh(new THREE.CylinderGeometry(0.052, 0.058, 0.014, 12), M.steel, 0, TORSO_TOP + 0.007, 0));
-  body.add(mesh(new THREE.CylinderGeometry(0.03, 0.034, NECK_H, 10), M.steelDark, 0, TORSO_TOP + NECK_H / 2, 0));
+  torso.add(mesh(new THREE.CylinderGeometry(0.052, 0.058, 0.014, 12), M.steel, 0, TORSO_TOP + 0.007, 0));
+  torso.add(mesh(new THREE.CylinderGeometry(0.03, 0.034, NECK_H, 10), M.steelDark, 0, TORSO_TOP + NECK_H / 2, 0));
   const HW = 0.13, HH = 0.12, headY = TORSO_TOP + NECK_H - 0.005;
-  body.add(rbox(HW, HH, HW, 0.028, M.suit, 0, headY, 0));
-  body.add(box(HW * 0.84, 0.042, 0.02, M.power, 0, headY + HH * 0.45, HW / 2 + bulge(0.028, HH)));
+  torso.add(rbox(HW, HH, HW, 0.028, M.suit, 0, headY, 0));
+  torso.add(box(HW * 0.84, 0.042, 0.02, M.power, 0, headY + HH * 0.45, HW / 2 + bulge(0.028, HH)));
 
   // Backpack: its top is flush with the top of the torso; round cyan core and three ore canisters.
   const PACK_H = 0.24, PACK_D = 0.08;
   const backZ = -TORSO_D / 2 - bulge(0.045, TORSO_H) - PACK_D / 2 - bulge(0.025, PACK_H);
   const packFace = backZ - PACK_D / 2 - bulge(0.025, PACK_H);
-  body.add(rbox(TORSO_W * 0.95, PACK_H, PACK_D, 0.025, M.steel, 0, TORSO_TOP - PACK_H, backZ));
-  body.add(mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.015, 14).rotateX(Math.PI / 2), M.power, 0, TORSO_TOP - 0.065, packFace - 0.005));
+  torso.add(rbox(TORSO_W * 0.95, PACK_H, PACK_D, 0.025, M.steel, 0, TORSO_TOP - PACK_H, backZ));
+  torso.add(mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.015, 14).rotateX(Math.PI / 2), M.power, 0, TORSO_TOP - 0.065, packFace - 0.005));
   const load: THREE.Object3D[] = [];
 
   // Legs with boots.
   const legs = [-1, 1].map(sx => {
-    // Hips sit slightly behind the torso's centre line with small joints, so they don't jut out in front.
-    const l = limb(root, sx * HIP_W, HIP_Y, THIGH, SHIN, LEG_W, -0.012, 0.5);
+    // Hip joints sit in the middle of the pelvis.
+    const l = limb(root, sx * HIP_W, HIP_Y, THIGH, SHIN, LEG_W, 0, 0.5);
     l.end.add(rbox(LEG_W * 1.1, FOOT_H, 0.14, 0.015, M.steelDark, 0, -FOOT_H, 0.025));
     l.end.add(box(LEG_W * 1.12, FOOT_H * 0.55, 0.04, M.orange, 0, -FOOT_H, 0.08));
     return l;
   });
   // Arms from the top corners of the torso.
-  const arms = [-1, 1].map(sx => limb(body, sx * (TORSO_W / 2 + ARM_W / 2), TORSO_TOP - 0.03, UPPER_ARM, FOREARM, ARM_W));
-  // Multitool: a blocky prefab tool gun held in the right hand, kept level in the body's frame.
+  const arms = [-1, 1].map(sx => limb(torso, sx * (TORSO_W / 2 + ARM_W / 2), TORSO_TOP - 0.03, UPPER_ARM, FOREARM, ARM_W));
+  // Multitool: a blocky prefab tool gun locked to the wrist, pointing straight on along the forearm.
   const tool = new THREE.Group();
-  tool.position.y = -0.02;
+  tool.position.y = -0.03;
+  tool.rotation.x = Math.PI / 2;
   arms[1]!.end.add(tool);
   tool.add(box(0.03, 0.06, 0.035, M.steelDark, 0, -0.035, -0.015));            // grip, in the hand
   tool.add(rbox(0.05, 0.055, 0.16, 0.012, M.suit, 0, 0.015, 0.035));            // body
@@ -200,7 +208,7 @@ function jumpPose(k: number): number {
     poseArm(arms[0]!, -0.9 * tuck - 0.1, -0.4); poseArm(arms[1]!, -0.9 * tuck - 0.1, -0.4);
     body.rotation.set(0.1, 0, 0);
   }
-  body.position.y = 0;
+  body.position.y = HIP_Y + 0;
   return k < CROUCH_END ? 0 : k < LAND_START ? air : 1;
 }
 
@@ -226,25 +234,25 @@ function animate(t: number, dt: number): void {
     poseArm(arms[0]!, Math.sin(r) * 0.6 - 0.1, -1.25);
     poseArm(arms[1]!, -Math.sin(r) * 0.6 - 0.1, -1.25);
     // Forward lean and a little counter-twist; the body sits steady relative to the hips.
-    body.position.y = 0;
+    body.position.y = HIP_Y + 0;
     body.rotation.set(0.14, Math.sin(r) * 0.06, 0);
   } else if (pose === "idle") {
     poseLeg(legs[0]!, 0, 0.06); poseLeg(legs[1]!, 0, 0.06);
     poseArm(arms[0]!, 0.05, -0.2); poseArm(arms[1]!, 0.05, -0.2);
-    body.position.y = Math.sin(t * 2) * 0.004;
+    body.position.y = HIP_Y + Math.sin(t * 2) * 0.004;
     body.rotation.set(0, 0, 0);
   } else if (pose === "build") {
     // Tool at the ready, aimed where a piece is being placed.
     poseLeg(legs[0]!, -0.12, 0.14); poseLeg(legs[1]!, 0.1, 0.08);
     poseArm(arms[1]!, -0.95 + Math.sin(t * 3) * 0.03, -0.35);
     poseArm(arms[0]!, -0.35, -0.8);
-    body.position.y = -0.008;
+    body.position.y = HIP_Y + -0.008;
     body.rotation.set(0.06, -0.06, 0);
   } else {
     poseLeg(legs[0]!, -0.3, 0.3); poseLeg(legs[1]!, 0.25, 0.1);
     poseArm(arms[1]!, -1.25 + Math.sin(t * 14) * 0.02, -0.25);
     poseArm(arms[0]!, -0.6, -0.7);
-    body.position.y = -0.02;
+    body.position.y = HIP_Y + -0.02;
     body.rotation.set(0.14, -0.1, 0);
   }
   // Keep the lower foot on the snow, eased so the hand-over between feet has no jolt.
@@ -259,12 +267,6 @@ function animate(t: number, dt: number): void {
   if (jumpK < 0 && (pose === "run" || pose === "hop")) target += RUN_BOUNCE * (1 - Math.cos(2 * t * RUN_CADENCE)) / 2;
   rootY += (target - rootY) * Math.min(1, dt * (jumpK >= 0 ? 40 : 14));
   rig.root.position.y = rootY;
-  // At the ready (mining, building) the tool is held level; relaxed it hangs, tipped down in the hand.
-  const arm = arms[1]!;
-  const ready = pose === "mine" || pose === "build";
-  // Relaxed, the tool points forward and down whatever the arm is doing.
-  const wantTilt = -(arm.top.rotation.x + arm.mid.rotation.x) + (ready ? 0 : 0.75);
-  rig.tool.rotation.x += (wantTilt - rig.tool.rotation.x) * Math.min(1, dt * 12);
   rig.beam.visible = pose === "mine";
   rig.beam.scale.z = 0.28 + Math.sin(t * 40) * 0.02;
 }
