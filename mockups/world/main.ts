@@ -1,5 +1,8 @@
 import * as THREE from "three";
 import { crystalCluster, deadTree } from "../../src/render/alien";
+import { cliffCell } from "../../src/render/terrain";
+import { computeField } from "../../src/sim/pathfinding";
+import { World, type MapDef } from "../../src/sim/world";
 import { bakeStatic } from "../../src/render/bake";
 import { createDefaultModels, createGlows, createMaterials, EVENING } from "../../src/render/models";
 import { createOreNode } from "../../src/render/ore";
@@ -174,7 +177,7 @@ function bareChunk(cx: number, cy: number): THREE.Mesh | null {
 
 // ------------------------------------------------------------------ the world
 
-interface Cell { kind: "tree" | "rock" | "ore" | "crystal"; top: number; node?: OreNode }
+interface Cell { kind: "tree" | "rock" | "ore" | "crystal" | "cliff"; top: number; node?: OreNode }
 const cells = new Map<string, Cell>();
 /** Ground kept clear of scenery (around the rifts). */
 const reserved = new Set<string>();
@@ -240,6 +243,14 @@ function generate(): void {
     cells.set(cellKey(x, y), { kind: "rock", top: rockTop(h) });
     put(models.create("rock", { scale: h, seed: x * 31 + y + seed }), x + 0.5, y + 0.5);
   };
+  /** Cliff cells and their models, so a pass can be carved through later. */
+  const cliffObjs = new Map<string, THREE.Object3D>();
+  const cliff = (x: number, y: number, h: number) => {
+    const k = cellKey(x, y), o = cliffCell(x * 7919 + y * 31 + seed, h);
+    cells.set(k, { kind: "cliff", top: h });
+    put(o, x + 0.5, y + 0.5);
+    cliffObjs.set(k, o);
+  };
   const crystal = (x: number, y: number, s: number) => {
     cells.set(cellKey(x, y), { kind: "crystal", top: TREE_HURDLE });
     put(crystalCluster(x * 13 + y + seed, s), x + 0.5, y + 0.5);
@@ -258,6 +269,19 @@ function generate(): void {
       const cx = Math.floor(x + Math.cos(ca) * cd), cy = Math.floor(y + Math.sin(ca) * cd);
       if (free(cx, cy)) crystal(cx, cy, 1.2 + rand() * 0.4);
     }
+  }
+
+  // Cliff ridges: long winding rock walls too tall to jump, through the highlands,
+  // the outer forest and the wastes. Gaps in them are the passes (and chokepoints).
+  const ridgeLine = noise(seed * 23 + 8), passes = noise(seed * 29 + 9), heights = noise(seed * 31 + 10);
+  for (let y = -R; y < R; y++) for (let x = -R; x < R; x++) {
+    const d = Math.hypot(x, y);
+    if (d < 20) continue;
+    const z = zonesAt(x + 0.5, y + 0.5);
+    if (z.highlands + z.forest * smooth(26, 40, d) + z.wastes * 0.7 < 0.45) continue;
+    if (Math.abs(ridgeLine(x / 20, y / 20) - 0.5) > 0.028) continue;
+    if (passes(x / 8, y / 8) > 0.66 || !free(x, y)) continue;
+    cliff(x, y, 1.3 + heights(x / 6, y / 6) * 0.5);
   }
 
   // Ore where it belongs: stone in the forest belt and highland outcrops, metal up
@@ -312,6 +336,38 @@ function generate(): void {
     put(models.create("snowMound", { scale: 0.3 + rand() * 0.45 }), x, y);
   }
 
+  // Enemies must always be able to reach the landing site from both rifts. If the
+  // terrain cuts a rift off, carve a pass through the cliffs toward the centre.
+  const blocked = (x: number, y: number) => cells.has(cellKey(x, y));
+  const reachable = (): Set<string> => {
+    const seen = new Set<string>(["0,0"]), queue: [number, number][] = [[0, 0]], M = R + 3;
+    while (queue.length) {
+      const [x, y] = queue.pop()!;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx!, ny = y + dy!, k = cellKey(nx, ny);
+        if (Math.abs(nx) > M || Math.abs(ny) > M || seen.has(k) || blocked(nx, ny)) continue;
+        seen.add(k); queue.push([nx, ny]);
+      }
+    }
+    return seen;
+  };
+  for (const [rx, ry] of rifts) {
+    for (let tries = 0; tries < 3 && !reachable().has(cellKey(rx, ry)); tries++) {
+      const steps = Math.ceil(Math.hypot(rx, ry));
+      for (let i = 0; i <= steps; i++) {
+        const x = Math.round(rx * (1 - i / steps)), y = Math.round(ry * (1 - i / steps));
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const k = cellKey(x + dx, y + dy), o = cliffObjs.get(k);
+          if (!o) continue;
+          o.removeFromParent();
+          cliffObjs.delete(k);
+          cells.delete(k);
+        }
+      }
+    }
+  }
+  routeCells = routesFrom(rifts);
+
   // Merge each chunk's scenery, and give it its own patch of ground.
   for (let cy = -R; cy < R; cy += CHUNK) for (let cx = -R; cx < R; cx += CHUNK) {
     const g = chunks.get(`${Math.floor(cx / CHUNK)},${Math.floor(cy / CHUNK)}`) ?? new THREE.Group();
@@ -320,6 +376,41 @@ function generate(): void {
     if (bare) g.add(bare);
     worldGroup.add(g);
   }
+}
+
+// ------------------------------------------------------------------ enemy routes
+
+/**
+ * The routes enemies would take from each rift to the landing site, using the
+ * game's own pathfinding: every blocking cell is terrain to them (trees whole).
+ */
+let routeCells: [number, number][][] = [];
+function routesFrom(rifts: [number, number][]): [number, number][][] {
+  const map: MapDef = {
+    name: "world", spawners: rifts, start: [0, 0],
+    nexus: [[-1, -1], [0, -1], [1, -1], [-1, 0], [0, 0], [1, 0], [-1, 1], [0, 1], [1, 1]],
+    rocks: [...cells.keys()].map(k => { const [x, y] = k.split(",").map(Number); return { x: x!, y: y!, h: 10 }; }),
+    trees: [],
+  };
+  const field = computeField(new World(map));
+  return rifts.map(r => field.trace(r).map(c => [c[0], c[1]] as [number, number]));
+}
+const routeGroup = new THREE.Group();
+scene.add(routeGroup);
+let showRoutes = true;
+try { showRoutes = localStorage.getItem("risen.world.routes") !== "0"; } catch { /* storage blocked */ }
+const routeMat = new THREE.LineDashedMaterial({ color: "#ff8a4a", dashSize: 0.3, gapSize: 0.2, transparent: true, opacity: 0.9 });
+function drawRoutes(): void {
+  routeGroup.traverse(o => { if ((o as THREE.Line).isLine) (o as THREE.Line).geometry.dispose(); });
+  routeGroup.clear();
+  for (const r of routeCells) {
+    if (r.length < 2) continue;
+    const g = new THREE.BufferGeometry().setFromPoints(r.map(([x, y]) => new THREE.Vector3(x + 0.5, 0.06, y + 0.5)));
+    const line = new THREE.Line(g, routeMat);
+    line.computeLineDistances();
+    routeGroup.add(line);
+  }
+  routeGroup.visible = showRoutes;
 }
 
 // ------------------------------------------------------------------ avatar
@@ -382,15 +473,23 @@ function moveInput(): { x: number; y: number } {
 }
 
 const tools = document.getElementById("tools")!;
-tools.innerHTML = `<button class="chip" id="seed">New seed</button>`;
+tools.innerHTML = `<button class="chip" id="routes" aria-pressed="${showRoutes}">Path</button><button class="chip" id="seed">New seed</button>`;
+document.getElementById("routes")!.addEventListener("click", e => {
+  showRoutes = !showRoutes;
+  routeGroup.visible = showRoutes;
+  (e.currentTarget as HTMLElement).setAttribute("aria-pressed", String(showRoutes));
+  try { localStorage.setItem("risen.world.routes", showRoutes ? "1" : "0"); } catch { /* storage blocked */ }
+});
 document.getElementById("seed")!.addEventListener("click", () => {
   seed = Math.floor(Math.random() * 1e6) + 1;
   try { localStorage.setItem("risen.world.seed", String(seed)); } catch { /* storage blocked */ }
   generate();
+  drawRoutes();
   avatar.place(0.5, 0.5);
   prints.count = 0; printNext = 0;
 });
 generate();
+drawRoutes();
 
 // ------------------------------------------------------------------ snow and loop
 
