@@ -1,10 +1,15 @@
 import * as THREE from "three";
 import { createMaterials, EVENING } from "../../src/render/models";
 import { itemIcons } from "../../src/render/icons";
+import { COLONY_ORANGE } from "../../src/render/palette";
 import { createOreNode, type NodeKind, type OreNodeModel } from "../../src/render/ore";
 import { createRig, RigAnimator } from "../../src/render/rig";
 import { Avatar, defaultAvatarTuning } from "../../src/sim/avatar";
 import { Hotbar, STACK_MAX, type ItemKind } from "../../src/sim/inventory";
+import { pieceIcon, towerIcon } from "../../src/ui/hud";
+import { pieceCells, SHAPE_IDS, type ShapeId } from "../../src/sim/pieces";
+import type { Cell } from "../../src/sim/types";
+import { BuildWheel, type WheelLook } from "./wheel";
 import "./style.css";
 
 // Ore playground: stone and metal nodes (one size, 3×3) on the snow and the player rig.
@@ -139,18 +144,33 @@ addEventListener("keydown", e => {
   const k = e.key.toLowerCase();
   if (k === " ") { e.preventDefault(); if (!e.repeat) jumpQueued = true; return; }
   const slot = Number(e.key) - 1;
-  if (Number.isInteger(slot) && slot >= 0 && slot < hotbar.slots.length) { hotbar.select(slot); return; }
+  if (Number.isInteger(slot) && slot >= 0 && slot < hotbar.slots.length) { hotbar.select(slot); if (slot === 0) held = null; return; }
+  if ((k === "q" || k === "e") && !e.repeat) { openWheel(k === "q" ? "walls" : "towers"); return; }
+  if (k === "r" && held?.kind === "wall") { held.rot = (held.rot + 1) % 4; return; }
+  if (k === "escape") { held = null; return; }
   keys.add(k);
 });
-addEventListener("keyup", e => keys.delete(e.key.toLowerCase()));
+addEventListener("keyup", e => {
+  const k = e.key.toLowerCase();
+  if ((k === "q" && wheelKind === "walls") || (k === "e" && wheelKind === "towers")) closeWheel();
+  keys.delete(k);
+});
 addEventListener("blur", () => { keys.clear(); mouseDown = false; });
 let mouseDown = false;
 const mouse = new THREE.Vector2(-9, -9);
+const mousePx = { x: -1, y: -1 };
 renderer.domElement.addEventListener("pointermove", e => {
   const r = renderer.domElement.getBoundingClientRect();
+  mousePx.x = e.clientX - r.left; mousePx.y = e.clientY - r.top;
   mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
 });
-renderer.domElement.addEventListener("pointerdown", e => { if (e.button === 0) mouseDown = true; });
+renderer.domElement.addEventListener("pointerdown", e => {
+  if (e.button === 2) { if (held?.kind === "wall") held.rot = (held.rot + 1) % 4; else held = null; return; }
+  if (e.button !== 0) return;
+  // Holding a wall or tower: the click places it. Otherwise it fires the tool.
+  if (held) { placeHeld(); return; }
+  mouseDown = true;
+});
 addEventListener("pointerup", e => { if (e.button === 0) mouseDown = false; });
 renderer.domElement.addEventListener("contextmenu", e => e.preventDefault());
 renderer.domElement.addEventListener("wheel", e => { e.preventDefault(); wantZoom = Math.min(10, Math.max(2, wantZoom * Math.exp(e.deltaY * 0.0012))); }, { passive: false });
@@ -320,6 +340,97 @@ const target = new THREE.Vector3(avatar.x, 0, avatar.y);
 let acc = 0, last = performance.now(), time = 0, zoom = 3.6, wantZoom = 3.6;
 const tip = new THREE.Vector3();
 
+// ------------------------------------------------------------------ build wheel
+
+/** Walls you have of each shape (pretend stock; in the game, the supply drops). */
+const stock: Record<ShapeId, number> = { I: 2, O: 0, T: 1, S: 0, Z: 1, L: 3, J: 0 };
+const TOWERS = [{ kind: "twin", size: 1, cost: 100 }, { kind: "gatling", size: 2, cost: 250 }] as const;
+type Held = { kind: "wall"; shape: ShapeId; rot: number } | { kind: "tower"; tower: (typeof TOWERS)[number] };
+let held: Held | null = null;
+const sized = (svg: string) => svg.replace("<svg ", '<svg width="38" height="38" ');
+const wheel = new BuildWheel(document.getElementById("app")!);
+const LOOK_KEY = "risen.orePlay.wheelLook";
+try { const l = localStorage.getItem(LOOK_KEY); if (l === "A" || l === "B" || l === "C") wheel.look = l; } catch { /* storage blocked */ }
+let wheelKind: "walls" | "towers" | null = null;
+function wheelItems() {
+  return wheelKind === "walls"
+    ? SHAPE_IDS.map(sh => ({ icon: sized(pieceIcon(sh)), count: stock[sh], off: stock[sh] <= 0 }))
+    : TOWERS.map(t => ({ icon: sized(towerIcon(t.kind)), off: hotbar.count("metal") < t.cost }));
+}
+function openWheel(kind: "walls" | "towers"): void { wheelKind = kind; wheel.show(wheelItems()); }
+function closeWheel(): void {
+  const i = wheel.picked();
+  if (i !== null) {
+    held = wheelKind === "walls" ? { kind: "wall", shape: SHAPE_IDS[i]!, rot: held?.kind === "wall" ? held.rot : 0 } : { kind: "tower", tower: TOWERS[i]! };
+  }
+  wheel.hide(); wheelKind = null;
+}
+/** Where a held piece would go: its cells under the cursor. */
+function heldCells(): Cell[] {
+  const p = aimPoint(null), at: [number, number] = [Math.floor(p.x), Math.floor(p.z)];
+  if (!held) return [];
+  if (held.kind === "wall") return pieceCells(held.shape, held.rot, at);
+  const n = held.tower.size, out: Cell[] = [];
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) out.push([at[0] + x, at[1] + y]);
+  return out;
+}
+/** The playground only pretends to build: it spends the wall or the metal and flashes the spot. */
+function placeHeld(): void {
+  if (!held) return;
+  if (held.kind === "wall") {
+    if (stock[held.shape] <= 0) { held = null; return; }
+    stock[held.shape]--;
+    flash(heldCells(), 0.58);
+    if (stock[held.shape] <= 0) held = null;
+  } else {
+    if (hotbar.remove("metal", held.tower.cost) < held.tower.cost) { held = null; return; }
+    flash(heldCells(), 0.9);
+    if (hotbar.count("metal") < held.tower.cost) held = null;
+  }
+}
+const ghostMat = new THREE.MeshBasicMaterial({ color: COLONY_ORANGE, transparent: true, opacity: 0.45, depthWrite: false });
+const ghost = new THREE.Group();
+scene.add(ghost);
+const flashes: { m: THREE.Mesh; life: number }[] = [];
+function flash(cells: Cell[], h: number): void {
+  for (const [x, y] of cells) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.96, h, 0.96), new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.8, depthWrite: false }));
+    m.position.set(x + 0.5, h / 2, y + 0.5);
+    scene.add(m); flashes.push({ m, life: 0.5 });
+  }
+}
+function drawGhost(): void {
+  const cells = held && !wheel.open ? heldCells() : [];
+  const h = held?.kind === "tower" ? 0.9 : 0.58;
+  while (ghost.children.length > cells.length) ghost.remove(ghost.children.at(-1)!);
+  while (ghost.children.length < cells.length) ghost.add(new THREE.Mesh(new THREE.BoxGeometry(0.96, 1, 0.96), ghostMat));
+  cells.forEach(([x, y], i) => { const m = ghost.children[i]!; m.scale.y = h; m.position.set(x + 0.5, h / 2, y + 0.5); });
+}
+
+/** Supply drop (a button here; in the game, each round): a short notice lists what came in. */
+const notice = document.getElementById("notice")!;
+let noticeT = 9;
+function supplyDrop(): void {
+  const got: Partial<Record<ShapeId, number>> = {};
+  for (let i = 0; i < 3; i++) { const sh = SHAPE_IDS[Math.floor(Math.random() * SHAPE_IDS.length)]!; got[sh] = (got[sh] ?? 0) + 1; stock[sh]++; }
+  notice.innerHTML = Object.entries(got).map(([sh, n]) => `<span>+${n} ${sized(pieceIcon(sh as ShapeId))}</span>`).join("");
+  noticeT = 0;
+  if (wheel.open) wheel.show(wheelItems());
+}
+const looks = document.getElementById("looks")!;
+function drawLooks(): void {
+  looks.innerHTML = (["A", "B", "C"] as WheelLook[]).map(l => `<button class="chip" data-look="${l}" aria-pressed="${wheel.look === l}">${l}</button>`).join("")
+    + `<button class="chip" id="drop">Supply drop</button>`;
+}
+looks.addEventListener("click", e => {
+  const b = (e.target as HTMLElement).closest("button");
+  if (!b) return;
+  if (b.id === "drop") supplyDrop();
+  else { wheel.look = b.dataset.look as WheelLook; try { localStorage.setItem(LOOK_KEY, wheel.look); } catch { /* storage blocked */ } drawLooks(); }
+});
+drawLooks();
+const rigScreen = new THREE.Vector3();
+
 function frame(now: number): void {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
@@ -327,7 +438,7 @@ function frame(now: number): void {
 
   // Holding the left mouse button always fires the tool; it mines only when a node is in reach.
   const target_ = nodeInReach();
-  const firing = mouseDown && hotbar.held === "multitool";
+  const firing = mouseDown && !held && !wheel.open && hotbar.held === "multitool";
   const mining = !!target_ && firing;
   // The first hit on a node reveals its hotspot.
   if (mining && target_ && !target_.spot) placeSpot(target_);
@@ -391,7 +502,7 @@ function frame(now: number): void {
   rig.object.rotation.y = prev.facing + df * alpha;
   anim.update(dt, {
     speed: avatar.speed, topSpeed: T.speed, grounded: avatar.grounded, vz: avatar.vz,
-    jumpSpeed: (2 * T.jumpHeight) / T.jumpRise, landed, ready: firing, mining: firing,
+    jumpSpeed: (2 * T.jumpHeight) / T.jumpRise, landed, ready: firing || !!held, mining: firing,
   });
   // Upper body: the legs keep running where you steer, the torso twists toward the aim.
   const wantTwist = firing ? Math.max(-TWIST_MAX, Math.min(TWIST_MAX, wrapAngle(aimYaw - rig.object.rotation.y))) : 0;
@@ -426,6 +537,15 @@ function frame(now: number): void {
   if (mining && onSpot && Math.random() < dt * 25) spark(glint.position, null, true);
 
   drawHotbar();
+  // The wheel sits on the character, a little above the feet.
+  rigScreen.set(rx, prev.z + 0.45, ry).project(camera);
+  wheel.update((rigScreen.x + 1) / 2 * container.clientWidth, (1 - rigScreen.y) / 2 * container.clientHeight, mousePx.x, mousePx.y);
+  if (wheel.open) wheel.items = wheelItems();
+  drawGhost();
+  for (const f of flashes) { f.life -= dt; (f.m.material as THREE.MeshBasicMaterial).opacity = Math.max(0, f.life / 0.5) * 0.8; }
+  for (let i = flashes.length - 1; i >= 0; i--) if (flashes[i]!.life <= 0) { scene.remove(flashes[i]!.m); flashes[i]!.m.geometry.dispose(); flashes.splice(i, 1); }
+  noticeT += dt;
+  notice.style.opacity = String(Math.max(0, Math.min(1, 1 - (noticeT - 2.5) / 0.6)));
   gain.idle += dt;
   const gainA = gain.node && (gain.amount > 0 || gain.full) ? Math.max(0, Math.min(1, 1 - (gain.idle - GAIN_HOLD) / GAIN_FADE)) : 0;
   if (gainA > 0 && gain.node) {

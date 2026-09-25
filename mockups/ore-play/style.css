@@ -55,3 +55,17 @@ button { font: inherit; color: inherit; }
 .gain svg, .gain img { width: 26px; height: 26px; }
 .gain i { font-style: normal; margin-left: 6px; color: var(--muted); }
 @media (max-width: 420px) { .slot { width: 44px; height: 44px; } .slot svg, .slot img { width: 32px; height: 32px; } }
+
+.wheel { position: absolute; left: 0; top: 0; pointer-events: none; }
+.wheel svg { display: block; transform: translate(-50%, -50%); overflow: visible; }
+.wheel svg { position: absolute; left: 0; top: 0; }
+.wheel .it { position: absolute; transform: translate(-50%, -50%) scale(var(--s)); display: grid; justify-items: center; gap: 0; }
+.wheel .it svg { position: static; transform: none; width: 40px; height: 40px; display: block; }
+.wheel .it b { font-size: 14px; line-height: 1; margin-top: -2px; text-shadow: 0 1px 3px rgba(20,18,40,.9); font-variant-numeric: tabular-nums; }
+.wheel .it.tight svg { width: 34px; height: 34px; }
+.wheel .it.off { opacity: .35; filter: grayscale(1); }
+.notice { position: absolute; left: 50%; top: 56px; transform: translateX(-50%); display: flex; gap: 14px; align-items: center; padding: 6px 14px; border-radius: 10px; background: rgba(28,26,52,.62); border: 1px solid var(--line); font-weight: 700; font-size: 16px; opacity: 0; pointer-events: none; }
+.notice span { display: inline-flex; align-items: center; gap: 4px; }
+.notice svg { width: 26px; height: 26px; }
+.looks { position: absolute; right: 16px; top: 12px; display: flex; gap: 6px; }
+.looks .chip { padding: 6px 12px; }
