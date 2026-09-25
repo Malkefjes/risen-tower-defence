@@ -1,7 +1,7 @@
 import * as THREE from "three";
 
 /**
- * The new basic enemy: three Tyranid-inspired designs in ice blue for Erik to pick
+ * The new basic enemy: three Tyranid-inspired designs (first in ice blue, now deep purple) for Erik to pick
  * from (mockups/enemies). Chitin plates over a pale body, bladed forelimbs, a tail.
  * All face +z, stand on y = 0, and animate a walk from `update(t, walking)`.
  *   A: a gaunt, a hunched biped on digitigrade legs with two scything blades.
@@ -15,11 +15,11 @@ const std = (color: string, o: THREE.MeshStandardMaterialParameters = {}) =>
 let M: ReturnType<typeof palette> | undefined;
 // Created on first use, after colour management is switched off.
 const palette = () => ({
-  // Saturated enough to stay ice blue under the warm evening light.
-  chitin: std("#4fb4f0", { roughness: 0.3, emissive: "#1d5f8f", emissiveIntensity: 0.25 }),
-  chitinDark: std("#236aa6", { roughness: 0.35, emissive: "#0f3558", emissiveIntensity: 0.2 }),
-  hide: std("#bfe6fb", { roughness: 0.6, emissive: "#4a8fb8", emissiveIntensity: 0.15 }),
-  bone: std("#eaf4fa", { roughness: 0.4 }),
+  // Deep purple all over (Erik), with a faint glow so it stays purple in the warm evening light.
+  chitin: std("#5a2a8c", { roughness: 0.3, emissive: "#2a0f4a", emissiveIntensity: 0.3 }),
+  chitinDark: std("#3a1760", { roughness: 0.35, emissive: "#1a0833", emissiveIntensity: 0.3 }),
+  hide: std("#6e3aa0", { roughness: 0.6, emissive: "#301352", emissiveIntensity: 0.25 }),
+  bone: std("#8452b8", { roughness: 0.4, emissive: "#351660", emissiveIntensity: 0.25 }),
   eye: new THREE.MeshBasicMaterial({ color: "#0d1a2a" }),
 });
 
