@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { EVENING } from "./models";
-import { createOreNode, type NodeKind } from "./ore";
+import { createOreNode, stripRoom, type NodeKind } from "./ore";
 import { createMultitool } from "./rig";
 
 /**
@@ -49,11 +49,11 @@ export function itemIcons(size = 96): Record<IconKind, string> {
   for (const kind of ["stone", "metal"] as const) {
     const node = createOreNode(3, kind === "stone" ? 7 : 11, kind);
     node.setAmount(0.2); // only the core is left
-    // Shine is contrast: polished metal mirrors a few bright strips in a dark room,
-    // so some facets flash bright and the rest stay dark.
+    // The metal's reflections belong to the world renderer's context, so the icon
+    // renders a copy of the material that mirrors this renderer's own strip room.
     if (kind === "metal") node.object.traverse(c => {
       const m = c as THREE.Mesh;
-      if (m.isMesh) m.material = Object.assign((m.material as THREE.MeshStandardMaterial).clone(), { metalness: 1, roughness: 0.15, emissiveIntensity: 0.1 });
+      if (m.isMesh) m.material = Object.assign((m.material as THREE.MeshStandardMaterial).clone(), { envMap: shine, envMapIntensity: 1 });
     });
     scene.add(node.object);
     // Frame what's still there (Box3.setFromObject counts hidden layers too).
@@ -68,7 +68,6 @@ export function itemIcons(size = 96): Record<IconKind, string> {
     camera.lookAt(centre);
     sun.target.position.copy(centre);
     sun.position.copy(centre).add(new THREE.Vector3(...EVENING.sunOffset));
-    scene.environment = kind === "metal" ? shine : null;
     renderer.render(scene, camera);
     out[kind] = fadeEdges(renderer.domElement, size);
     scene.remove(node.object);
@@ -80,7 +79,6 @@ export function itemIcons(size = 96): Record<IconKind, string> {
     });
   }
   // The multitool, side on, in the same light; it's held, not lying on the snow.
-  scene.environment = null;
   ground.visible = false;
   const tool = createMultitool();
   scene.add(tool);
@@ -106,26 +104,6 @@ export function itemIcons(size = 96): Record<IconKind, string> {
   renderer.dispose();
   renderer.forceContextLoss();
   return (cache = out);
-}
-
-/** What polished metal mirrors in an icon: a dark, cool room with a few bright light strips. */
-function stripRoom(): THREE.Scene {
-  const room = new THREE.Scene();
-  room.background = new THREE.Color("#4a5063");
-  const strip = (w: number, h: number, x: number, y: number, z: number, color: string) => {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide }));
-    m.position.set(x, y, z);
-    m.lookAt(0, 0, 0);
-    room.add(m);
-  };
-  // The camera looks from +x +z, so facets facing it mirror what's on that side.
-  strip(5, 1.4, 4, 4.5, 4, "#dfe6f2");    // high, behind the camera
-  strip(1.2, 4, 5.5, 1, 1, "#e8f0ff");    // right of the camera
-  strip(1.2, 4, 1, 1, 5.5, "#e8f0ff");    // left of the camera
-  strip(6, 1.5, 0, 6, 0, "#f4f7ff");      // overhead
-  strip(1, 3, 4, 2, -2, "#ffffff");       // small glints off to the sides
-  strip(1, 3, -2, 2, 4, "#ffffff");
-  return room;
 }
 
 /** The low sun throws a long shadow; fade it out toward the icon's edge instead of cutting it off. */

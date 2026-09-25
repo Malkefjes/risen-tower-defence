@@ -14,10 +14,50 @@ let M: ReturnType<typeof palette> | undefined;
 const palette = () => ({
   stone: std("#4a4f5c"),
   stoneAlt: std("#555a67"),
-  // Metal glows a little so it reads cool against the warm evening light.
-  metal: std("#9aa6b6", { metalness: 0.7, roughness: 0.28, emissive: "#5d6e86", emissiveIntensity: 0.25 }),
-  metalAlt: std("#adb8c6", { metalness: 0.7, roughness: 0.25, emissive: "#6e7f97", emissiveIntensity: 0.3 }),
+  // Polished metal: its shine comes from mirroring light strips (see `polishMetal`);
+  // a faint glow keeps the facets that face away from going black.
+  metal: std("#9aa6b6", { metalness: 1, roughness: 0.15, emissive: "#5d6e86", emissiveIntensity: 0.1 }),
+  metalAlt: std("#adb8c6", { metalness: 1, roughness: 0.15, emissive: "#6e7f97", emissiveIntensity: 0.1 }),
 });
+
+/**
+ * Give metal nodes their shine. Silver is mostly reflection, and the evening world
+ * has nothing to reflect, so the metal materials (only them) mirror a strip room.
+ * Call once with the renderer that draws the world.
+ */
+const WORLD_SHINE = 1.5;
+export function polishMetal(renderer: THREE.WebGLRenderer): void {
+  M ??= palette();
+  if (M.metal.envMap) return;
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const shine = pmrem.fromScene(stripRoom(), 0.02).texture;
+  pmrem.dispose();
+  M.metal.envMap = shine;
+  M.metalAlt.envMap = shine;
+  // Brighter than in the icon: in the world the nodes are seen small and from further off.
+  M.metal.envMapIntensity = M.metalAlt.envMapIntensity = WORLD_SHINE;
+  M.metal.needsUpdate = M.metalAlt.needsUpdate = true;
+}
+
+/** What polished metal mirrors: a dim, cool room with a few bright light strips. */
+export function stripRoom(): THREE.Scene {
+  const room = new THREE.Scene();
+  room.background = new THREE.Color("#4a5063");
+  const strip = (w: number, h: number, x: number, y: number, z: number, color: string) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide }));
+    m.position.set(x, y, z);
+    m.lookAt(0, 0, 0);
+    room.add(m);
+  };
+  // The camera looks from +x +z, so facets facing it mirror what's on that side.
+  strip(5, 1.4, 4, 4.5, 4, "#dfe6f2");    // high, behind the camera
+  strip(1.2, 4, 5.5, 1, 1, "#e8f0ff");    // right of the camera
+  strip(1.2, 4, 1, 1, 5.5, "#e8f0ff");    // left of the camera
+  strip(6, 1.5, 0, 6, 0, "#f4f7ff");      // overhead
+  strip(1, 3, 4, 2, -2, "#ffffff");       // small glints off to the sides
+  strip(1, 3, -2, 2, 4, "#ffffff");
+  return room;
+}
 
 function rng(seed: number) {
   let s = seed >>> 0;
