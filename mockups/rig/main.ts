@@ -96,14 +96,13 @@ function buildRig() {
   body.add(box(TORSO_W * 0.62, 0.1, 0.02, M.orange, 0, TORSO_Y + 0.12, chestZ));
   body.add(box(TORSO_W * 0.4, 0.018, 0.012, M.power, 0, TORSO_Y + 0.07, chestZ + 0.002));
 
-  // Neck and a square helmet: front visor band, narrow side visors, orange stripe over the top.
-  body.add(box(0.06, 0.03, 0.06, M.steelDark, 0, TORSO_TOP, 0));
-  const HS = 0.15, headY = TORSO_TOP + 0.025;
-  body.add(rbox(HS, HS * 0.95, HS, 0.03, M.suit, 0, headY, 0));
-  const hb = HS / 2 + bulge(0.03, HS * 0.95);
-  body.add(box(HS * 0.86, 0.05, 0.02, M.power, 0, headY + HS * 0.42, hb));
-  for (const sx of [-1, 1]) body.add(box(0.02, 0.038, HS * 0.55, M.power, sx * hb, headY + HS * 0.44, 0.02));
-  body.add(box(0.035, 0.012, HS * 1.02, M.orange, 0, headY + HS * 0.95, 0));
+  // A short neck, then a square helmet with a front visor.
+  const NECK_H = 0.04;
+  body.add(mesh(new THREE.CylinderGeometry(0.052, 0.058, 0.014, 12), M.steel, 0, TORSO_TOP + 0.007, 0));
+  body.add(mesh(new THREE.CylinderGeometry(0.03, 0.034, NECK_H, 10), M.steelDark, 0, TORSO_TOP + NECK_H / 2, 0));
+  const HW = 0.13, HH = 0.12, headY = TORSO_TOP + NECK_H - 0.005;
+  body.add(rbox(HW, HH, HW, 0.028, M.suit, 0, headY, 0));
+  body.add(box(HW * 0.84, 0.042, 0.02, M.power, 0, headY + HH * 0.45, HW / 2 + bulge(0.028, HH)));
 
   // Backpack: its top is flush with the top of the torso; round cyan core and three ore canisters.
   const PACK_H = 0.24, PACK_D = 0.08;
