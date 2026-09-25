@@ -52,22 +52,23 @@ scene.add(rig.object);
 const anim = new RigAnimator(rig);
 
 // Leapers climb out of the cave mouth one after another, walk out in a line, and
-// die about 7 tiles out: they crumple and sink, with a burst of dark bits.
+// die about 7 tiles out: they simply burst into dark bits.
 let look: EnemyLook = "C";
 const OUT = new THREE.Vector3(Math.SQRT1_2, 0, Math.SQRT1_2); // the way the cave mouth faces
 const START = cave.object.position.clone().addScaledVector(OUT, 0.55);
 const DIE_AT = 7, SPEED = 1.5, EVERY = 1.1;
-interface Walker { e: Enemy; d: number; t: number; dying: number; /** The creature's own scale, so dying only ever shrinks it. */ size: number }
+interface Walker { e: Enemy; d: number; t: number; dying: number }
 let walkers: Walker[] = [];
 let spawnT = 0;
 const bits: { m: THREE.Mesh; v: THREE.Vector3; life: number }[] = [];
 const bitGeo = new THREE.IcosahedronGeometry(0.035, 0);
+const boneMat = new THREE.MeshStandardMaterial({ color: "#e9e1cf", roughness: 0.7 });
 const bitMat = new THREE.MeshStandardMaterial({ color: "#2a0f44", roughness: 0.8, emissive: "#160626", emissiveIntensity: 0.3 });
 function spawn(): void {
   const e = enemyLook(look);
   e.object.rotation.y = Math.atan2(OUT.x, OUT.z);
   scene.add(e.object);
-  walkers.push({ e, d: 0, t: Math.random() * 10, dying: 0, size: e.object.scale.x });
+  walkers.push({ e, d: 0, t: Math.random() * 10, dying: 0 });
 }
 function build(): void {
   for (const w of walkers) scene.remove(w.e.object);
@@ -113,16 +114,6 @@ function frame(now: number): void {
   if (spawnT <= 0) { spawn(); spawnT = EVERY; }
   for (const w of walkers) {
     w.t += dt;
-    if (w.dying > 0) {
-      // Crumple: tip over, sink and shrink away.
-      w.dying += dt;
-      const k = Math.min(1, w.dying / 0.6);
-      w.e.object.rotation.z = k * 1.3;
-      w.e.object.position.y = -k * 0.12;
-      w.e.object.scale.setScalar(w.size * (1 - k * k * 0.9));
-      w.e.update(w.t, false);
-      continue;
-    }
     w.d += SPEED * dt;
     const p = START.clone().addScaledVector(OUT, w.d);
     // Climbing out of the mouth: rising from below the snow over the first half tile.
@@ -130,17 +121,18 @@ function frame(now: number): void {
     w.e.object.position.copy(p);
     w.e.update(w.t, true);
     if (w.d >= DIE_AT) {
-      w.dying = 1e-6;
-      for (let i = 0; i < 10; i++) {
-        const m = new THREE.Mesh(bitGeo, bitMat);
+      // Death: it simply bursts into dark bits (and a few bone ones) and is gone.
+      w.dying = 1;
+      for (let i = 0; i < 16; i++) {
+        const m = new THREE.Mesh(bitGeo, i < 3 ? boneMat : bitMat);
         m.position.copy(p).setY(0.12);
         scene.add(m);
-        const a = Math.random() * Math.PI * 2, sp = 0.6 + Math.random() * 1.2;
+        const a = Math.random() * Math.PI * 2, sp = 0.9 + Math.random() * 1.6;
         bits.push({ m, v: new THREE.Vector3(Math.cos(a) * sp, 1.2 + Math.random() * 1.5, Math.sin(a) * sp), life: 0.8 });
       }
     }
   }
-  walkers = walkers.filter(w => { if (w.dying < 0.7) return true; scene.remove(w.e.object); return false; });
+  walkers = walkers.filter(w => { if (!w.dying) return true; scene.remove(w.e.object); return false; });
   for (const b of bits) {
     b.life -= dt; b.v.y -= 7 * dt; b.m.position.addScaledVector(b.v, dt);
     if (b.m.position.y < 0.02) { b.m.position.y = 0.02; b.v.set(0, 0, 0); }
