@@ -10,8 +10,13 @@ import { rng, roughBox } from "./terrain";
  *   A: an outcrop with a low cave mouth under an overhang, icicles on the lip.
  *   B: a sinkhole, a dark shaft in the snow with a broken rock rim.
  *   C: a fissure, a long dark crack torn open between tilted slabs.
+ * Erik picked A as the best; A1–A3 build on it with the cliff slabs (look B of the
+ * cliffs): tilted rock sheets, each with snow settled evenly on its upper face.
+ *   A1: a mouth cut into the face of a small slab cliff.
+ *   A2: two great slabs leaning together over the mouth, stacked slabs behind.
+ *   A3: slab terraces stepping up and back, a wide low mouth under the first step.
  */
-export type CaveLook = "A" | "B" | "C";
+export type CaveLook = "A" | "B" | "C" | "A1" | "A2" | "A3";
 
 const std = (color: string, o: THREE.MeshStandardMaterialParameters = {}) =>
   new THREE.MeshStandardMaterial({ color, roughness: 0.95, metalness: 0, flatShading: true, ...o });
@@ -60,7 +65,83 @@ export function caveLook(look: CaveLook, seed = 1): Cave {
   const rockMat = () => { const r = rand(); return r < 0.4 ? m.rock : r < 0.75 ? m.rockDark : m.rockLight; };
   const root = new THREE.Group();
 
-  if (look === "A") {
+  /** A cliff slab with snow settled on its upper face, sharing its tilt (as in cliff look B). */
+  const slab = (w: number, t: number, d: number, x: number, y: number, z: number, ry = 0, rx = 0, rz = 0, snow = 0.05, mat?: THREE.Material) => {
+    put(mat ?? (rand() < 0.5 ? m.rock : m.rockDark), roughBox(w, t, d, rand, 0.06), x, y, z, ry, rx, rz);
+    if (snow <= 0) return;
+    const sg = roughBox(w - 0.05, snow, d - 0.05, rand, 0.02);
+    sg.translate(0, t / 2 + snow / 2 - 0.01, 0);
+    put(m.snow, sg, x, y, z, ry, rx, rz);
+  };
+  const darkMouth = (w: number, h: number, x: number, y: number, z: number) => {
+    const mouth = new THREE.Mesh(new THREE.CircleGeometry(0.5, 8), new THREE.MeshBasicMaterial({ color: "#0a0b0f" }));
+    mouth.scale.set(w, h, 1); mouth.position.set(x, y, z);
+    root.add(mouth);
+  };
+  const icicles = (x0: number, x1: number, y: number, z: number) => {
+    for (let x = x0; x <= x1; x += 0.2 + rand() * 0.08) {
+      const ic = new THREE.ConeGeometry(0.03, 0.12 + rand() * 0.16, 4); ic.rotateX(Math.PI);
+      put(m.ice, ic, x, y, z);
+    }
+  };
+
+  if (look === "A1") {
+    // A small slab cliff (stacked, tilted sheets, snow on each) with a mouth cut into its face.
+    let y = 0;
+    for (let i = 0; i < 5; i++) {
+      const t = 0.24 + rand() * 0.08, w = 2.5 - i * 0.12 + rand() * 0.15, d = 1.7 - i * 0.12;
+      // The lower courses are split to leave the opening; the upper ones bridge over it.
+      if (i < 3) {
+        for (const side of [-1, 1]) slab(0.8 + rand() * 0.1, t, d, side * (0.8 + rand() * 0.06), y + t / 2, -0.3, (rand() - 0.5) * 0.2, (rand() - 0.5) * 0.12, side * (rand() * 0.08), 0.05);
+      } else {
+        slab(w, t, d, (rand() - 0.5) * 0.12, y + t / 2, -0.3 - (i - 3) * 0.08, (rand() - 0.5) * 0.15, (rand() - 0.5) * 0.08, (rand() - 0.5) * 0.08, i === 4 ? 0.09 : 0.05);
+      }
+      y += t * 0.94;
+    }
+    darkMouth(1.0, 0.95, 0, 0.42, 0.42);
+    icicles(-0.45, 0.45, 0.78, 0.52);
+    const floor = hole(0.6, 0.38); floor.position.z = 0.7;
+    root.add(floor);
+    for (let i = 0; i < 4; i++) slab(0.28 + rand() * 0.15, 0.12, 0.25, (rand() - 0.5) * 2.4, 0.05, 0.75 + rand() * 0.5, rand() * 3, (rand() - 0.5) * 0.4, (rand() - 0.5) * 0.4, 0.03);
+  } else if (look === "A2") {
+    // Two great slabs leaning together over the mouth, like a split in the rock; stacked slabs behind.
+    // Steep, tops meeting over the middle; their upper faces point up and out, so snow settles there.
+    for (const side of [-1, 1]) slab(1.5, 0.3, 1.25, side * 0.42, 0.6, 0.15, side * 0.05, 0, -side * 1.0, 0.06);
+    let y = 0;
+    for (let i = 0; i < 4; i++) {
+      const t = 0.26 + rand() * 0.06;
+      slab(2.3 - i * 0.28, t, 1.0 - i * 0.1, (rand() - 0.5) * 0.15, y + t / 2, -0.75 - i * 0.05, (rand() - 0.5) * 0.2, (rand() - 0.5) * 0.1, (rand() - 0.5) * 0.1, i === 3 ? 0.09 : 0.05);
+      y += t * 0.94;
+    }
+    darkMouth(0.8, 1.05, 0, 0.42, 0.62);
+    const floor = hole(0.5, 0.4); floor.position.z = 0.85;
+    root.add(floor);
+    icicles(-0.15, 0.15, 0.95, 0.66);
+    for (let i = 0; i < 5; i++) slab(0.25 + rand() * 0.15, 0.12, 0.22, (rand() - 0.5) * 2.4, 0.05, 0.8 + rand() * 0.6, rand() * 3, (rand() - 0.5) * 0.4, (rand() - 0.5) * 0.4, 0.03);
+  } else if (look === "A3") {
+    // Slab terraces stepping up and back; the first step overhangs a wide, low mouth.
+    const steps = [
+      { w: 2.6, d: 1.0, z: 0.35, y: 0.62, t: 0.24 },
+      { w: 2.3, d: 1.0, z: -0.3, y: 0.95, t: 0.28 },
+      { w: 1.9, d: 0.9, z: -0.85, y: 1.28, t: 0.28 },
+    ];
+    // The walls under each step.
+    for (const st of steps.slice(1)) {
+      let y = 0;
+      while (y < st.y - st.t / 2 - 0.05) {
+        const t = 0.26 + rand() * 0.06;
+        slab(st.w - 0.1 + rand() * 0.1, t, st.d, (rand() - 0.5) * 0.1, y + t / 2, st.z, (rand() - 0.5) * 0.15, (rand() - 0.5) * 0.08, (rand() - 0.5) * 0.08, 0);
+        y += t * 0.94;
+      }
+    }
+    for (const side of [-1, 1]) slab(0.55, 0.5, 0.9, side * 1.02, 0.25, 0.35, 0, 0, 0, 0);
+    for (const st of steps) slab(st.w, st.t, st.d, (rand() - 0.5) * 0.1, st.y, st.z, (rand() - 0.5) * 0.12, (rand() - 0.5) * 0.06, (rand() - 0.5) * 0.06, 0.07);
+    darkMouth(1.55, 0.72, 0, 0.26, 0.62);
+    icicles(-0.7, 0.7, 0.5, 0.82);
+    const floor = hole(0.85, 0.35); floor.position.z = 0.95;
+    root.add(floor);
+    for (let i = 0; i < 4; i++) slab(0.28 + rand() * 0.15, 0.12, 0.25, (rand() - 0.5) * 2.6, 0.05, 1.05 + rand() * 0.5, rand() * 3, (rand() - 0.5) * 0.4, (rand() - 0.5) * 0.4, 0.03);
+  } else if (look === "A") {
     // Outcrop: a low hill of stacked slabs with a cave mouth under an overhang at the front,
     // snow settled on every ledge, icicles hanging from the lip.
     for (let i = 0; i < 4; i++) {

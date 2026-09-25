@@ -35,8 +35,8 @@ ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
 scene.add(ground);
 
-let look: CaveLook = "A";
-try { const l = localStorage.getItem("risen.caves.look"); if (l === "A" || l === "B" || l === "C") look = l; } catch { /* storage blocked */ }
+let look: CaveLook = "A1";
+try { const l = localStorage.getItem("risen.caves.look"); if (l === "A" || l === "A1" || l === "A2" || l === "A3") look = l; } catch { /* storage blocked */ }
 let cave: Cave | null = null;
 function build(): void {
   if (cave) { scene.remove(cave.object); cave.object.traverse(o => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).geometry.dispose(); }); }
@@ -60,7 +60,7 @@ const anim = new RigAnimator(rig);
 
 const looksEl = document.getElementById("looks")!;
 function drawLooks(): void {
-  looksEl.innerHTML = (["A", "B", "C"] as CaveLook[]).map(l => `<button class="chip" data-look="${l}" aria-pressed="${look === l}">${l}</button>`).join("");
+  looksEl.innerHTML = (["A", "A1", "A2", "A3"] as CaveLook[]).map(l => `<button class="chip" data-look="${l}" aria-pressed="${look === l}">${l}</button>`).join("");
 }
 looksEl.addEventListener("click", e => {
   const b = (e.target as HTMLElement).closest("button");
