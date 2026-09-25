@@ -85,6 +85,8 @@ const TORSO_W = 2 * HIP_W + LEG_W, TORSO_D = 0.15, WAIST_H = 0.08, TORSO_H = 0.2
 const TORSO_Y = HIP_Y + WAIST_H * 0.5, TORSO_TOP = TORSO_Y + TORSO_H;
 /** Visible torso width: in line with the outer edges of the hips. */
 const TORSO_VIS = TORSO_W * 0.96;
+/** Pelvis depth, and the visible depth (with bevel) that the torso matches. */
+const PELVIS_D = TORSO_D * 0.72;
 const ARM_W = 0.062, UPPER_ARM = 0.17, FOREARM = 0.16;
 
 function buildRig() {
@@ -97,11 +99,13 @@ function buildRig() {
   root.add(body);
 
   // Pelvis: part of the hips (not the torso), centred over both hip joints.
-  root.add(rbox(TORSO_W * 0.88, WAIST_H, TORSO_D * 0.72, 0.02, M.steelDark, 0, HIP_Y - WAIST_H * 0.5, 0));
+  root.add(rbox(TORSO_W * 0.88, WAIST_H, PELVIS_D, 0.02, M.steelDark, 0, HIP_Y - WAIST_H * 0.5, 0));
 
   // Torso: exactly as wide as the hips and legs.
   // The rounded box's bevel bulges past its width, so subtract it: the torso's visible width matches the hips.
-  torso.add(rbox(TORSO_VIS - 2 * bulge(0.045, TORSO_H), TORSO_H, TORSO_D, 0.045, M.suit, 0, TORSO_Y, 0));
+  // Same visible depth as the pelvis.
+  const depthVis = PELVIS_D + 2 * bulge(0.02, WAIST_H);
+  torso.add(rbox(TORSO_VIS - 2 * bulge(0.045, TORSO_H), TORSO_H, depthVis - 2 * bulge(0.045, TORSO_H), 0.045, M.suit, 0, TORSO_Y, 0));
 
   // A short neck, then a square helmet with a front visor.
   const NECK_H = 0.04;
@@ -113,7 +117,7 @@ function buildRig() {
 
   // Backpack: its top is flush with the top of the torso; round cyan core and three ore canisters.
   const PACK_H = 0.2, PACK_D = 0.065;
-  const backZ = -TORSO_D / 2 - bulge(0.045, TORSO_H) - PACK_D / 2 - bulge(0.025, PACK_H);
+  const backZ = -depthVis / 2 - PACK_D / 2 - bulge(0.025, PACK_H);
   const packFace = backZ - PACK_D / 2 - bulge(0.025, PACK_H);
   torso.add(rbox(TORSO_W * 0.82, PACK_H, PACK_D, 0.025, M.steel, 0, TORSO_TOP - PACK_H, backZ));
   torso.add(mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.015, 14).rotateX(Math.PI / 2), M.power, 0, TORSO_TOP - 0.06, packFace - 0.005));
