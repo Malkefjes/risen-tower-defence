@@ -83,6 +83,8 @@ const anim = new RigAnimator(rig);
 /** Yield per node, and mining rate per second: a node takes the same time to mine out either way. */
 const MINE_TIME = 25 / 3; // seconds per node (about 2.8 s per break stage)
 const RESPAWN = 20; // seconds an empty node stays gone
+/** Mining speed while the cursor is on the hotspot, and how long it takes hits before it hops. */
+const HOTSPOT_BONUS = 1.2, HOTSPOT_HOP = 1.2, HOTSPOT_RADIUS = 0.32;
 const carried: Record<NodeKind, number> = { stone: 0, metal: 0 };
 
 // ------------------------------------------------------------------ input
@@ -97,6 +99,11 @@ addEventListener("keydown", e => {
 addEventListener("keyup", e => keys.delete(e.key.toLowerCase()));
 addEventListener("blur", () => { keys.clear(); mouseDown = false; });
 let mouseDown = false;
+const mouse = new THREE.Vector2(-9, -9);
+renderer.domElement.addEventListener("pointermove", e => {
+  const r = renderer.domElement.getBoundingClientRect();
+  mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+});
 renderer.domElement.addEventListener("pointerdown", e => { if (e.button === 0) mouseDown = true; });
 addEventListener("pointerup", e => { if (e.button === 0) mouseDown = false; });
 renderer.domElement.addEventListener("contextmenu", e => e.preventDefault());
@@ -113,6 +120,52 @@ function moveInput(): { x: number; y: number } {
   if (keys.has("s")) u -= 1;
   const x = (r - u) * K, y = (-r - u) * K, l = Math.hypot(x, y);
   return l > 0 ? { x: x / l, y: y / l } : { x: 0, y: 0 };
+}
+
+// ------------------------------------------------------------------ hotspot
+
+/** A shiny glint on the node: mining with the cursor on it is faster. It hops after a few hits, like Rust's. */
+const glintTex = (() => {
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const g = c.getContext("2d")!;
+  const rg = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  rg.addColorStop(0, "rgba(255,255,255,1)"); rg.addColorStop(0.18, "rgba(255,248,225,.9)"); rg.addColorStop(0.45, "rgba(255,230,170,.25)"); rg.addColorStop(1, "rgba(255,230,170,0)");
+  g.fillStyle = rg; g.fillRect(0, 0, 64, 64);
+  // A four-point star so it reads as a glint, not just a blob.
+  g.fillStyle = "rgba(255,255,255,.85)";
+  g.beginPath(); g.moveTo(32, 2); g.lineTo(35, 29); g.lineTo(62, 32); g.lineTo(35, 35); g.lineTo(32, 62); g.lineTo(29, 35); g.lineTo(2, 32); g.lineTo(29, 29); g.closePath(); g.fill();
+  return new THREE.CanvasTexture(c);
+})();
+const glint = new THREE.Sprite(new THREE.SpriteMaterial({ map: glintTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+glint.visible = false;
+glint.renderOrder = 5;
+scene.add(glint);
+const hotspot = { node: null as Node | null, pos: new THREE.Vector3(), from: new THREE.Vector3(), to: new THREE.Vector3(), move: 1, hit: 0 };
+const raycaster = new THREE.Raycaster();
+
+/** Put the hotspot on a new point of the node, preferring one on the side facing the camera. */
+function hopHotspot(nd: Node, instant: boolean): void {
+  const pts = nd.model.surfacePoints();
+  if (!pts.length) return;
+  const toCam = CAM_OFFSET.clone().normalize();
+  const c = new THREE.Vector3(nd.x + nd.n / 2, 0, nd.y + nd.n / 2);
+  const good = pts.filter(p => p.clone().sub(c).setY(0).dot(toCam) > -0.1 && p.distanceTo(hotspot.to) > 0.35);
+  const pick = (good.length ? good : pts)[Math.floor(Math.random() * (good.length || pts.length))]!;
+  hotspot.from.copy(instant ? pick : hotspot.pos);
+  hotspot.to.copy(pick);
+  hotspot.move = instant ? 1 : 0;
+  hotspot.hit = 0;
+}
+
+/** Is the cursor on the hotspot of this node? */
+function cursorOnHotspot(nd: Node): boolean {
+  raycaster.setFromCamera(mouse, camera);
+  const hit = raycaster.intersectObject(nd.model.object, true)[0];
+  if (hit && hit.point.distanceTo(hotspot.pos) < HOTSPOT_RADIUS) return true;
+  // Also accept aiming straight at the glint itself.
+  const onScreen = hotspot.pos.clone().project(camera);
+  return Math.hypot(onScreen.x - mouse.x, (onScreen.y - mouse.y) * (container.clientHeight / container.clientWidth)) < 0.012;
 }
 
 // ------------------------------------------------------------------ effects
@@ -178,6 +231,10 @@ function frame(now: number): void {
   // Mining: hold E within reach of a node. You stand still while mining.
   const target_ = nodeInReach();
   const mining = !!target_ && mouseDown;
+  // The hotspot lives on the node in reach.
+  if (target_ !== hotspot.node) { hotspot.node = target_; if (target_) hopHotspot(target_, true); }
+  const onSpot = !!target_ && cursorOnHotspot(target_);
+  if (mining && onSpot) { hotspot.hit += dt; if (hotspot.hit >= HOTSPOT_HOP) hopHotspot(target_!, false); }
 
   acc += dt;
   let landed = false;
@@ -188,10 +245,12 @@ function frame(now: number): void {
     jumpQueued = false;
     landed ||= avatar.landed;
     if (mining && target_) {
-      const got = Math.min(target_.amount, (target_.max / MINE_TIME) * TICK);
+      const got = Math.min(target_.amount, (target_.max / MINE_TIME) * (onSpot ? HOTSPOT_BONUS : 1) * TICK);
       target_.amount -= got;
       carried[target_.kind] += got;
-      for (const p of target_.model.setAmount(target_.amount / target_.max)) breakBurst(p, target_.kind);
+      const broke = target_.model.setAmount(target_.amount / target_.max);
+      for (const p of broke) breakBurst(p, target_.kind);
+      if (broke.length && target_.amount > 0) hopHotspot(target_, false);
     }
     acc -= TICK;
   }
@@ -228,6 +287,14 @@ function frame(now: number): void {
   }
   for (const p of sparks) { p.life -= dt; p.v.y -= 7 * dt; p.m.position.addScaledVector(p.v, dt); if (p.m.position.y < 0.02) { p.m.position.y = 0.02; p.v.set(0, 0, 0); } p.m.scale.setScalar(Math.max(0.01, Math.min(1, p.life / 0.3))); }
   for (let i = sparks.length - 1; i >= 0; i--) if (sparks[i]!.life <= 0) { scene.remove(sparks[i]!.m); sparks.splice(i, 1); }
+
+  // The glint glides to its new spot, and flares while it's being hit.
+  hotspot.move = Math.min(1, hotspot.move + dt * 5);
+  hotspot.pos.lerpVectors(hotspot.from, hotspot.to, 1 - (1 - hotspot.move) ** 2);
+  glint.visible = !!target_ && target_.amount > 0;
+  glint.position.copy(hotspot.pos).add(new THREE.Vector3(0, 0.03, 0));
+  glint.scale.setScalar((mining && onSpot ? 0.7 : 0.52) * (1 + Math.sin(time * 6) * 0.12));
+  glint.material.rotation = time * 0.8;
 
   const left = target_ ? `  ·  node ${Math.ceil(target_.amount)} / ${target_.max}` : "";
   hud.textContent = `Stone ${Math.floor(carried.stone)}  ·  Metal ${Math.floor(carried.metal)}${left}`;

@@ -124,6 +124,7 @@ Good ideas that don't have a milestone yet. Review this list at every milestone.
 - **Noise and heat**: extraction and industry raise the threat meter (partly in M1b).
 - **Gates** in walls so a rover can pass through the maze.
 - **Special wall pieces**: reinforced, conductive (power), raised (tower range bonus).
+- **Metal wall upgrade**: spend metal to upgrade stone walls (tougher against wall breakers, maybe carry power).
 - **Terrain**: rough ground slows enemies, high ground boosts tower range.
 - **Tower variety** (old Phase 2): towers that favor different maze shapes (splash likes switchbacks, beams like corridors, slows like corners).
 - **Targeting options** for towers.

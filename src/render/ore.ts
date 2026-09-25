@@ -44,6 +44,8 @@ export interface OreNodeModel {
    * centres of rocks that just broke off, for chunk effects.
    */
   setAmount(frac: number): THREE.Vector3[];
+  /** Points on top of the rocks that are still there, in world space (for the mining hotspot). */
+  surfacePoints(): THREE.Vector3[];
 }
 
 /** An n×n node, centred on its footprint, built in three layers that break off in turn. */
@@ -77,6 +79,20 @@ export function createOreNode(n: number, seed: number, kind: NodeKind = "stone")
         l.visible = visible;
       });
       return broke;
+    },
+    surfacePoints() {
+      object.updateMatrixWorld(true);
+      const out: THREE.Vector3[] = [], box = new THREE.Box3();
+      for (const l of layers) {
+        if (!l.visible) continue;
+        for (const c of l.children) {
+          box.setFromObject(c);
+          const p = box.getCenter(new THREE.Vector3());
+          p.y = box.max.y;
+          out.push(p);
+        }
+      }
+      return out;
     },
   };
 }

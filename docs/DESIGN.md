@@ -42,7 +42,8 @@ One planet is one long run over several sessions, saved in the browser.
 
 ### Resources
 
-- Three resources: **raw ore**, **refined alloy**, **power**. The chain stays short on purpose, with no conveyor belts.
+- Mined from 3×3 nodes (one size, like Rust): **stone** (1000 per node) builds walls, **metal** (500 per node) builds towers. Later: refined alloy and **power**. The chain stays short on purpose, with no conveyor belts.
+- Mining: hold the left mouse button next to a node; it breaks off in three stages. A shiny hotspot on the node mines about 20% faster while the cursor is on it, and hops around like Rust's.
 - **Physical up to the ship:** ore is mined at nodes and physically brought home (carried, then hauled). Once at the ship, the refinery turns it into alloy without routing.
 - **Power** comes from generators and the ship, runs through connected walls, and is drawn by towers and industry.
 
