@@ -3,7 +3,7 @@
  * a seed goes in, a `MapDef` plus the few extra fields the renderer needs come out.
  *
  * Zones around the landing site: a clearing, a pine forest belt, rocky highlands
- * (most of the metal) and violet-stained wastes to the north-west. Raised ground
+ * (a bit more metal) and violet-stained wastes to the north-west. Raised ground
  * (plateaus with cliff edges) is most common in the highlands. Snow is pure white;
  * bare patches (ice, the landing scorch, wastes earth, wind-scoured rock) show where
  * it's gone. Enemy spawners are cave exits scattered across the map (never on raised
@@ -58,6 +58,8 @@ export interface WorldGenOptions {
 
 const WASTES_DIR = Math.atan2(-1, -1); // north-west on the grid (x east, y south)
 /** Caves keep at least this far from the ship (cells). */
+/** Chance a node is metal, by zone: about three stone nodes per metal node overall. */
+export const METAL_FOREST = 0.17, METAL_HIGHLANDS = 0.27;
 export const CAVE_MIN_DIST = 24;
 /** And at least this far from each other. */
 export const CAVE_SPACING = 20;
@@ -186,8 +188,8 @@ export function generateWorld(seed: number, opts: WorldGenOptions = {}): Generat
     for (let i = 2; i <= 5; i++) for (let s = -1; s <= 1; s++) reserved.add(cellKey(x + dir[0] * i + (dir[1] ? s : 0), y + dir[1] * i + (dir[0] ? s : 0)));
   }
 
-  // --- Ore where it belongs: stone in the forest belt and highland outcrops, metal
-  // up in the highlands. The wastes hold none (yet).
+  // --- Ore where it belongs: in the forest belt and highland outcrops, mostly stone.
+  // The wastes hold none (yet).
   const ore: OreNodeDef[] = [];
   const oreTarget = opts.ore ?? 130;
   for (let tries = 0; tries < 8000 && ore.length < oreTarget; tries++) {
@@ -196,8 +198,10 @@ export function generateWorld(seed: number, opts: WorldGenOptions = {}): Generat
     if (z.clearing > 0.05 || z.wastes > 0.3 || !free(x + 1, y + 1, 2)) continue;
     if (ore.some(n => Math.hypot(n.x - x, n.y - y) < 6)) continue;
     let kind: OreKind;
-    if (z.highlands > 0.6) kind = rand() < 0.6 ? "metal" : "stone";
-    else if (z.forest > 0.6) kind = "stone";
+    // A few stone nodes per metal node: metal turns up in the forest belt too, so a
+    // first tower is a short trip, and a bit more often up in the highlands.
+    if (z.highlands > 0.6) kind = rand() < METAL_HIGHLANDS ? "metal" : "stone";
+    else if (z.forest > 0.6) kind = rand() < METAL_FOREST ? "metal" : "stone";
     else continue;
     ore.push({ x, y, kind });
     for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) cells.set(cellKey(x + dx, y + dy), "ore");

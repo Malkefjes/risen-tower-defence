@@ -32,6 +32,14 @@ describe("generated world", () => {
     }
   });
 
+  it("has a few stone nodes per metal node, with metal within reach of the ship", () => {
+    const ore = map.ore ?? [];
+    const stone = ore.filter(o => o.kind === "stone").length, metal = ore.length - stone;
+    expect(stone / metal).toBeGreaterThanOrEqual(2);
+    expect(stone / metal).toBeLessThanOrEqual(4.5);
+    expect(ore.some(o => o.kind === "metal" && Math.hypot(o.x + 1, o.y + 1) < 30)).toBe(true);
+  });
+
   it("lets enemies from every cave reach the ship", () => {
     const g = new Game(map, { seed: 1 });
     for (const [x, y] of g.world.spawners) expect(isFinite(g.field.at(x, y))).toBe(true);
