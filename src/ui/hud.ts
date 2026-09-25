@@ -126,8 +126,7 @@ export class Hud {
       inspect.innerHTML = `
         <h3>${info.name} <span>${info.size}×${info.size}</span></h3>
         <dl><dt>Damage</dt><dd>${s.damage}</dd><dt>Shots/s</dt><dd>${s.rate}</dd><dt>Range</dt><dd>${s.range}</dd></dl>
-        <button class="sell" id="sellBtn" ${g.phase === "over" ? "disabled" : ""}>Sell for ${value} <kbd>X</kbd></button>
-        <p class="hint">${tower.fresh ? "Full refund until the wave starts." : `Refunds ${Math.round(g.tuning.sellRefund * 100)}% of the price.`}</p>`;
+        <button class="sell" id="sellBtn" ${g.phase === "over" ? "disabled" : ""}>Sell for ${value}</button>`;
       $("sellBtn").addEventListener("click", () => this.h.sell());
     }
 
@@ -154,6 +153,6 @@ export class Hud {
     const wave = $("waveBtn") as HTMLButtonElement;
     wave.disabled = g.phase !== "planning";
     wave.hidden = g.phase === "over";
-    wave.innerHTML = g.phase === "wave" ? `Wave in progress: ${g.waveRemaining} left` : `Start wave <kbd>Enter</kbd>`;
+    wave.innerHTML = g.phase === "wave" ? `Wave in progress: ${g.waveRemaining} left` : "Start wave";
   }
 }

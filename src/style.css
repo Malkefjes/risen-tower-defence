@@ -16,7 +16,6 @@
 html, body { height: 100%; margin: 0; }
 body { background: var(--night); color: var(--text); font-family: var(--font); font-size: 14px; overflow: hidden; }
 button { font: inherit; color: inherit; }
-kbd { font: 600 11px/1 var(--font); padding: 2px 5px; border-radius: 4px; background: rgba(255,255,255,.12); border: 1px solid var(--line); color: var(--text); }
 
 #app { position: fixed; inset: 0; }
 #view { position: absolute; inset: 0; }
@@ -106,8 +105,7 @@ button:focus-visible { outline: 2px solid var(--warm); outline-offset: 2px; }
 .inspect h3 span { font-size: 12px; color: var(--muted); font-weight: 600; }
 .inspect dl { margin: 0; display: grid; grid-template-columns: auto auto; gap: 2px 14px; font-size: 12px; color: var(--muted); }
 .inspect dd { margin: 0; color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
-.inspect .hint { font-size: 11px; color: var(--muted); margin: 0; }
-.sell { background: rgba(255,180,90,.14); border: 1px solid rgba(255,180,90,.5); color: var(--warm); border-radius: 9px; padding: 7px 10px; font-weight: 700; cursor: pointer; display: inline-flex; justify-content: space-between; gap: 10px; align-items: center; }
+.sell { background: rgba(255,180,90,.14); border: 1px solid rgba(255,180,90,.5); color: var(--warm); border-radius: 9px; padding: 7px 10px; font-weight: 700; cursor: pointer; }
 .sell:hover { background: rgba(255,180,90,.24); }
 
 .over { position: absolute; left: 50%; top: 58px; transform: translateX(-50%); display: flex; gap: 14px; align-items: center; background: var(--panel-solid); border: 1px solid rgba(255,107,127,.5); border-radius: 12px; padding: 8px 8px 8px 16px; font-weight: 600; box-shadow: 0 8px 24px rgba(20,16,40,.35); }
@@ -129,7 +127,6 @@ button:focus-visible { outline: 2px solid var(--warm); outline-offset: 2px; }
   font-weight: 700; font-size: 15px; cursor: pointer; display: inline-flex; gap: 10px; align-items: center;
   box-shadow: 0 6px 20px rgba(255,122,47,.35);
 }
-.primary kbd { background: rgba(0,0,0,.15); border-color: rgba(0,0,0,.2); color: #1d0f06; }
 .primary:disabled { background: var(--panel); color: var(--muted); box-shadow: none; cursor: default; border: 1px solid var(--line); }
 .primary[hidden] { display: none; }
 
