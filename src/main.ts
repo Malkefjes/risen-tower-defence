@@ -2,12 +2,17 @@ import "./style.css";
 import { Controller } from "./input/controller";
 import { GameView } from "./render/view";
 import { Game, TICK } from "./sim/game";
-import { FROSTFALL } from "./sim/maps";
+import { generateWorld } from "./sim/worldgen";
 import { Hud } from "./ui/hud";
 import { loadTuning, TuningPanel } from "./ui/tuning";
 
-const game = new Game(FROSTFALL, { tuning: loadTuning() });
-const view = new GameView(document.getElementById("view")!, game);
+// The world is generated from a seed: the same one the World playground shows
+// (its "New seed" button stores it), so the game plays the world you explored.
+let seed = 1;
+try { seed = Number(localStorage.getItem("risen.world.seed")) || 1; } catch { /* storage blocked */ }
+const world = generateWorld(seed);
+const game = new Game(world.map, { tuning: loadTuning() });
+const view = new GameView(document.getElementById("view")!, game, world);
 
 let controller!: Controller;
 const hud = new Hud(game, {
@@ -68,6 +73,10 @@ function frame(now: number): void {
   syncTools();
   // Draw moving things between the last two ticks, so they stay smooth at any refresh rate.
   view.render(dt, simDt, overlay, events, Math.min(1, avatarAcc / TICK));
+  // Numbers for headless checks: draws and triangles last frame, and enemies on the map.
+  (window as unknown as { perfInfo: object }).perfInfo = { calls: view.renderer.info.render.calls, tris: view.renderer.info.render.triangles, walkers: game.walkers.length, phase: game.phase, active: game.activeSpawners() };
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+// For headless checks: glide the camera to a cell.
+(window as unknown as { lookAtCell: (x: number, y: number) => void }).lookAtCell = (x, y) => view.userPan(x + 0.5 - view.target.x, y + 0.5 - view.target.z);

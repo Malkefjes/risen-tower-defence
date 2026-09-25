@@ -62,13 +62,19 @@ const joint = (parent: THREE.Object3D, x: number, y: number, z: number) => {
   return j;
 };
 
-export interface Enemy { object: THREE.Group; update(t: number, walking: boolean): void }
+const FLASH = new THREE.Color("#ffffff");
+
+export interface Enemy {
+  object: THREE.Group;
+  update(t: number, walking: boolean): void;
+  /** Light the body up when hit (0 = normal, 1 = full flash). */
+  flash(k: number): void;
+}
 
 interface Leg { hip: THREE.Group; knee: THREE.Group; phase: number; lift: number; swing: number; /** The foot's tip, for keeping it on the ground. */ tip: THREE.Object3D }
 
 /** A digitigrade leg: thigh forward, shin back, a long foot bone forward again. */
-function legChain(parent: THREE.Object3D, x: number, y: number, z: number, thigh: number, shin: number, foot: number, r: number, phase: number): Leg {
-  const m = M!;
+function legChain(parent: THREE.Object3D, x: number, y: number, z: number, thigh: number, shin: number, foot: number, r: number, phase: number, m: { chitin: THREE.Material; chitinDark: THREE.Material }): Leg {
   const hip = joint(parent, x, y, z);
   const t = seg(thigh, r, r * 0.8, m.chitin); hip.add(t);
   hip.rotation.x = -0.6;
@@ -84,7 +90,10 @@ function legChain(parent: THREE.Object3D, x: number, y: number, z: number, thigh
 
 export function enemyLook(look: EnemyLook): Enemy {
   M ??= palette();
-  const m = M;
+  // Each creature gets its own body material, so a hit flashes only the one that was hit.
+  const flesh = (M.chitin as THREE.MeshStandardMaterial).clone();
+  const baseEmissive = flesh.emissive.clone(), baseIntensity = flesh.emissiveIntensity;
+  const m = { ...M, chitin: flesh, chitinDark: flesh, hide: flesh };
   const root = new THREE.Group();
   const body = joint(root, 0, 0, 0);
   const legs: Leg[] = [];
@@ -102,7 +111,7 @@ export function enemyLook(look: EnemyLook): Enemy {
     for (const s of [-1, 1]) head.add(mesh(new THREE.SphereGeometry(0.025, 5, 4), m.eye, s * 0.06, 0.02, 0.2));
     const jaw = plate(0.12, 0.06, 0.18, m.bone); jaw.position.set(0, -0.06, 0.16); head.add(jaw);
     for (const s of [-1, 1]) {
-      legs.push(legChain(body, s * 0.13, -0.04, -0.08, 0.2, 0.22, 0.14, 0.045, s > 0 ? 0 : Math.PI));
+      legs.push(legChain(body, s * 0.13, -0.04, -0.08, 0.2, 0.22, 0.14, 0.045, s > 0 ? 0 : Math.PI, m));
       const sh = joint(body, s * 0.17, 0.02, 0.18);
       sh.add(seg(0.14, 0.035, 0.03, m.chitin));
       const el = joint(sh, 0, -0.14, 0); sh.rotation.set(0.9, 0, s * 0.2);
@@ -155,7 +164,7 @@ export function enemyLook(look: EnemyLook): Enemy {
     head.rotation.x = 0.45;
     const skull = plate(0.17, 0.14, 0.3, m.chitin); skull.position.z = 0.08; head.add(skull);
     for (const s of [-1, 1]) {
-      const l = legChain(body, s * 0.12, -0.08, -0.14, 0.26, 0.3, 0.2, 0.05, s > 0 ? 0 : Math.PI);
+      const l = legChain(body, s * 0.12, -0.08, -0.14, 0.26, 0.3, 0.2, 0.05, s > 0 ? 0 : Math.PI, m);
       // Long, unhurried strides (Erik).
       l.lift = 0.26; l.swing = 0.62;
       legs.push(l);
@@ -182,6 +191,10 @@ export function enemyLook(look: EnemyLook): Enemy {
   root.traverse(o => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).receiveShadow = true; });
   return {
     object: root,
+    flash(k: number) {
+      flesh.emissive.copy(baseEmissive).lerp(FLASH, k);
+      flesh.emissiveIntensity = baseIntensity + (0.9 - baseIntensity) * k;
+    },
     update(t: number, walking: boolean) {
       const w = walking ? 1 : 0, f = t * (look === "B" ? 11 : look === "C" ? 5.5 : 9);
       for (const l of legs) {

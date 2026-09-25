@@ -1,13 +1,16 @@
 import * as THREE from "three";
 import { SHIP_SHOOTER, type Game, type GameEvent, type PlacedPiece, type Shot } from "../sim/game";
-import { bakeStatic } from "./bake";
+import type { GeneratedWorld } from "../sim/worldgen";
+import { caveLook, type Cave } from "./caveLooks";
+import { enemyLook, type Enemy } from "./enemyLooks";
 import { MiningView } from "./mining";
+import { buildScenery } from "./scenery";
 import { stoneWallMaterials, stoneWallPiece } from "./stoneWall";
 import { createRig, RigAnimator, type Rig } from "./rig";
 import type { ShipRig } from "./ship";
 import type { Tower, TowerKind } from "../sim/towers";
 import type { Cell } from "../sim/types";
-import { createDefaultModels, createGlows, createMaterials, DECK_TOP, EVENING, hash, type Glows, type Materials, type ModelLibrary, type TurretRig } from "./models";
+import { createDefaultModels, createGlows, createMaterials, DECK_TOP, EVENING, type Glows, type Materials, type ModelLibrary, type TurretRig } from "./models";
 
 // Author colors as plain hex and light the way the mockups did.
 THREE.ColorManagement.enabled = false;
@@ -124,6 +127,9 @@ export class GameView {
   private snowPos: Float32Array;
   private snowSpeed: Float32Array;
   private puffs: { mesh: THREE.Mesh; v: THREE.Vector3; life: number }[] = [];
+  private gore: { mesh: THREE.Mesh; v: THREE.Vector3; life: number }[] = [];
+  private goreGeo = new THREE.IcosahedronGeometry(0.025, 1);
+  private goreMat = new THREE.MeshStandardMaterial({ color: "#b3152a", roughness: 0.6, emissive: "#5a0612", emissiveIntensity: 0.4 });
   private shake = 0;
   private time = 0;
   private raycaster = new THREE.Raycaster();
@@ -131,7 +137,7 @@ export class GameView {
   private tmp = new THREE.Object3D();
   private tmpV = new THREE.Vector3();
 
-  constructor(private container: HTMLElement, private game: Game) {
+  constructor(private container: HTMLElement, private game: Game, private gen?: GeneratedWorld) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
     this.renderer.shadowMap.enabled = true;
@@ -227,38 +233,12 @@ export class GameView {
   // ------------------------------------------------------------------ setup
 
   private buildTerrain(): void {
-    const w = this.game.world;
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), this.mat.snow);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), this.mat.snow);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     this.scene.add(ground);
-
-    // Rocks, trees and drifts never move: build them into one group and merge it (few draw calls).
-    const scenery = new THREE.Group();
-    for (const r of w.map.rocks) {
-      const m = this.models.create("rock", { scale: r.h, seed: r.x * 31 + r.y });
-      m.position.set(r.x + 0.5, 0, r.y + 0.5);
-      scenery.add(m);
-    }
-    for (const t of w.map.trees) {
-      const m = this.models.create("tree", { scale: t.s, seed: t.x * 17 + t.y });
-      m.position.set(t.x + 0.5, 0, t.y + 0.5);
-      scenery.add(m);
-    }
-    // Decorative snow drifts away from anything important.
-    const b = w.bounds();
-    for (let i = 0; i < 90; i++) {
-      const x = b.x0 - 6 + hash(i, 1, 7) * (b.x1 - b.x0 + 12), z = b.y0 - 6 + hash(i, 2, 7) * (b.y1 - b.y0 + 12);
-      const cx = Math.floor(x), cz = Math.floor(z);
-      let near = this.game.nodes.some(n => cx >= n.x - 1 && cx <= n.x + 3 && cz >= n.y - 1 && cz <= n.y + 3);
-      for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) if (w.isNexus(cx + dx, cz + dz) || w.isSpawner(cx + dx, cz + dz)) near = true;
-      if (near) continue;
-      const m = this.models.create("snowMound", { scale: 0.3 + hash(i, 3, 7) * 0.3 });
-      m.position.set(x, 0, z);
-      scenery.add(m);
-    }
-    bakeStatic(scenery);
-    this.scene.add(scenery);
+    // Everything that never moves, per chunk and merged (few draws, off-screen chunks skipped).
+    for (const g of buildScenery(this.game.world.map, this.models, this.gen, this.gen?.seed ?? 1)) this.scene.add(g);
   }
 
   private nexusCenter(): THREE.Vector3 {
@@ -273,7 +253,16 @@ export class GameView {
     nexus.position.copy(this.nexusCenter());
     this.scene.add(nexus);
     this.animated.push(nexus);
-    for (const [x, y] of this.game.world.spawners) {
+    // Cave exits: the model's mouth faces +z, turned to face the way the cave opens.
+    const caves = this.game.world.map.caves ?? [];
+    caves.forEach((c, i) => {
+      const cave: Cave = caveLook("A", (this.gen?.seed ?? 1) * 97 + i);
+      cave.object.position.set(c.x + 0.5, 0, c.y + 0.5);
+      cave.object.rotation.y = Math.atan2(c.dir[0], c.dir[1]);
+      this.scene.add(cave.object);
+    });
+    // Maps without caves (tests, older maps) keep the old rift marker.
+    if (!caves.length) for (const [x, y] of this.game.world.spawners) {
       const r = this.models.create("rift");
       r.position.set(x + 0.5, 0, y + 0.5);
       this.scene.add(r);
@@ -555,20 +544,31 @@ export class GameView {
     stone.loose.emissiveIntensity = 0.08 + 0.14 * breath;
   }
 
+  /** Enemies are leapers: they climb up out of the cave mouth, walk with their stride, flash when hit. */
   private syncWalkers(simDt: number): void {
     const alive = new Set<number>();
     for (const w of this.game.walkers) {
       alive.add(w.id);
       let o = this.walkers.get(w.id);
-      if (!o) { o = this.models.create("walker"); this.scene.add(o); this.walkers.set(w.id, o); o.userData.bob = Math.random() * 6; }
-      o.userData.bob += simDt * 9;
+      if (!o) {
+        const e = enemyLook("C");
+        o = e.object;
+        o.userData.enemy = e;
+        o.userData.t = Math.random() * 10;
+        o.userData.from = [w.x, w.y];
+        o.rotation.y = Math.atan2(w.tx + 0.5 - w.x, w.ty + 0.5 - w.y);
+        this.scene.add(o);
+        this.walkers.set(w.id, o);
+      }
+      const e = o.userData.enemy as Enemy;
+      o.userData.t += simDt;
       o.userData.flash = Math.max(0, ((o.userData.flash as number) ?? 0) - simDt);
-      const wm = o.userData.material as THREE.MeshStandardMaterial;
-      const hot = (o.userData.flash as number) > 0;
-      wm.emissive.set(hot ? "#ffffff" : "#7a4ce6");
-      wm.emissiveIntensity = hot ? 0.9 : 0.3;
+      e.flash((o.userData.flash as number) > 0 ? 1 : 0);
+      e.update(o.userData.t as number, simDt > 0);
       this.syncBar(w.id, w.x, w.y, w.hp / w.maxHp);
-      o.position.set(w.x, 0.2 + Math.abs(Math.sin(o.userData.bob as number)) * 0.1, w.y);
+      // Climbing out: below the snow at the mouth, up on it half a cell out.
+      const [fx, fy] = o.userData.from as [number, number], out = Math.hypot(w.x - fx, w.y - fy);
+      o.position.set(w.x, -0.25 * Math.max(0, 1 - out / 0.5), w.y);
       const dx = w.tx + 0.5 - w.x, dz = w.ty + 0.5 - w.y;
       if (dx * dx + dz * dz > 1e-6) {
         const want = Math.atan2(dx, dz);
@@ -596,7 +596,7 @@ export class GameView {
       this.bars.set(id, b);
     }
     b.visible = frac < 0.999;
-    b.position.set(x, 0.72, y);
+    b.position.set(x, 0.62, y);
     b.quaternion.copy(this.camera.quaternion);
     b.getObjectByName("fill")!.scale.x = Math.max(0.001, frac);
   }
@@ -692,9 +692,15 @@ export class GameView {
     this.flashes.push({ sprite, life, max: life, size });
   }
 
+  /** A killed enemy simply bursts into a small spray of red dots. */
   private onKilled(x: number, y: number): void {
-    this.addFlash(new THREE.Vector3(x, 0.25, y), this.glows.kill, 0.9, 0.22);
-    this.puff(x, y, 0.15);
+    for (let i = 0; i < 10; i++) {
+      const m = new THREE.Mesh(this.goreGeo, this.goreMat);
+      m.position.set(x, 0.18, y);
+      this.scene.add(m);
+      const a = Math.random() * Math.PI * 2, sp = 0.4 + Math.random() * 0.8;
+      this.gore.push({ mesh: m, v: new THREE.Vector3(Math.cos(a) * sp, 0.8 + Math.random(), Math.sin(a) * sp), life: 0.6 });
+    }
   }
 
   private clearFx(): void {
@@ -817,6 +823,12 @@ export class GameView {
       p.mesh.scale.setScalar(Math.max(0.01, p.life / 0.5));
     }
     this.puffs = this.puffs.filter(p => { if (p.life > 0) return true; this.scene.remove(p.mesh); return false; });
+    for (const p of this.gore) {
+      p.life -= dt; p.v.y -= 7 * dt; p.mesh.position.addScaledVector(p.v, dt);
+      if (p.mesh.position.y < 0.02) { p.mesh.position.y = 0.02; p.v.set(0, 0, 0); }
+      p.mesh.scale.setScalar(Math.max(0.01, Math.min(1, p.life / 0.3)));
+    }
+    this.gore = this.gore.filter(p => { if (p.life > 0) return true; this.scene.remove(p.mesh); return false; });
 
     // Flakes live in the world, not on the camera: they fall and drift on their own,
     // and wrap around the edges of the area around the camera so it never runs out of snow.
