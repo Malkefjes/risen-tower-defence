@@ -185,10 +185,13 @@ generate();
 
 // ------------------------------------------------------------------ snow and loop
 
-/** Snow looks right at the default zoom with an area of ±18 cells; it scales from there. */
-const SNOW_ZOOM_REF = 5, SNOW_H_PER_ZOOM = 18 / SNOW_ZOOM_REF;
-const N = 1400;
-let H = 18;
+/**
+ * Snow: flakes per square cell that look right at the default zoom (1400 over
+ * ±18 cells), over a field wide enough for the most zoomed-out view. Enough
+ * flakes for close zooms, capped so the loop stays cheap.
+ */
+const SNOW_ZOOM = 5, SNOW_DENSITY = 1400 / (36 * 36), H = Math.ceil(18 * 24 / SNOW_ZOOM);
+const N = Math.min(60000, Math.ceil(SNOW_DENSITY * (SNOW_ZOOM / 2.5) ** 2 * (2 * H) ** 2));
 const snowPos = new Float32Array(N * 3), snowSpeed = new Float32Array(N);
 for (let i = 0; i < N; i++) {
   snowPos[i * 3] = (Math.random() - 0.5) * 2 * H; snowPos[i * 3 + 1] = Math.random() * 12; snowPos[i * 3 + 2] = (Math.random() - 0.5) * 2 * H;
@@ -230,21 +233,12 @@ function frame(now: number): void {
   const k = 1 - Math.exp(-dt * 4);
   target.x += (rx - target.x) * k; target.z += (ry - target.z) * k;
   zoom += (wantZoom - zoom) * (1 - Math.exp(-dt * 8));
-  // The snow area grows with the zoom (same number of flakes), so the snow looks
-  // equally dense on screen at any zoom. Resizing spreads flakes out from the
-  // camera target, which keeps them where they were on screen while zooming.
-  const wantH = SNOW_H_PER_ZOOM * zoom;
-  if (Math.abs(wantH - H) > 1e-3) {
-    const f = wantH / H;
-    for (let i = 0; i < N; i++) {
-      snowPos[i * 3] = target.x + (snowPos[i * 3]! - target.x) * f;
-      snowPos[i * 3 + 2] = target.z + (snowPos[i * 3 + 2]! - target.z) * f;
-    }
-    H = wantH;
-  }
-  const fall = zoom / SNOW_ZOOM_REF; // same speed on screen at any zoom
-  for (let i = 0; i < N; i++) {
-    snowPos[i * 3 + 1]! -= snowSpeed[i]! * fall * dt;
+  // Snow always falls the same way; zoom only changes how many flakes are drawn,
+  // fewer when zoomed out, so the snow looks equally dense on screen.
+  const n = Math.min(N, Math.round(SNOW_DENSITY * (SNOW_ZOOM / zoom) ** 2 * (2 * H) ** 2));
+  sg.setDrawRange(0, n);
+  for (let i = 0; i < n; i++) {
+    snowPos[i * 3 + 1]! -= snowSpeed[i]! * dt;
     if (snowPos[i * 3 + 1]! < 0) snowPos[i * 3 + 1] = 12;
     snowPos[i * 3] = wrap(snowPos[i * 3]!, target.x);
     snowPos[i * 3 + 2] = wrap(snowPos[i * 3 + 2]!, target.z);
