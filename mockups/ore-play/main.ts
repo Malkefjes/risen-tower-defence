@@ -76,15 +76,35 @@ const nodeAt = (x: number, y: number) => nodes.find(nd => blocks(nd, x, y));
 const heightAt = (x: number, y: number) => (nodeAt(x, y) ? Infinity : 0);
 
 /**
- * The node within reach of the avatar: a fixed circle around the node's centre,
- * the same from every side and at every stage (reaches the corners of a full 3×3).
+ * The node within reach of the avatar: the gap between the avatar and the node's
+ * full 3×3 footprint, measured as it looks on screen. The camera looks down at
+ * 30°, so ground distance toward or away from it looks half as long; measuring in
+ * screen space makes the reach look the same on every side, at every stage.
  */
-const REACH = 3;
+const REACH = 1.2;
+const SQUASH = Math.sin(Math.atan2(CAM_OFFSET.y, Math.hypot(CAM_OFFSET.x, CAM_OFFSET.z)));
+function toScreen(x: number, y: number): [number, number] {
+  return [(x - y) / Math.SQRT2, ((x + y) / Math.SQRT2) * SQUASH];
+}
+function screenGap(px: number, py: number, nd: Node): number {
+  const [ax, ay] = toScreen(px, py);
+  const c = ([[nd.x, nd.y], [nd.x + nd.n, nd.y], [nd.x + nd.n, nd.y + nd.n], [nd.x, nd.y + nd.n]] as [number, number][])
+    .map(([x, y]) => toScreen(x, y));
+  let pos = 0, neg = 0, best = Infinity;
+  for (let i = 0; i < 4; i++) {
+    const [x1, y1] = c[i]!, [x2, y2] = c[(i + 1) % 4]!;
+    const ex = x2 - x1, ey = y2 - y1;
+    if (ex * (ay - y1) - ey * (ax - x1) < 0) neg++; else pos++;
+    const t = Math.max(0, Math.min(1, ((ax - x1) * ex + (ay - y1) * ey) / (ex * ex + ey * ey)));
+    best = Math.min(best, Math.hypot(ax - (x1 + t * ex), ay - (y1 + t * ey)));
+  }
+  return pos === 4 || neg === 4 ? 0 : best;
+}
 function nodeInReach(): Node | null {
   let best: Node | null = null, bestD = REACH;
   for (const nd of nodes) {
     if (nd.amount <= 0) continue;
-    const d = Math.hypot(avatar.x - (nd.x + nd.n / 2), avatar.y - (nd.y + nd.n / 2));
+    const d = screenGap(avatar.x, avatar.y, nd);
     if (d <= bestD) { bestD = d; best = nd; }
   }
   return best;
