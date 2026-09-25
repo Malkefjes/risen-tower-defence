@@ -203,11 +203,11 @@ function generate(): void {
   // Ore where it belongs: stone in the forest belt and highland outcrops, metal up
   // in the highlands. The wastes hold none (yet), only crystal.
   const nodes: OreNode[] = [];
-  for (let tries = 0; tries < 3000 && nodes.length < 40; tries++) {
+  for (let tries = 0; tries < 8000 && nodes.length < 130; tries++) {
     const x = Math.floor((rand() * 2 - 1) * (R - 4)), y = Math.floor((rand() * 2 - 1) * (R - 4));
     const z = zonesAt(x + 1.5, y + 1.5);
     if (z.clearing > 0.05 || z.wastes > 0.3 || !free(x + 1, y + 1, 2)) continue;
-    if (nodes.some(n => Math.hypot(n.x - x, n.y - y) < 10)) continue;
+    if (nodes.some(n => Math.hypot(n.x - x, n.y - y) < 6)) continue;
     let kind: OreKind;
     if (z.highlands > 0.6) kind = rand() < 0.6 ? "metal" : "stone";
     else if (z.forest > 0.6) kind = "stone";
@@ -229,16 +229,16 @@ function generate(): void {
       else if (g > 0.6 && roll < 0.12) {
         cells.set(cellKey(x, y), { kind: "tree", top: TREE_HURDLE });
         put(deadTree(x * 7 + y + seed, 0.9 + rand() * 0.3), x + 0.5, y + 0.5);
-      } else if (roll < 0.004) rock(x, y, 10 + Math.floor(rand() * 4));
+      } else if (roll < 0.002) rock(x, y, 10 + Math.floor(rand() * 4));
     } else if (z.highlands > 0.5) {
       // Highlands: rock outcrops and boulder fields, only a few hardy pines.
-      if (r > 0.6 && roll < (r - 0.55) * 1.1) rock(x, y, 11 + Math.floor(rand() * 6));
+      if (r > 0.74 && roll < (r - 0.7) * 1.6) rock(x, y, 12 + Math.floor(rand() * 5));
       else if (g > 0.72 && roll < 0.12) tree(x, y, 0.8 + rand() * 0.25);
-      else if (roll < 0.01) rock(x, y, 10 + Math.floor(rand() * 3));
+      else if (roll < 0.002) rock(x, y, 10 + Math.floor(rand() * 3));
     } else {
       // Forest belt: dense groves with open glades between them.
       if (g > 0.5 && roll < (g - 0.42) * 1.5) tree(x, y, 0.85 + rand() * 0.35);
-      else if (r > 0.78 && roll < 0.25) rock(x, y, 10 + Math.floor(rand() * 5));
+      else if (r > 0.86 && roll < 0.15) rock(x, y, 10 + Math.floor(rand() * 5));
       else if (roll < 0.01) tree(x, y, 0.9 + rand() * 0.25);
     }
   }
@@ -265,8 +265,22 @@ function generate(): void {
 
 const T = defaultAvatarTuning();
 const avatar = new Avatar(0.5, 0.5);
-const heightAt = (x: number, y: number) => cells.get(cellKey(x, y))?.top ?? 0;
-const standable = (x: number, y: number) => { const k = cells.get(cellKey(x, y))?.kind; return k !== "tree" && k !== "crystal"; };
+/**
+ * The avatar collides in eighths of a cell. A tree (or crystal) only blocks you at
+ * its trunk, the middle half of its cell, so you can weave through a forest;
+ * enemies would still treat the whole cell as blocked (that's what shapes their path).
+ */
+const SUB = 8, TRUNK_LO = 2, TRUNK_HI = 6;
+const heightAt = (sx: number, sy: number) => {
+  const cx = Math.floor(sx / SUB), cy = Math.floor(sy / SUB), c = cells.get(cellKey(cx, cy));
+  if (!c) return 0;
+  if (c.kind === "tree" || c.kind === "crystal") {
+    const lx = sx - cx * SUB, ly = sy - cy * SUB;
+    return lx >= TRUNK_LO && lx < TRUNK_HI && ly >= TRUNK_LO && ly < TRUNK_HI ? c.top : 0;
+  }
+  return c.top;
+};
+const standable = (sx: number, sy: number) => { const k = cells.get(cellKey(Math.floor(sx / SUB), Math.floor(sy / SUB)))?.kind; return k !== "tree" && k !== "crystal"; };
 const rig = createRig();
 scene.add(rig.object);
 const anim = new RigAnimator(rig);
@@ -353,7 +367,7 @@ function frame(now: number): void {
   while (acc >= TICK) {
     prev.x = avatar.x; prev.y = avatar.y; prev.z = avatar.z; prev.facing = avatar.facing;
     const m = moveInput();
-    avatar.step(TICK, { x: m.x, y: m.y, jump: jumpQueued, sprint: keys.has("shift") }, heightAt, T, standable);
+    avatar.step(TICK, { x: m.x, y: m.y, jump: jumpQueued, sprint: keys.has("shift") }, heightAt, T, standable, SUB);
     jumpQueued = false;
     landed ||= avatar.landed;
     acc -= TICK;
@@ -403,7 +417,7 @@ function frame(now: number): void {
   if (fpsTime >= 0.5) { fps = fpsFrames / fpsTime; fpsFrames = 0; fpsTime = 0; }
   const info = renderer.info.render;
   if (showStats) stats.textContent = `${fps.toFixed(0)} fps · ${info.calls} draws · ${(info.triangles / 1000).toFixed(0)}k tris · zoom ${zoom.toFixed(1)}`;
-  (window as unknown as { perf: object }).perf = { fps, calls: info.calls, tris: info.triangles };
+  (window as unknown as { perf: object }).perf = { fps, calls: info.calls, tris: info.triangles, x: avatar.x, y: avatar.y };
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
