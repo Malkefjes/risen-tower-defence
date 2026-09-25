@@ -254,6 +254,21 @@ const wrap = (v: number, c: number) => ((((v - c + H) % (2 * H)) + 2 * H) % (2 *
 const hud = document.getElementById("speed")!;
 const TICK = 1 / 60;
 const prev = { x: avatar.x, y: avatar.y, z: avatar.z, facing: avatar.facing };
+const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+/** How far the torso may twist from the legs (radians), and the current twist. */
+const TWIST_MAX = 1.9;
+let twist = 0;
+const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+/** The world point the tool aims at. */
+function aimPoint(nd: Node | null): THREE.Vector3 {
+  raycaster.setFromCamera(mouse, camera);
+  if (nd) {
+    const hit = raycaster.intersectObject(nd.model.object, true)[0];
+    return hit ? hit.point : new THREE.Vector3(nd.x + nd.n / 2, 0.4, nd.y + nd.n / 2);
+  }
+  const p = new THREE.Vector3();
+  return raycaster.ray.intersectPlane(groundPlane, p) ?? new THREE.Vector3(avatar.x + Math.sin(avatar.facing), 0, avatar.y + Math.cos(avatar.facing));
+}
 const target = new THREE.Vector3(avatar.x, 0, avatar.y);
 let acc = 0, last = performance.now(), time = 0, zoom = 3.6, wantZoom = 3.6;
 const tip = new THREE.Vector3();
@@ -263,9 +278,10 @@ function frame(now: number): void {
   last = now;
   time += dt;
 
-  // Mining: hold the left mouse button within reach of a node. You can keep moving while mining.
+  // Holding the left mouse button always fires the tool; it mines only when a node is in reach.
   const target_ = nodeInReach();
-  const mining = !!target_ && mouseDown;
+  const firing = mouseDown;
+  const mining = !!target_ && firing;
   // The first hit on a node reveals its hotspot.
   if (mining && target_ && !target_.spot) placeSpot(target_);
   if (target_ !== hotspot.node) { hotspot.node = target_; if (target_?.spot) { hotspot.pos.copy(target_.spot); hotspot.move = 1; } }
@@ -300,26 +316,26 @@ function frame(now: number): void {
   const alpha = acc / TICK;
   const rx = prev.x + (avatar.x - prev.x) * alpha, ry = prev.y + (avatar.y - prev.y) * alpha;
   rig.object.position.set(rx, prev.z + (avatar.z - prev.z) * alpha, ry);
-  if (mining && target_) {
-    // Turn to face the node's centre.
-    const want = Math.atan2(target_.x + target_.n / 2 - rx, target_.y + target_.n / 2 - ry);
-    let d = want - avatar.facing;
-    d = Math.atan2(Math.sin(d), Math.cos(d));
-    avatar.facing += d * Math.min(1, dt * 12);
-    rig.object.rotation.y = avatar.facing;
-  } else {
-    const df = Math.atan2(Math.sin(avatar.facing - prev.facing), Math.cos(avatar.facing - prev.facing));
-    rig.object.rotation.y = prev.facing + df * alpha;
-  }
+  // Where the tool points: the node in reach (the spot under the cursor if it's on the node), else the cursor on the ground.
+  const aim = aimPoint(target_);
+  const aimYaw = Math.atan2(aim.x - rx, aim.z - ry);
+  // Standing still while firing, the legs turn to face the aim too.
+  if (firing && avatar.speed < 0.3) avatar.facing += wrapAngle(aimYaw - avatar.facing) * Math.min(1, dt * 10);
+  const df = wrapAngle(avatar.facing - prev.facing);
+  rig.object.rotation.y = prev.facing + df * alpha;
   anim.update(dt, {
     speed: avatar.speed, topSpeed: T.speed, grounded: avatar.grounded, vz: avatar.vz,
-    jumpSpeed: (2 * T.jumpHeight) / T.jumpRise, landed, ready: mining, mining,
+    jumpSpeed: (2 * T.jumpHeight) / T.jumpRise, landed, ready: firing, mining: firing,
   });
+  // Upper body: the legs keep running where you steer, the torso twists toward the aim.
+  const wantTwist = firing ? Math.max(-TWIST_MAX, Math.min(TWIST_MAX, wrapAngle(aimYaw - rig.object.rotation.y))) : 0;
+  twist += (wantTwist - twist) * Math.min(1, dt * 14);
+  rig.body.rotation.y += twist;
 
-  if (mining && Math.random() < dt * 40) {
+  if (firing && Math.random() < dt * (mining ? 40 : 12)) {
     rig.object.updateMatrixWorld(true);
     rig.beam.localToWorld(tip.set(0, 0, 1));
-    spark(tip, Math.random() < 0.3 ? target_!.kind : null);
+    spark(tip, mining && Math.random() < 0.3 ? target_!.kind : null);
   }
   for (const p of sparks) { p.life -= dt; p.v.y -= 7 * dt; p.m.position.addScaledVector(p.v, dt); if (p.m.position.y < 0.02) { p.m.position.y = 0.02; p.v.set(0, 0, 0); } p.m.scale.setScalar(Math.max(0.01, Math.min(1, p.life / 0.3))); }
   for (let i = sparks.length - 1; i >= 0; i--) if (sparks[i]!.life <= 0) { scene.remove(sparks[i]!.m); sparks.splice(i, 1); }
