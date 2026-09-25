@@ -81,12 +81,24 @@ function limb(parent: THREE.Object3D, x: number, y: number, upper: number, lower
 // Proportions. Leg length (thigh + shin + foot) equals hip height, so feet sit on the snow.
 const THIGH = 0.21, SHIN = 0.2, FOOT_H = 0.045, HIP_Y = THIGH + SHIN + FOOT_H;
 const HIP_W = 0.065, LEG_W = 0.075;
-const TORSO_W = 2 * HIP_W + LEG_W, TORSO_D = 0.15, WAIST_H = 0.08, TORSO_H = 0.26;
+const WAIST_H = 0.08, TORSO_H = 0.26;
 const TORSO_Y = HIP_Y + WAIST_H * 0.5, TORSO_TOP = TORSO_Y + TORSO_H;
 /** Visible torso width: in line with the outer edges of the hips. */
-const TORSO_VIS = TORSO_W * 0.96;
+/** Hips: the outer edges of the legs. The pelvis and torso are exactly this wide. */
+const HIPS_W = 2 * HIP_W + LEG_W + 2 * 0.009;
+const HIPS_D = 0.127;
 /** Pelvis depth, and the visible depth (with bevel) that the torso matches. */
-const PELVIS_D = TORSO_D * 0.72;
+/**
+ * A rounded box scaled to an exact outer size. Its bevel makes a plain roundedBox
+ * come out a little bigger than asked, so measure it and scale it to fit.
+ */
+function exactBox(w: number, h: number, d: number, r: number, m: THREE.Material, x = 0, y = 0, z = 0): THREE.Mesh {
+  const g = roundedBox(w, h, d, r);
+  g.computeBoundingBox();
+  const b = g.boundingBox!;
+  g.scale(w / (b.max.x - b.min.x), 1, d / (b.max.z - b.min.z));
+  return mesh(g, m, x, y, z);
+}
 const ARM_W = 0.062, UPPER_ARM = 0.17, FOREARM = 0.16;
 
 function buildRig() {
@@ -99,13 +111,12 @@ function buildRig() {
   root.add(body);
 
   // Pelvis: part of the hips (not the torso), centred over both hip joints.
-  root.add(rbox(TORSO_W * 0.88, WAIST_H, PELVIS_D, 0.02, M.steelDark, 0, HIP_Y - WAIST_H * 0.5, 0));
+  root.add(exactBox(HIPS_W, WAIST_H, HIPS_D, 0.02, M.steelDark, 0, HIP_Y - WAIST_H * 0.5, 0));
 
   // Torso: exactly as wide as the hips and legs.
   // The rounded box's bevel bulges past its width, so subtract it: the torso's visible width matches the hips.
   // Same visible depth as the pelvis.
-  const depthVis = PELVIS_D + 2 * bulge(0.02, WAIST_H);
-  torso.add(rbox(TORSO_VIS - 2 * bulge(0.045, TORSO_H), TORSO_H, depthVis - 2 * bulge(0.045, TORSO_H), 0.045, M.suit, 0, TORSO_Y, 0));
+  torso.add(exactBox(HIPS_W, TORSO_H, HIPS_D, 0.045, M.suit, 0, TORSO_Y, 0));
 
   // A short neck, then a square helmet with a front visor.
   const NECK_H = 0.04;
@@ -117,9 +128,9 @@ function buildRig() {
 
   // Backpack: its top is flush with the top of the torso; round cyan core and three ore canisters.
   const PACK_H = 0.2, PACK_D = 0.065;
-  const backZ = -depthVis / 2 - PACK_D / 2 - bulge(0.025, PACK_H);
-  const packFace = backZ - PACK_D / 2 - bulge(0.025, PACK_H);
-  torso.add(rbox(TORSO_W * 0.82, PACK_H, PACK_D, 0.025, M.steel, 0, TORSO_TOP - PACK_H, backZ));
+  const backZ = -HIPS_D / 2 - PACK_D / 2;
+  const packFace = backZ - PACK_D / 2;
+  torso.add(exactBox(HIPS_W * 0.8, PACK_H, PACK_D, 0.025, M.steel, 0, TORSO_TOP - PACK_H, backZ));
   torso.add(mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.015, 14).rotateX(Math.PI / 2), M.power, 0, TORSO_TOP - 0.06, packFace - 0.005));
   const load: THREE.Object3D[] = [];
 
@@ -132,7 +143,7 @@ function buildRig() {
     return l;
   });
   // Arms from the top corners of the torso.
-  const arms = [-1, 1].map(sx => limb(torso, sx * (TORSO_VIS / 2 + ARM_W / 2), TORSO_TOP - 0.03, UPPER_ARM, FOREARM, ARM_W));
+  const arms = [-1, 1].map(sx => limb(torso, sx * (HIPS_W / 2 + ARM_W / 2), TORSO_TOP - 0.03, UPPER_ARM, FOREARM, ARM_W));
   // Multitool: a blocky prefab tool gun locked to the wrist, pointing straight on along the forearm.
   const tool = new THREE.Group();
   tool.position.y = -0.03;
