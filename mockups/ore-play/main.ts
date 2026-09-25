@@ -128,8 +128,8 @@ const HOTSPOT_BONUS = 1.2, HOTSPOT_RADIUS = 0.42;
 const hotbar = new Hotbar();
 /** Seconds the gain stays up after the last ore, and how long it takes to fade. */
 const GAIN_HOLD = 1, GAIN_FADE = 0.5;
-/** Mined ore not yet a whole unit, per kind. */
-const pending: Record<NodeKind, number> = { stone: 0, metal: 0 };
+/** A node breaks in three stages; each gives a third of its ore at once. */
+const STAGES = 3;
 
 // ------------------------------------------------------------------ input
 
@@ -293,7 +293,7 @@ function drawHotbar(): void {
   bar.innerHTML = hotbar.slots.map((s, i) =>
     `<div class="slot${i === hotbar.selected ? " on" : ""}">${s ? ICONS[s.kind] + (STACK_MAX[s.kind] > 1 ? `<b>${s.count}</b>` : "") : ""}</div>`).join("");
 }
-/** "+N" over the node being mined; it counts up while you mine and fades once you stop. */
+/** "+N" over the node when a stage breaks off (adds up if stages break close together), then fades. */
 const gainEl = document.getElementById("gain")!;
 const gain = { node: null as Node | null, amount: 0, idle: 9, full: false };
 const gainPos = new THREE.Vector3();
@@ -343,20 +343,27 @@ function frame(now: number): void {
     landed ||= avatar.landed;
     if (mining && target_) {
       const kind = target_.kind;
-      // A full hotbar mines nothing; the node keeps its ore.
-      const room = hotbar.room(kind) - pending[kind];
-      const got = Math.max(0, Math.min(target_.amount, room, (target_.max / MINE_TIME) * (onSpot ? HOTSPOT_BONUS : 1) * TICK));
-      if (gain.node !== target_ || gain.idle > GAIN_HOLD + GAIN_FADE) { gain.node = target_; gain.amount = 0; }
-      gain.full = got <= 0;
-      gain.idle = 0;
-      target_.amount -= got;
-      pending[kind] += got;
-      // The last crumbs of a node round up, so a node gives exactly its yield.
-      const whole = target_.amount <= 0 ? Math.round(pending[kind]) : Math.floor(pending[kind]);
-      const added = hotbar.add(kind, whole);
-      pending[kind] = Math.max(0, pending[kind] - whole);
-      gain.amount += added;
-      const broke = target_.model.setAmount(target_.amount / target_.max);
+      // Ore comes in whole chunks, one per stage that breaks off (a third of the node each).
+      const stage = Math.ceil((target_.amount / target_.max) * STAGES - 1e-9);
+      const floor = (target_.max * (stage - 1)) / STAGES;
+      const chunk = Math.round((target_.max * stage) / STAGES) - Math.round(floor);
+      // No room for the next chunk: mining does nothing and the node keeps its ore.
+      const full = hotbar.room(kind) < chunk;
+      if (full) {
+        if (gain.node !== target_ || gain.idle > GAIN_HOLD + GAIN_FADE) { gain.node = target_; gain.amount = 0; }
+        gain.full = true; gain.idle = 0;
+      } else {
+        gain.full = false;
+        target_.amount -= Math.min(target_.amount - floor, (target_.max / MINE_TIME) * (onSpot ? HOTSPOT_BONUS : 1) * TICK);
+        if (target_.amount <= floor + 1e-6) {
+          target_.amount = floor;
+          const added = hotbar.add(kind, chunk);
+          if (gain.node !== target_ || gain.idle > GAIN_HOLD + GAIN_FADE) { gain.node = target_; gain.amount = 0; }
+          gain.amount += added; gain.full = false; gain.idle = 0;
+        }
+      }
+      // Nudged down a hair so a node sitting exactly on a stage line shows that stage broken.
+      const broke = target_.model.setAmount((target_.amount - 1e-6) / target_.max);
       for (const p of broke) breakBurst(p, target_.kind);
       // A stage broke off: the hotspot moves to one of the rocks that are left.
       if (broke.length && target_.amount > 0) { hotspot.from.copy(hotspot.pos); hotspot.move = 0; placeSpot(target_); }
