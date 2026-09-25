@@ -79,7 +79,7 @@ const heightAt = (x: number, y: number) => (nodeAt(x, y) ? Infinity : 0);
  * The node within reach of the avatar: a fixed circle around the node's centre,
  * the same from every side and at every stage (reaches the corners of a full 3×3).
  */
-const REACH = 2.5;
+const REACH = 3;
 function nodeInReach(): Node | null {
   let best: Node | null = null, bestD = REACH;
   for (const nd of nodes) {
