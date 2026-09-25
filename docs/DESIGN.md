@@ -42,7 +42,8 @@ One planet is one long run over several sessions, saved in the browser.
 
 ### Resources
 
-- Mined from 3×3 nodes (one size, like Rust): **stone** (600 per node, 200 per stage) builds walls, **metal** (300 per node, 100 per stage) builds towers. A node breaks in three stages and each stage drops its ore at once into the hotbar. Later: refined alloy and **power**. The chain stays short on purpose, with no conveyor belts.
+- Mined from 3×3 nodes (one size, like Rust): **stone** (600 per node, 200 per stage) builds walls, **metal** (300 per node, 100 per stage) builds towers. A node breaks in three stages and each stage drops its ore at once into the hotbar.
+- **Two walls (decided 2026-09-25):** every piece is placed as a **stone wall** (stone only; towers can't stand on it). **Metal plating** upgrades a placed piece, whole piece at once, into the **Armored deck** (the orange wall), which is the only wall towers stand on. The upgrade keeps the shape and position, so the path doesn't change. Plating is applied from a **modification wheel**: hold right mouse on a wall (later: more wall mods there). Stone walls still have a walkable deck. Stone wall look: picking from the wall playground (A, B, C). Later: refined alloy and **power**. The chain stays short on purpose, with no conveyor belts.
 - Mining: hold the left mouse button next to a node; it breaks off in three stages. A shiny hotspot on the node mines about 20% faster while the cursor is on it, and hops around like Rust's.
 - **Physical up to the ship:** ore is mined at nodes and physically brought home (carried, then hauled). Once at the ship, the refinery turns it into alloy without routing.
 - **Power** comes from generators and the ship, runs through connected walls, and is drawn by towers and industry.
