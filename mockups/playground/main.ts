@@ -209,6 +209,13 @@ snow.frustumCulled = false;
 scene.add(snow);
 
 const wrap = (v: number, center: number, half: number) => ((((v - center + half) % (2 * half)) + 2 * half) % (2 * half)) + center - half;
+const prev = { x: avatar.x, y: avatar.y, z: avatar.z, facing: avatar.facing };
+// Light space: the sun's direction and two axes across it, for snapping the shadow camera.
+const lightDir = new THREE.Vector3(-EVENING.sunOffset[0], -EVENING.sunOffset[1], -EVENING.sunOffset[2]).normalize();
+const SUN_DIST = Math.hypot(...EVENING.sunOffset);
+const lightRight = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), lightDir).normalize();
+const lightUp = new THREE.Vector3().crossVectors(lightDir, lightRight).normalize();
+const snapOrigin = new THREE.Vector3();
 const speedEl = document.getElementById("speed")!;
 const TICK = 1 / 60;
 let acc = 0, last = performance.now(), time = 0, zoom = view.zoom;
@@ -220,19 +227,29 @@ function frame(now: number): void {
   (ship.userData.update as (t: number) => void)(time);
 
   // Fixed-step movement, like the game loop.
+  // Movement runs at a fixed 60 ticks/s; the screen may draw more often. Keep the previous
+  // tick's state and draw the rig in between, so it moves smoothly on every frame.
   acc += dt;
+  let landed = false;
   while (acc >= TICK) {
+    prev.x = avatar.x; prev.y = avatar.y; prev.z = avatar.z; prev.facing = avatar.facing;
     const m = moveInput();
     avatar.step(TICK, { x: m.x, y: m.y, jump: jumpQueued }, heightAt, T);
     if (jumpQueued) jumpQueued = false;
-    anim.update(TICK, {
-      speed: avatar.speed, topSpeed: T.speed, grounded: avatar.grounded, vz: avatar.vz,
-      jumpSpeed: (2 * T.jumpHeight) / T.jumpRise, landed: avatar.landed, ready: false, mining: false,
-    });
+    landed ||= avatar.landed;
     acc -= TICK;
   }
-  rig.object.position.set(avatar.x, avatar.z, avatar.y);
-  rig.object.rotation.y = avatar.facing;
+  const alpha = acc / TICK;
+  const rx = prev.x + (avatar.x - prev.x) * alpha, ry = prev.y + (avatar.y - prev.y) * alpha;
+  const rz = prev.z + (avatar.z - prev.z) * alpha;
+  const df = Math.atan2(Math.sin(avatar.facing - prev.facing), Math.cos(avatar.facing - prev.facing));
+  rig.object.position.set(rx, rz, ry);
+  rig.object.rotation.y = prev.facing + df * alpha;
+  // Animate every drawn frame.
+  anim.update(dt, {
+    speed: avatar.speed, topSpeed: T.speed, grounded: avatar.grounded, vz: avatar.vz,
+    jumpSpeed: (2 * T.jumpHeight) / T.jumpRise, landed, ready: false, mining: false,
+  });
   speedEl.textContent = `${following ? "Following" : "Free camera"}  ·  ${avatar.speed.toFixed(1)} cells/s${avatar.grounded ? "" : "  ·  airborne"}${avatar.z > 0.3 && avatar.grounded ? "  ·  on a wall" : ""}`;
 
   // Camera: follows the rig unless panned away.
@@ -248,8 +265,8 @@ function frame(now: number): void {
   }
   if (following) {
     const k = 1 - Math.exp(-dt * view.follow);
-    target.x += (avatar.x - target.x) * k;
-    target.z += (avatar.y - target.z) * k;
+    target.x += (rx - target.x) * k;
+    target.z += (ry - target.z) * k;
   }
   zoom += (view.zoom - zoom) * (1 - Math.exp(-dt * 8));
 
@@ -271,8 +288,16 @@ function frame(now: number): void {
   const sc = Math.max(12, zoom * 2.4);
   Object.assign(sun.shadow.camera, { left: -sc, right: sc, top: sc, bottom: -sc, near: 0.5, far: 60 });
   sun.shadow.camera.updateProjectionMatrix();
-  sun.position.set(target.x + EVENING.sunOffset[0], EVENING.sunOffset[1], target.z + EVENING.sunOffset[2]);
-  sun.target.position.set(target.x, 0, target.z);
+  // Snap the shadow camera to its own texel grid, so shadows don't shimmer as the camera slides.
+  const texel = (2 * sc) / sun.shadow.mapSize.x;
+  const lr = snapOrigin.set(target.x, 0, target.z);
+  const u = lr.dot(lightRight), v = lr.dot(lightUp), w = lr.dot(lightDir);
+  const snapped = new THREE.Vector3()
+    .addScaledVector(lightRight, Math.round(u / texel) * texel)
+    .addScaledVector(lightUp, Math.round(v / texel) * texel)
+    .addScaledVector(lightDir, w);
+  sun.position.copy(snapped).sub(lightDir.clone().multiplyScalar(SUN_DIST));
+  sun.target.position.copy(snapped);
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
