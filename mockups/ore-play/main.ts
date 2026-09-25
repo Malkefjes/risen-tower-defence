@@ -5,7 +5,7 @@ import { createRig, RigAnimator } from "../../src/render/rig";
 import { Avatar, defaultAvatarTuning } from "../../src/sim/avatar";
 import "./style.css";
 
-// Ore playground: a 2×2 and a 3×3 ore node on the snow and the player rig.
+// Ore playground: stone and metal nodes (one size, 3×3) on the snow and the player rig.
 // WASD runs, Space jumps, hold the left mouse button next to a node to mine it.
 // Nodes break in three stages; an empty node comes back after a while (for testing).
 THREE.ColorManagement.enabled = false;
@@ -43,10 +43,10 @@ const node = (x: number, y: number, n: number, kind: NodeKind, seed: number): No
   const max = n === 2 ? 40 : 100;
   return { x, y, n, kind, amount: max, max, model: createOreNode(n, seed, kind), emptyFor: 0 };
 };
-// Stone on the left, metal on the right.
+// One node size (3×3), like Rust. Stone on the left, metal on the right.
 const nodes: Node[] = [
-  node(-4, -1, 2, "stone", 7), node(-4, 3, 3, "stone", 23),
-  node(3, -2, 2, "metal", 11), node(3, 2, 3, "metal", 31),
+  node(-4, -3, 3, "stone", 23), node(-4, 2, 3, "stone", 5),
+  node(3, -3, 3, "metal", 31), node(3, 2, 3, "metal", 13),
 ];
 for (const nd of nodes) {
   nd.model.object.position.set(nd.x + nd.n / 2, 0, nd.y + nd.n / 2);
