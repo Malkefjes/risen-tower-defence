@@ -12,6 +12,7 @@ Read this first in every session. Sessions do not share memory; this file and `d
 
 - Erik is the designer and player; Claude writes the code. Erik's calls on design are final.
 - Erik dislikes popups that interrupt play: prefer non-blocking notices.
+- No instructional text in the UI ("Press Space to resume", control hints, how-to lines). It's Erik's own game; he knows the controls. Show state, not instructions.
 - Take it slow on design: discuss fundamentals, reason through trade-offs, don't jump to building without agreement.
 - Design: `docs/DESIGN.md` (snapshot in the repo). Erik's live, editable copy: https://claude.ai/code/artifact/8a4e11d2-eea6-4144-9f29-23a844c9d1ec. When a design decision changes, update `docs/DESIGN.md` in the same commit.
 - **Standing guardrail:** every shop/economy system must feed back into maze decisions. Flag it whenever a feature risks the economy becoming the main game.
