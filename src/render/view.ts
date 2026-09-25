@@ -447,7 +447,8 @@ export class GameView {
       const m = p.id === hoverId ? this.mat.wallHover : p.locked ? this.mat.wallA : this.mat.wallLooseA;
       for (const b of v.bodies) b.material = m;
     }
-    const pulse = 0.12 + 0.1 * (0.5 + 0.5 * Math.sin(this.time * 3));
+    // Walls that can still be picked up breathe slightly brighter than the locked orange.
+    const pulse = 0.17 + 0.13 * (0.5 + 0.5 * Math.sin(this.time * 3));
     this.mat.wallLooseA.emissiveIntensity = pulse;
   }
 

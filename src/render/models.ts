@@ -92,7 +92,8 @@ export function createMaterials() {
   const P = EVENING;
   return {
     snow: std(P.snow, { roughness: 1 }),
-    wallA: std(P.wallA),
+    /** The wall orange Erik picked: the base colour with a soft warm glow. */
+    wallA: std(P.wallA, { emissive: "#ff8a4a", emissiveIntensity: 0.17 }),
     wallB: std(P.wallB),
     /** Walls of pieces that can still be picked up: a soft pulse marks them. */
     wallLooseA: std(P.wallA, { emissive: "#ff8a4a", emissiveIntensity: 0.15 }),
