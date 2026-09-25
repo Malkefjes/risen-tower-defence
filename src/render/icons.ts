@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { EVENING } from "./models";
 import { createOreNode, type NodeKind } from "./ore";
+import { alloyBars } from "./refineryLooks";
 import { createMultitool } from "./rig";
 
 /**
@@ -9,7 +10,7 @@ import { createMultitool } from "./rig";
  * matches what you see. Rendered once, off screen, into PNG data URLs.
  */
 
-export type IconKind = NodeKind | "multitool";
+export type IconKind = NodeKind | "multitool" | "alloy";
 let cache: Record<IconKind, string> | undefined;
 /** How much brighter than the world the icons are lit: mostly the sun, so the facets contrast. */
 const ICON_BOOST = { sky: 1.05, sun: 1.9 };
@@ -78,6 +79,26 @@ export function itemIcons(size = 96): Record<IconKind, string> {
       m.geometry.dispose();
       if (kind === "metal") (m.material as THREE.Material).dispose();
     });
+  }
+  // Alloy: bars lying on the snow, framed like the ore, with the polished shine.
+  {
+    const bars = alloyBars();
+    scene.add(bars);
+    bars.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(bars);
+    const centre = box.getCenter(new THREE.Vector3());
+    const r = box.getSize(new THREE.Vector3()).length() / 2 * 0.62;
+    Object.assign(camera, { left: -r, right: r, top: r, bottom: -r });
+    camera.updateProjectionMatrix();
+    camera.position.copy(centre).add(new THREE.Vector3(20, 16.33, 20));
+    camera.lookAt(centre);
+    sun.target.position.copy(centre);
+    sun.position.copy(centre).add(new THREE.Vector3(...EVENING.sunOffset));
+    scene.environment = shine;
+    renderer.render(scene, camera);
+    out.alloy = fadeEdges(renderer.domElement, size);
+    scene.remove(bars);
+    bars.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).geometry.dispose(); });
   }
   // The multitool, side on, in the same light; it's held, not lying on the snow.
   scene.environment = null;

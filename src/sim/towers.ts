@@ -11,7 +11,7 @@ export const TOWER_INFO: Record<TowerKind, { name: string; size: number; top: nu
 };
 
 export interface TowerStats {
-  /** Metal. */
+  /** Alloy. */
   cost: number;
   damage: number;
   /** Reach in cells, measured from the footprint's center. */
@@ -24,11 +24,18 @@ export interface TowerStats {
 export interface Tuning {
   /** Stone per wall cell (a 4-cell wall costs four times this). */
   wallCost: number;
-  /** Metal to plate a whole wall piece (the Armored deck, which towers need). */
+  /** Alloy to plate a whole wall piece (the Armored deck, which towers need). */
   platingCost: number;
   /** Ore in the hotbar at the start of a run. */
   startStone: number;
+  /** Raw metal (only good for a smelter) and alloy at the start. */
   startMetal: number;
+  startAlloy: number;
+  /** What a smelter costs to build: stone and raw metal. */
+  smelterStone: number;
+  smelterMetal: number;
+  /** Alloy a smelter makes per second (1 raw metal each). */
+  smeltRate: number;
   /** Seconds to mine a whole node (three stages). */
   mineTime: number;
   /** Mining reach: the gap between you and a node, as it looks on screen, in cells. */
@@ -63,7 +70,11 @@ export const defaultTuning = (): Tuning => ({
   wallCost: 25,
   platingCost: 100,
   startStone: 400,
-  startMetal: 150,
+  startMetal: 0,
+  startAlloy: 150,
+  smelterStone: 500,
+  smelterMetal: 300,
+  smeltRate: 5,
   mineTime: 25 / 3,
   reach: 1.5,
   sprint: 1.4,
@@ -91,7 +102,7 @@ export interface Tower {
   cells: Cell[];
   /** Footprint center in continuous cell coordinates. */
   cx: number; cy: number;
-  /** Metal paid, so refunds don't move when tuning changes. */
+  /** Alloy paid, so refunds don't move when tuning changes. */
   paid: number;
   /** Placed this planning phase: sells back for the full price. */
   fresh: boolean;

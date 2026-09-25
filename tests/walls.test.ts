@@ -9,7 +9,7 @@ const place = (g: Game, at: [number, number] = [8, 5]) => g.place("T", 0, at).pi
 
 describe("stone and metal walls", () => {
   it("walls go down as stone, and towers can't stand on stone", () => {
-    const g = new Game(open(), { seed: 1, tuning: { startMetal: 500 } });
+    const g = new Game(open(), { seed: 1, tuning: { startAlloy: 500 } });
     const p = place(g);
     expect(p.metal).toBe(false);
     const [x, y] = p.cells[0]!;
@@ -18,13 +18,13 @@ describe("stone and metal walls", () => {
     if (!r.ok) expect(r.reason).toBe("stone-wall");
   });
 
-  it("metal plating turns the whole piece into the Armored deck, for metal", () => {
-    const g = new Game(open(), { seed: 1, tuning: { startMetal: 500 } });
+  it("metal plating turns the whole piece into the Armored deck, for alloy", () => {
+    const g = new Game(open(), { seed: 1, tuning: { startAlloy: 500 } });
     const p = place(g);
     const before = g.routes();
     expect(g.plate(p.id)).toBe(true);
     expect(p.metal).toBe(true);
-    expect(g.ore("metal")).toBe(500 - g.tuning.platingCost);
+    expect(g.ore("alloy")).toBe(500 - g.tuning.platingCost);
     expect(g.routes()).toEqual(before); // same shape, same place: the path doesn't change
     const [x, y] = p.cells[0]!;
     expect(g.buildTower("twin", [x, y]).ok).toBe(true);
@@ -32,7 +32,7 @@ describe("stone and metal walls", () => {
   });
 
   it("can't plate twice, or without the metal", () => {
-    const g = new Game(open(), { seed: 1, tuning: { startMetal: 120 } });
+    const g = new Game(open(), { seed: 1, tuning: { startAlloy: 120 } });
     const a = place(g, [8, 5]), b = place(g, [8, 9]);
     expect(g.plate(a.id)).toBe(true);
     expect(g.plate(a.id)).toBe(false);
@@ -41,7 +41,7 @@ describe("stone and metal walls", () => {
   });
 
   it("locked walls can be plated, during a wave too", () => {
-    const g = new Game(open(), { seed: 1, tuning: { startMetal: 500 } });
+    const g = new Game(open(), { seed: 1, tuning: { startAlloy: 500 } });
     const p = place(g);
     g.startWave();
     expect(p.locked).toBe(true);
@@ -49,19 +49,19 @@ describe("stone and metal walls", () => {
   });
 
   it("picking a plated wall back up returns its stone and its metal", () => {
-    const g = new Game(open(), { seed: 1, tuning: { startStone: 100, startMetal: 500 } });
+    const g = new Game(open(), { seed: 1, tuning: { startStone: 100, startAlloy: 500 } });
     const p = place(g);
     g.plate(p.id);
     expect(g.pickUp(p.id)).not.toBeNull();
     expect(g.ore("stone")).toBe(100);
-    expect(g.ore("metal")).toBe(500);
+    expect(g.ore("alloy")).toBe(500);
   });
 
 });
 
 describe("the ship's gun", () => {
   it("shoots the enemy with the most progress within its range, from the ship's centre", () => {
-    const g = new Game(open(), { seed: 1, tuning: { startMetal: 0 } });
+    const g = new Game(open(), { seed: 1, tuning: { startAlloy: 0 } });
     const c = g.shipCenter(), r = g.tuning.ship.range;
     g.startWave();
     g.walkers = [];

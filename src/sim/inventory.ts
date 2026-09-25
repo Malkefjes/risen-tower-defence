@@ -1,30 +1,25 @@
 /**
- * The hotbar: the player's only inventory for now. Pure logic, no graphics.
- * Slot 0 holds the multitool; ore fills stacks in the other slots.
+ * Inventories: the hotbar (the player's only inventory) and the smelter's input and
+ * output slots. Pure logic, no graphics. In the hotbar, slot 0 holds the multitool;
+ * ore and alloy fill stacks in the other slots. "metal" is raw metal: it can only go
+ * into a smelter, which turns it into alloy (what towers and plating cost).
  */
 
-export type ItemKind = "multitool" | "stone" | "metal";
+export type ItemKind = "multitool" | "stone" | "metal" | "alloy";
 export type OreKind = "stone" | "metal";
 
 export interface Stack { kind: ItemKind; count: number }
 
 export const HOTBAR_SLOTS = 6;
 /** Most of one kind a single slot holds. */
-export const STACK_MAX: Record<ItemKind, number> = { multitool: 1, stone: 1000, metal: 1000 };
+export const STACK_MAX: Record<ItemKind, number> = { multitool: 1, stone: 1000, metal: 1000, alloy: 1000 };
 
-export class Hotbar {
+/** A row of stack slots. */
+export class Inventory {
   readonly slots: (Stack | null)[];
-  selected = 0;
 
-  constructor(size = HOTBAR_SLOTS) {
+  constructor(size: number) {
     this.slots = Array.from({ length: size }, () => null);
-    this.slots[0] = { kind: "multitool", count: 1 };
-  }
-
-  get held(): ItemKind | null { return this.slots[this.selected]?.kind ?? null; }
-
-  select(i: number): void {
-    if (i >= 0 && i < this.slots.length) this.selected = i;
   }
 
   /** Total of one kind across all slots. */
@@ -68,5 +63,21 @@ export class Hotbar {
       if (!s.count) this.slots[i] = null;
     }
     return Math.floor(n) - left;
+  }
+}
+
+/** The player's hotbar: slot 0 is the multitool; one slot is selected. */
+export class Hotbar extends Inventory {
+  selected = 0;
+
+  constructor(size = HOTBAR_SLOTS) {
+    super(size);
+    this.slots[0] = { kind: "multitool", count: 1 };
+  }
+
+  get held(): ItemKind | null { return this.slots[this.selected]?.kind ?? null; }
+
+  select(i: number): void {
+    if (i >= 0 && i < this.slots.length) this.selected = i;
   }
 }

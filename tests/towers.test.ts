@@ -9,7 +9,7 @@ const open = (extra: Partial<MapDef> = {}): MapDef => ({
 
 /** A game with walls set directly (piece ids given), plenty of metal. */
 function withWalls(cells: [number, number, number][], metal = 1000): Game {
-  const g = new Game(open(), { seed: 1, tuning: { startMetal: metal } });
+  const g = new Game(open(), { seed: 1, tuning: { startAlloy: metal } });
   const byId = new Map<number, [number, number][]>();
   for (const [x, y, id] of cells) byId.set(id, [...(byId.get(id) ?? []), [x, y]]);
   for (const [id, cs] of byId) metalWall(g, cs, id);
@@ -46,21 +46,21 @@ describe("tower placement", () => {
     expect(g.towers[0]!.cy).toBe(6);
   });
 
-  it("refuses terrain, overlapping towers, and building without metal", () => {
+  it("refuses terrain, overlapping towers, and building without alloy", () => {
     const g = withWalls([[5, 5, 1], [6, 5, 1]], 300);
     expect(g.checkTower("twin", [3, 3]).ok).toBe(false);
     expect(g.buildTower("twin", [5, 5]).ok).toBe(true);
     const again = g.checkTower("twin", [5, 5]);
     expect(again.ok).toBe(false);
     if (!again.ok) expect(again.reason).toBe("tower-there");
-    expect(g.ore("metal")).toBe(300 - g.towerCost("twin"));
+    expect(g.ore("alloy")).toBe(300 - g.towerCost("twin"));
     const broke = g.checkTower("twin", [6, 5]);
     expect(broke.ok).toBe(false);
-    if (!broke.ok) expect(broke.reason).toBe("metal");
+    if (!broke.ok) expect(broke.reason).toBe("alloy");
   });
 
   it("a wall carrying a tower can't be picked up until the tower is sold", () => {
-    const g = new Game(open(), { seed: 1, tuning: { startMetal: 500 } });
+    const g = new Game(open(), { seed: 1, tuning: { startAlloy: 500 } });
     const piece = g.place("T", 0, [8, 5]).piece!;
     g.plate(piece.id);
     const [x, y] = piece.cells[0]!;
@@ -78,7 +78,7 @@ describe("selling", () => {
     const cost = g.towerCost("twin");
     const a = g.buildTower("twin", [5, 5]).tower!;
     expect(g.sellTower(a.id)).toBe(cost);
-    expect(g.ore("metal")).toBe(1000);
+    expect(g.ore("alloy")).toBe(1000);
 
     const b = g.buildTower("twin", [7, 5]).tower!;
     g.startWave();
@@ -152,11 +152,11 @@ describe("hp and the run", () => {
 
   it("has no income: ore only comes from mining", () => {
     const g = new Game(open({ nexus: [[4, 0]] }), { seed: 1, waveSize: () => 1 });
-    const stone = g.ore("stone"), metal = g.ore("metal");
+    const stone = g.ore("stone"), metal = g.ore("alloy");
     g.startWave();
     finishWave(g);
     expect(g.phase).toBe("planning");
-    expect([g.ore("stone"), g.ore("metal")]).toEqual([stone, metal]);
+    expect([g.ore("stone"), g.ore("alloy")]).toEqual([stone, metal]);
   });
 
   it("the run ends at 0 HP, and reset starts a fresh run", () => {

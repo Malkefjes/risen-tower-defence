@@ -65,6 +65,8 @@ export class World {
   readonly walls = new Map<string, number>();
   /** cell key -> id of the ore node blocking it (its footprint shrinks as it's mined) */
   readonly ore = new Map<string, number>();
+  /** cell key -> id of the building (a smelter) standing on it */
+  readonly buildings = new Map<string, number>();
   private staticBounds: Bounds;
 
   constructor(map: MapDef) {
@@ -93,7 +95,7 @@ export class World {
   /** Blocks movement (terrain, walls, ore, or extra hypothetical cells). */
   isBlocked(x: number, y: number, extra?: ReadonlySet<string>): boolean {
     const k = cellKey(x, y);
-    return this.terrain.has(k) || this.walls.has(k) || this.ore.has(k) || (extra ? extra.has(k) : false);
+    return this.terrain.has(k) || this.walls.has(k) || this.ore.has(k) || this.buildings.has(k) || (extra ? extra.has(k) : false);
   }
 
   /** Can't be built on. */
@@ -105,7 +107,7 @@ export class World {
   private terrainCache: { key: string; grid: Uint8Array } | null = null;
 
   /**
-   * Blocked cells over `b` as a grid (row-major, 1 = blocked): terrain, walls, ore
+   * Blocked cells over `b` as a grid (row-major, 1 = blocked): terrain, walls, ore, buildings
    * and any `extra` cells. What pathfinding searches over.
    */
   blockedGrid(b: Bounds, extra?: ReadonlySet<string>): Uint8Array {
@@ -127,6 +129,7 @@ export class World {
     };
     mark(this.walls.keys());
     mark(this.ore.keys());
+    mark(this.buildings.keys());
     if (extra) mark(extra);
     return grid;
   }
@@ -139,6 +142,7 @@ export class World {
       if (x > b.x1) b.x1 = x; if (y > b.y1) b.y1 = y;
     };
     for (const k of this.walls.keys()) grow(parseKey(k));
+    for (const k of this.buildings.keys()) grow(parseKey(k));
     if (extra) for (const c of extra) grow(c);
     return { x0: b.x0 - WORLD_MARGIN, y0: b.y0 - WORLD_MARGIN, x1: b.x1 + WORLD_MARGIN, y1: b.y1 + WORLD_MARGIN };
   }

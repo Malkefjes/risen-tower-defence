@@ -106,11 +106,15 @@ describe("ore pays for building", () => {
     expect(g.ore("stone")).toBe(100);
   });
 
-  it("towers cost metal", () => {
-    const g = new Game(map(), { seed: 1, tuning: { startMetal: 200 } });
-    metalWall(g, [[2, 10]]);
+  it("towers cost alloy; raw metal can't pay for them", () => {
+    const g = new Game(map(), { seed: 1, tuning: { startMetal: 1000, startAlloy: 200 } });
+    metalWall(g, [[2, 10], [4, 10]]);
     expect(g.buildTower("twin", [2, 10]).ok).toBe(true);
-    expect(g.ore("metal")).toBe(0);
+    expect(g.ore("alloy")).toBe(0);
+    expect(g.ore("metal")).toBe(1000);
+    const r = g.checkTower("twin", [4, 10]);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toBe("alloy");
   });
 });
 

@@ -305,6 +305,7 @@ const ICONS: Record<ItemKind, string> = {
   // Rendered from the real models: the tool itself, and the last stage of each node.
   stone: `<img alt="" src="${ITEM_ICONS.stone}">`,
   metal: `<img alt="" src="${ITEM_ICONS.metal}">`,
+  alloy: `<img alt="" src="${ITEM_ICONS.alloy}">`,
 };
 const bar = document.getElementById("hotbar")!;
 let barSig = "";

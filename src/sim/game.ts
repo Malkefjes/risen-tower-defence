@@ -1,6 +1,7 @@
 import { Avatar, defaultAvatarTuning, type AvatarInput, type AvatarTuning } from "./avatar";
-import { Hotbar } from "./inventory";
-import { nodeArea, nodeCellTop, nodeFootprint, nodeMax, ORE_STAGES, stagesLeft, viewGap, type OreKind, type OreNode } from "./ore";
+import { Hotbar, type ItemKind } from "./inventory";
+import { gapTo, newSmelter, smelt, smelterCells, type Smelter } from "./smelter";
+import { nodeArea, nodeCellTop, nodeFootprint, nodeMax, ORE_STAGES, stagesLeft, viewGap, type OreNode } from "./ore";
 import { computeField, keysOf, type FlowField } from "./pathfinding";
 import { pieceCells, type ShapeId } from "./pieces";
 import { Rng } from "./rng";
@@ -76,7 +77,16 @@ export type PlacementCheck =
   | { ok: true; cells: Cell[]; field: FlowField }
   | { ok: false; cells: Cell[]; reason: BlockReason };
 
-export type TowerBlockReason = "no-wall" | "stone-wall" | "tower-there" | "avatar" | "metal" | "run-over";
+export type TowerBlockReason = "no-wall" | "stone-wall" | "tower-there" | "avatar" | "alloy" | "run-over";
+
+export type SmelterBlockReason = "occupied" | "walker" | "avatar" | "cuts-off-rift" | "traps-walker" | "stone" | "metal" | "run-over";
+
+export type SmelterCheck =
+  | { ok: true; cells: Cell[]; field: FlowField }
+  | { ok: false; cells: Cell[]; reason: SmelterBlockReason };
+
+/** How close the player must be to a smelter to use it: the gap to its footprint, in cells. */
+export const SMELTER_REACH = 1.6;
 
 export type TowerCheck =
   | { ok: true; cells: Cell[] }
@@ -93,6 +103,7 @@ export type GameEvent =
   | { type: "plated"; piece: PlacedPiece }
   | { type: "tower-built"; tower: Tower }
   | { type: "tower-sold"; tower: Tower; refund: number }
+  | { type: "smelter-built"; smelter: Smelter }
   | { type: "shot"; shot: Shot }
   | { type: "hit"; walker: Walker }
   | { type: "killed"; walker: Walker }
@@ -114,7 +125,7 @@ export const TOWER_REASON_TEXT: Record<TowerBlockReason, string> = {
   "stone-wall": "Needs metal plating",
   "tower-there": "There's already a tower there",
   "avatar": "You're standing there",
-  "metal": "Not enough metal",
+  "alloy": "Not enough alloy",
   "run-over": "The run is over",
 };
 
@@ -135,6 +146,7 @@ export class Game {
   round = 1;
   pieces: PlacedPiece[] = [];
   towers: Tower[] = [];
+  smelters: Smelter[] = [];
   walkers: Walker[] = [];
   shots: Shot[] = [];
   /** Ore nodes on the map. */
@@ -190,6 +202,7 @@ export class Game {
   readonly heightAt = (x: number, y: number): number => {
     if (this.world.isNexus(x, y)) return Infinity;
     const k = cellKey(x, y);
+    if (this.world.buildings.has(k)) return Infinity;
     const terrain = this.world.terrainTop.get(k);
     if (terrain !== undefined) return terrain;
     const oreId = this.world.ore.get(k);
@@ -242,13 +255,16 @@ export class Game {
     this.hotbar = new Hotbar();
     this.hotbar.add("stone", this.tuning.startStone);
     this.hotbar.add("metal", this.tuning.startMetal);
+    this.hotbar.add("alloy", this.tuning.startAlloy);
     this.hp = this.tuning.startHp;
   }
 
   /** Start a new run on the same map. Tuning is kept. */
   reset(): void {
     this.world.walls.clear();
+    this.world.buildings.clear();
     this.towerCellsMap.clear();
+    this.smelters = [];
     this.pieces = []; this.towers = []; this.walkers = []; this.shots = [];
     this.round = 1;
     this.phase = "planning";
@@ -326,7 +342,7 @@ export class Game {
     for (const n of this.nodes) {
       if (n.amount > 0) continue;
       const area = nodeArea(n);
-      if (area.some(([x, y]) => this.world.walls.has(cellKey(x, y)) || under.has(cellKey(x, y)))) continue;
+      if (area.some(([x, y]) => this.world.walls.has(cellKey(x, y)) || this.world.buildings.has(cellKey(x, y)) || under.has(cellKey(x, y)))) continue;
       const field = computeField(this.world, keysOf(area), area);
       if (this.world.spawners.some(([sx, sy]) => !isFinite(field.at(sx, sy)))) continue;
       n.amount = n.max;
@@ -336,8 +352,8 @@ export class Game {
     }
   }
 
-  /** Ore of a kind in the hotbar. */
-  ore(kind: OreKind): number { return this.hotbar.count(kind); }
+  /** How much of an item (stone, raw metal, alloy) is in the hotbar. */
+  ore(kind: ItemKind): number { return this.hotbar.count(kind); }
 
   // ---------------------------------------------------------------- placement
 
@@ -392,14 +408,14 @@ export class Game {
     for (const [x, y] of piece.cells) this.world.walls.delete(cellKey(x, y));
     this.field = computeField(this.world);
     this.hotbar.add("stone", piece.paid);
-    if (piece.plated) this.hotbar.add("metal", piece.plated);
+    if (piece.plated) this.hotbar.add("alloy", piece.plated);
     this.events.push({ type: "removed", piece });
     return piece.shape;
   }
 
   /** Can this piece be plated now? Any stone piece, locked or not, while the run is on. */
   canPlate(piece: PlacedPiece | undefined): piece is PlacedPiece {
-    return !!piece && !piece.metal && this.canPlaceNow() && this.ore("metal") >= this.tuning.platingCost;
+    return !!piece && !piece.metal && this.canPlaceNow() && this.ore("alloy") >= this.tuning.platingCost;
   }
 
   /**
@@ -409,7 +425,7 @@ export class Game {
   plate(pieceId: number): boolean {
     const piece = this.pieces.find(p => p.id === pieceId);
     if (!this.canPlate(piece)) return false;
-    piece.plated = this.hotbar.remove("metal", this.tuning.platingCost);
+    piece.plated = this.hotbar.remove("alloy", this.tuning.platingCost);
     piece.metal = true;
     this.events.push({ type: "plated", piece });
     return true;
@@ -422,6 +438,68 @@ export class Game {
       if (!p.locked) return this.pickUp(p.id) ? p : null;
     }
     return null;
+  }
+
+  // ---------------------------------------------------------------- smelters
+
+  /** Can a smelter go down with its top-left cell at `at`? Open ground only, paid in stone and raw metal. */
+  checkSmelter(at: Cell): SmelterCheck {
+    const cells = smelterCells(at);
+    if (!this.canPlaceNow()) return { ok: false, cells, reason: "run-over" };
+    for (const [x, y] of cells) if (this.world.isOccupied(x, y)) return { ok: false, cells, reason: "occupied" };
+    const set = keysOf(cells);
+    for (const k of this.avatarCells()) if (set.has(k)) return { ok: false, cells, reason: "avatar" };
+    for (const w of this.walkers) if (set.has(cellKey(w.cx, w.cy)) || set.has(cellKey(w.tx, w.ty))) return { ok: false, cells, reason: "walker" };
+    if (this.ore("stone") < this.tuning.smelterStone) return { ok: false, cells, reason: "stone" };
+    if (this.ore("metal") < this.tuning.smelterMetal) return { ok: false, cells, reason: "metal" };
+    const field = computeField(this.world, set, cells);
+    for (const [sx, sy] of this.world.spawners) if (!isFinite(field.at(sx, sy))) return { ok: false, cells, reason: "cuts-off-rift" };
+    for (const w of this.walkers) if (!isFinite(field.at(w.tx, w.ty))) return { ok: false, cells, reason: "traps-walker" };
+    return { ok: true, cells, field };
+  }
+
+  buildSmelter(at: Cell): SmelterCheck & { smelter?: Smelter } {
+    const check = this.checkSmelter(at);
+    if (!check.ok) return check;
+    this.hotbar.remove("stone", this.tuning.smelterStone);
+    this.hotbar.remove("metal", this.tuning.smelterMetal);
+    const s = newSmelter(this.nextId++, at);
+    this.smelters.push(s);
+    for (const [x, y] of s.cells) this.world.buildings.set(cellKey(x, y), s.id);
+    this.field = computeField(this.world);
+    this.events.push({ type: "smelter-built", smelter: s });
+    return { ...check, smelter: s };
+  }
+
+  smelterAt(x: number, y: number): Smelter | undefined {
+    const id = this.world.buildings.get(cellKey(x, y));
+    return id === undefined ? undefined : this.smelters.find(s => s.id === id);
+  }
+
+  /** Is the player close enough to use this smelter? */
+  canUseSmelter(s: Smelter): boolean {
+    return this.phase !== "over" && gapTo(s, this.avatar.x, this.avatar.y) <= SMELTER_REACH;
+  }
+
+  /** Put a hotbar slot's raw metal into a smelter (as much as fits). Only raw metal goes in. Returns how much moved. */
+  smelterPut(id: number, hotbarSlot: number): number {
+    const s = this.smelters.find(x => x.id === id), stack = this.hotbar.slots[hotbarSlot];
+    if (!s || !this.canUseSmelter(s) || stack?.kind !== "metal") return 0;
+    const n = s.input.add("metal", Math.min(stack.count, s.input.room("metal")));
+    stack.count -= n;
+    if (!stack.count) this.hotbar.slots[hotbarSlot] = null;
+    return n;
+  }
+
+  /** Take one of the smelter's slots into the hotbar (as much as fits). `from` is "input" or "output". Returns how much moved. */
+  smelterTake(id: number, from: "input" | "output", slot: number): number {
+    const s = this.smelters.find(x => x.id === id);
+    const inv = s ? s[from] : null, stack = inv?.slots[slot];
+    if (!s || !inv || !stack || !this.canUseSmelter(s)) return 0;
+    const n = this.hotbar.add(stack.kind, Math.min(stack.count, this.hotbar.room(stack.kind)));
+    stack.count -= n;
+    if (!stack.count) inv.slots[slot] = null;
+    return n;
   }
 
   // ---------------------------------------------------------------- towers
@@ -437,7 +515,7 @@ export class Game {
     for (const [x, y] of cells) if (this.towerCellsMap.has(cellKey(x, y))) return { ok: false, cells, reason: "tower-there" };
     const under = this.avatarCells();
     for (const [x, y] of cells) if (under.has(cellKey(x, y))) return { ok: false, cells, reason: "avatar" };
-    if (this.ore("metal") < this.towerCost(kind)) return { ok: false, cells, reason: "metal" };
+    if (this.ore("alloy") < this.towerCost(kind)) return { ok: false, cells, reason: "alloy" };
     return { ok: true, cells };
   }
 
@@ -449,7 +527,7 @@ export class Game {
       id: this.nextId++, kind, at: [at[0], at[1]], cells: check.cells, cx: at[0] + n / 2, cy: at[1] + n / 2,
       paid: cost, fresh: this.phase === "planning", cooldown: 0, targetId: null,
     };
-    this.hotbar.remove("metal", cost);
+    this.hotbar.remove("alloy", cost);
     this.towers.push(tower);
     for (const [x, y] of tower.cells) this.towerCellsMap.set(cellKey(x, y), tower.id);
     this.events.push({ type: "tower-built", tower });
@@ -473,7 +551,7 @@ export class Game {
     const refund = this.sellValue(t);
     this.towers.splice(this.towers.indexOf(t), 1);
     for (const [x, y] of t.cells) this.towerCellsMap.delete(cellKey(x, y));
-    this.hotbar.add("metal", refund);
+    this.hotbar.add("alloy", refund);
     this.events.push({ type: "tower-sold", tower: t, refund });
     return refund;
   }
@@ -558,6 +636,7 @@ export class Game {
     this.moveWalkers(dt);
     // A leak may have ended the run.
     if ((this.phase as Phase) === "over") return;
+    for (const s of this.smelters) smelt(s, dt, this.tuning.smeltRate);
     this.updateTowers(dt);
     this.updateShots(dt);
     if (this.phase === "wave" && this.waveLeft === 0 && this.packQueue.length === 0 && this.walkers.length === 0) {
