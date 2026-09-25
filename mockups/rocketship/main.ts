@@ -81,6 +81,8 @@ const shadowAll = <T extends THREE.Object3D>(o: T): T => {
 function buildRocket() {
   const g = new THREE.Group();
   const R = 0.72;
+  /** The lower body is wider than the rest: a sturdier base. */
+  const RL = 0.86;
   /** Direction on the hull at local angle `a` (0 = +x, 90° = +z, the front). */
   const facing = (a: number) => { const o = new THREE.Group(); o.rotation.y = Math.PI / 2 - a; g.add(o); return o; };
   const deg = Math.PI / 180;
@@ -89,7 +91,7 @@ function buildRocket() {
   [90, 210, 330].forEach((d, i) => {
     const a = d * deg;
     const s = new THREE.Shape();
-    [[R - 0.05, 0.55], [R + 0.62, 0], [R + 0.74, 0], [R + 0.52, 0.9], [R - 0.05, 1.7]].forEach(([x, y], k) => (k ? s.lineTo(x!, y!) : s.moveTo(x!, y!)));
+    [[RL - 0.05, 0.55], [RL + 0.5, 0], [RL + 0.62, 0], [RL + 0.42, 0.9], [RL - 0.05, 1.7]].forEach(([x, y], k) => (k ? s.lineTo(x!, y!) : s.moveTo(x!, y!)));
     // The front fin faces the camera end-on, so it's built heavier to keep its mass.
     const t = i === 0 ? 0.2 : 0.12;
     const fg = new THREE.ExtrudeGeometry(s, { depth: t, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 1 });
@@ -99,7 +101,7 @@ function buildRocket() {
     g.add(f);
     // A steel leading edge so the front fin reads as a fin when seen end-on.
     const edge = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.05, 0.14), M.steel);
-    edge.position.set(Math.cos(a) * (R + 0.68), 0.025, Math.sin(a) * (R + 0.68));
+    edge.position.set(Math.cos(a) * (RL + 0.56), 0.025, Math.sin(a) * (RL + 0.56));
     g.add(edge);
   });
 
@@ -113,10 +115,12 @@ function buildRocket() {
   }
 
   // Lower body.
-  g.add(cyl(R * 0.9, R, 0.12, M.steelDark, 0.28));
-  g.add(cyl(R, R, 1.0, M.hull, 0.4));
-  g.add(cyl(R + 0.02, R + 0.02, 0.1, M.orange, 1.12));
-  const face = R - 0.03;
+  g.add(cyl(RL * 0.9, RL, 0.12, M.steelDark, 0.28));
+  g.add(cyl(RL, RL, 0.82, M.hull, 0.4));
+  g.add(cyl(RL + 0.02, RL + 0.02, 0.1, M.orange, 1.12));
+  // Shoulder from the wide base up to the core deck.
+  g.add(cyl(RL, R + 0.03, 0.14, M.hullShade, 1.22));
+  const face = RL - 0.03;
 
   // Cargo bay, front-left: a dark recess in an orange frame with a warm light inside.
   const bay = facing(135 * deg);
@@ -152,7 +156,7 @@ function buildRocket() {
   fab.add(arm);
 
   // Open core section: the Reactor cage.
-  g.add(cyl(R + 0.03, R + 0.03, 0.08, M.steel, 1.22));
+  g.add(cyl(R + 0.03, R + 0.03, 0.06, M.steel, 1.34));
   const core = new THREE.Group();
   core.add(mesh(new THREE.CylinderGeometry(0.62, 0.66, 0.12, 12), M.steel, 0, 0.06, 0));
   for (let i = 0; i < 4; i++) {
@@ -166,16 +170,16 @@ function buildRocket() {
   const coreLight = new THREE.PointLight("#7ff5e6", 1.4, 2.6, 2);
   coreLight.position.y = 0.6;
   core.add(crystal, ring, coreLight);
-  core.position.y = 1.3;
+  core.position.y = 1.38;
   g.add(core);
 
   // Upper body with a porthole, then the nose.
-  g.add(cyl(R + 0.03, R + 0.03, 0.08, M.steel, 2.38));
-  g.add(cyl(R, R, 0.78, M.hull, 2.46));
-  g.add(cyl(R + 0.02, R + 0.02, 0.1, M.orange, 3.0));
-  facing(90 * deg).add(mesh(new THREE.CircleGeometry(0.13, 14), M.visor, 0, 2.78, R + 0.01));
-  g.add(mesh(new THREE.ConeGeometry(R, 1.05, 20), M.hull, 0, 3.24 + 0.525, 0));
-  g.add(mesh(new THREE.ConeGeometry(0.2, 0.3, 20), M.orange, 0, 4.2, 0));
+  g.add(cyl(R + 0.03, R + 0.03, 0.08, M.steel, 2.46));
+  g.add(cyl(R, R, 0.78, M.hull, 2.54));
+  g.add(cyl(R + 0.02, R + 0.02, 0.1, M.orange, 3.08));
+  facing(90 * deg).add(mesh(new THREE.CircleGeometry(0.13, 14), M.visor, 0, 2.86, R + 0.01));
+  g.add(mesh(new THREE.ConeGeometry(R, 1.05, 20), M.hull, 0, 3.32 + 0.525, 0));
+  g.add(mesh(new THREE.ConeGeometry(0.2, 0.3, 20), M.orange, 0, 4.28, 0));
 
   shadowAll(g);
   return {
