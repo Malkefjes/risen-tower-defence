@@ -62,7 +62,7 @@ Each milestone is a playable build that answers one question. I propose we stop 
 - **Avatar:** walks with WASD on the grid world, collides with walls, rocks and buildings. Small low-poly colonist model.
 - **Camera:** follows the avatar. Dragging or arrow keys pan freely and stop following. One key snaps back to the avatar, another jumps to the ship.
 - **Ship replaces the nexus:** same role, new model (placeholder based on Reactor core until the ship mockup).
-- **Ore nodes on Frostfall:** a few nodes you can see. Stand next to one and mine it by hand; the avatar carries a limited load and drops it off at the ship.
+- **Ore nodes on Frostfall:** a few nodes you can see. Stand next to one and hold the mine key to mine it by hand; the avatar carries a limited load and drops it off at the ship.
 - **Ore replaces credits:** walls and towers cost ore.
 - **Fabricator:** walls come from a queue with the next 3 shapes, one hold slot and a paid reroll, printed with ore. Replaces the supply drop.
 - **Build range:** you can only build within a radius of the avatar (a tuning slider, so we can test with it large or small).

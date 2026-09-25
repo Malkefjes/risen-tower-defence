@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { Cell } from "../sim/types";
 import { cellBounds, pieceOutline, SIDES, type OutlineCell, type Side } from "./pieceShape";
+import { shipModel } from "./ship";
 
 /**
  * Every visible thing is created by name through the ModelLibrary. Today the
@@ -286,6 +287,9 @@ export function createDefaultModels(mat: Materials, glow: Glows): ModelLibrary {
     g.userData.material = m;
     return g;
   });
+
+  /** The player's ship, the Rocket, centered on its 3×3 footprint. */
+  lib.register("ship", () => shipModel(EVENING.wallA));
 
   /** Twin (1×1): hex mount, orange colony head, two barrels that fire in turn. */
   lib.register("twin", () => twinModel(mat, false));

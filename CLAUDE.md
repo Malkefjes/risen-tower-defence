@@ -8,7 +8,9 @@ Read this first in every session. Sessions do not share memory; this file and `d
 - **New direction (2026-09-25):** survival tower defense. Explore a planet, mine, build a base, defend it by mazing. Read `docs/PLAN.md` first: agreed decisions, milestones M0 to M5, idea bank, open questions. The old Phase 2+ roadmap in `docs/DESIGN.md` is superseded.
 - **Done (M0):** Armored deck walls in the game (per-piece model `wallPiece`, outline logic in `src/render/pieceShape.ts`), design doc rewritten for the survival direction.
 - **Ship:** the Rocket (`mockups/rocketship/`, https://claude.ai/artifact/GBVZ8RpZPQaqY44reLU2hg): 3×3, three fins (one front-centre), Reactor core in an open cage mid-body, wider lower body as a sturdy base, nose cone directly on the core cage (no upper cylinder), cargo bay front-left of the front fin with a door that becomes the ramp (shut when landing, opens after touchdown), fabricator with console screen front-right, both at walking height. The player arrives earlier by drop pod, never from the ship. Waiting on Erik's final OK.
-- **Next:** M1a in three parts (avatar + ship, ore, fabricator + build range), each described to Erik before building.
+- **Rocket is final** and lives in `src/render/ship.ts` (model `ship`, `userData.rig` has the door, bay and core).
+- **Settled for M1a:** mining is a held key (not automatic). Order: avatar, then ore, then fabricator.
+- **Next:** Erik picks an avatar from `mockups/avatar/` (https://claude.ai/artifact/H5ECqtwJGetKCkiSGX224s), then M1a part 1 (avatar + Rocket in the game), described to Erik before building.
 - Picks so far: walls = Armored deck, nexus/ship = Reactor core as starting point (`mockups/stronghold/`, published at https://claude.ai/artifact/DkXNNFtuUA26uCJPa3sLa5).
 - **Run locally:** double-click `start-dev.cmd` (Windows) or `npm install && npm run dev`, then http://localhost:5173.
 
