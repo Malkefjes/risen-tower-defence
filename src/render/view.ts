@@ -51,6 +51,8 @@ const LIGHT_DIST = Math.hypot(...EVENING.sunOffset);
 const LIGHT_RIGHT = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), LIGHT_DIR).normalize();
 const LIGHT_UP = new THREE.Vector3().crossVectors(LIGHT_DIR, LIGHT_RIGHT).normalize();
 const ZOOM_MIN = 3.2, ZOOM_MAX = 11;
+/** Snow looks right with an area of ±18 cells at the default zoom; it scales with zoom from there. */
+const SNOW_H = 18, SNOW_ZOOM = 6.2;
 /** Height of the ship's core crystal above the ground, where its gun fires from. */
 const SHIP_CORE_Y = 1.95;
 /** How far the torso may twist from the legs toward where the tool aims (radians). */
@@ -117,6 +119,7 @@ export class GameView {
   private snow: THREE.Points;
   private snowPos: Float32Array;
   private snowSpeed: Float32Array;
+  private snowH = SNOW_H;
   private puffs: { mesh: THREE.Mesh; v: THREE.Vector3; life: number }[] = [];
   private shake = 0;
   private time = 0;
@@ -809,9 +812,21 @@ export class GameView {
 
     // Flakes live in the world, not on the camera: they fall and drift on their own,
     // and wrap around the edges of the area around the camera so it never runs out of snow.
-    const N = this.snowSpeed.length, H = 18, p = this.snowPos;
+    // The snow area grows with the zoom (same number of flakes), so snow looks
+    // equally dense on screen at any zoom; resizing spreads flakes out from the
+    // camera target, which keeps them in place on screen while zooming.
+    const N = this.snowSpeed.length, p = this.snowPos, wantH = SNOW_H * (this.zoom / SNOW_ZOOM);
+    if (Math.abs(wantH - this.snowH) > 1e-3) {
+      const f = wantH / this.snowH;
+      for (let i = 0; i < N; i++) {
+        p[i * 3] = this.target.x + (p[i * 3]! - this.target.x) * f;
+        p[i * 3 + 2] = this.target.z + (p[i * 3 + 2]! - this.target.z) * f;
+      }
+      this.snowH = wantH;
+    }
+    const H = this.snowH, fall = this.zoom / SNOW_ZOOM; // same speed on screen at any zoom
     for (let i = 0; i < N; i++) {
-      p[i * 3 + 1]! -= this.snowSpeed[i]! * dt;
+      p[i * 3 + 1]! -= this.snowSpeed[i]! * fall * dt;
       p[i * 3]! += Math.sin(this.time + i) * 0.12 * dt;
       if (p[i * 3 + 1]! < 0) p[i * 3 + 1] = 12;
       p[i * 3] = wrap(p[i * 3]!, this.target.x, H);
