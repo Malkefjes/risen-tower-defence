@@ -122,6 +122,7 @@ export class GameView {
   private lastShipHp = Infinity;
   private shipHitCd = 0;
   private debrisMat = new THREE.MeshStandardMaterial({ color: "#4a5266", roughness: 0.8, flatShading: true });
+  private stoneDebrisMat = new THREE.MeshStandardMaterial({ color: "#8d8a99", roughness: 0.9, flatShading: true });
   /** HP bars over damaged buildings: the ship (key -1) and smelters (their ids). */
   private buildingBars = new Map<number, THREE.Group>();
   private caveByMouth = new Map<string, { obj: THREE.Object3D; home: THREE.Vector3; mouth: [number, number]; puffT: number }>();
@@ -431,6 +432,8 @@ export class GameView {
     for (const ev of events) {
       if (ev.type === "placed" || ev.type === "plated") this.onPlaced(ev.piece);
       else if (ev.type === "smelter-destroyed") this.onKilled(ev.smelter.cx, ev.smelter.cy, 26, this.debrisMat);
+      else if (ev.type === "wall-broken") { this.onKilled(ev.cell[0] + 0.5, ev.cell[1] + 0.5, 18, this.stoneDebrisMat); this.shake = Math.max(this.shake, 0.08); }
+      else if (ev.type === "tower-destroyed") this.onKilled(ev.tower.cx, ev.tower.cy, 22, this.debrisMat);
       else if (ev.type === "tower-built") { const v = this.towers.get(ev.tower.id); if (v) v.drop = 0.12; }
       else if (ev.type === "shot") this.onShot(ev.shot);
       else if (ev.type === "hit") { const w = this.walkers.get(ev.walker.id); if (w) w.userData.flash = 0.09; }
@@ -555,7 +558,7 @@ export class GameView {
 
   private syncPieces(hoverId: number | null): void {
     // Walls fuse with their neighbours, so when the set of walls changes, rebuild every piece.
-    const sig = this.game.pieces.map(p => p.id + (p.metal ? "m" : "")).join(",");
+    const sig = this.game.pieces.map(p => p.id + (p.metal ? "m" : "") + ":" + p.cells.length).join(",");
     if (sig !== this.wallSig) {
       this.wallSig = sig;
       for (const [id, v] of this.pieces) {
@@ -706,6 +709,13 @@ export class GameView {
       want.set(-1, { x: c.x, y: 3.4, z: c.z, frac: this.game.hp / this.game.tuning.startHp });
     }
     for (const s of this.game.smelters) if (s.hp < s.maxHp) want.set(s.id, { x: s.cx, y: 3.3, z: s.cy, frac: s.hp / s.maxHp });
+    // Damaged walls: one bar per piece, over its middle (piece ids never clash with smelter ids).
+    for (const p of this.game.pieces) {
+      const { hp, max } = this.game.pieceHp(p);
+      if (hp >= max || !p.cells.length) continue;
+      const cx = p.cells.reduce((a, c) => a + c[0] + 0.5, 0) / p.cells.length, cz = p.cells.reduce((a, c) => a + c[1] + 0.5, 0) / p.cells.length;
+      want.set(p.id, { x: cx, y: TOP + 0.75, z: cz, frac: hp / max });
+    }
     for (const [id, w] of want) {
       let b = this.buildingBars.get(id);
       if (!b) {

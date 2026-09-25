@@ -6,7 +6,7 @@ import { SHAPE_IDS, type ShapeId } from "../sim/pieces";
 import { TOWER_INFO, TOWER_KINDS, type Tower, type TowerKind } from "../sim/towers";
 import type { Cell } from "../sim/types";
 import { BuildWheel, type WheelItem } from "../ui/buildWheel";
-import { buildingsIcon, pieceIcon, platingIcon, smelterIcon, towerIcon, type Hud } from "../ui/hud";
+import { buildingsIcon, pieceIcon, platingIcon, repairIcon, smelterIcon, towerIcon, type Hud } from "../ui/hud";
 import type { GameView, Overlay } from "../render/view";
 
 const DRAG_THRESHOLD = 5;
@@ -128,7 +128,11 @@ export class Controller {
 
   private wheelItems(): WheelItem[] {
     const g = this.game;
-    if (this.wheelKind === "mods") return [{ icon: sized(platingIcon()), off: !g.canPlate(this.modTarget ?? undefined) }];
+    // A wall's wheel: metal plating, and repair (for stone).
+    if (this.wheelKind === "mods") return [
+      { icon: sized(platingIcon()), off: !g.canPlate(this.modTarget ?? undefined) },
+      { icon: sized(repairIcon()), off: !g.canRepair(this.modTarget ?? undefined) },
+    ];
     if (this.wheelKind === "walls") return SHAPE_IDS.map(sh => ({ icon: sized(pieceIcon(sh)), off: !g.canAffordShape(sh) }));
     // Buildings: the smelter, for now (stone and raw metal).
     if (this.wheelKind === "buildings") return [{ icon: sized(smelterIcon()), off: g.ore("stone") < g.tuning.smelterStone || g.ore("metal") < g.tuning.smelterMetal }];
@@ -174,7 +178,7 @@ export class Controller {
     return undefined;
   }
 
-  /** Right mouse held on a wall: its modification wheel (metal plating, for now). */
+  /** Right mouse held on a wall: its modification wheel (metal plating, repair). */
   private openMods(clientX: number, clientY: number): void {
     const piece = this.wallAt(clientX, clientY);
     if (!piece || !this.game.canPlaceNow()) return;
@@ -190,7 +194,7 @@ export class Controller {
     this.wheelKind = null;
     this.modTarget = null;
     if (i === null || !this.game.canPlaceNow()) return;
-    if (kind === "mods") { if (target) this.game.plate(target.id); return; }
+    if (kind === "mods") { if (target) { if (i === 0) this.game.plate(target.id); else this.game.repair(target.id); } return; }
     if (kind === "walls") {
       const shape = SHAPE_IDS[i]!;
       if (!this.game.canAffordShape(shape)) return;

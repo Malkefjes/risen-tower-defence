@@ -33,6 +33,11 @@ export function buildingsIcon(): string {
   return `<svg viewBox="0 0 44 44" aria-hidden="true"><path d="M6 20 L22 9 L38 20 Z" fill="#3d4457"/><rect x="9" y="20" width="26" height="17" fill="#4a5266"/><rect x="9" y="20" width="26" height="3" fill="#d9573a"/><rect x="19" y="27" width="7" height="10" fill="#ffd79a"/><rect x="11" y="27" width="5" height="4" fill="#7ff5e6"/><rect x="29" y="27" width="4" height="4" fill="#7ff5e6"/><rect x="6" y="37" width="32" height="3" fill="#2c3142"/></svg>`;
 }
 
+/** Repair, for a wall's modification wheel: a stone block with a hammer across it. */
+export function repairIcon(): string {
+  return `<svg viewBox="0 0 44 44" aria-hidden="true"><rect x="6" y="24" width="24" height="13" rx="2" fill="#8d8a99" stroke="#b3b0bf"/><path d="M11 28 l5 3 M20 27 l-3 5" stroke="#5a5766" stroke-width="1.5"/><rect x="21" y="5" width="7" height="26" rx="2" transform="rotate(35 24 18)" fill="#3d4457"/><rect x="24" y="4" width="16" height="8" rx="2" transform="rotate(35 32 8)" fill="#d9573a" stroke="#f08a66"/></svg>`;
+}
+
 /** Small SVG of a tower seen from above, for build cards. */
 export function towerIcon(kind: TowerKind): string {
   const hex = (r: number) => Array.from({ length: 6 }, (_, i) => {
