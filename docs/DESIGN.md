@@ -26,7 +26,7 @@ Whether it ends up feeling more like tower defense or more like survival should 
 - **Arrive:** a drop pod lands you on the planet. Explore on foot and find ore nodes.
 - **Settle:** call the ship down where you think you can hold it. The ship is your core: it holds your cargo, prints walls, and is how you leave. Losing it ends the run.
 - **Mine:** by hand at first (carry ore home), then extractors on nodes, then a rover and drones to haul.
-- **Build:** walls from the ship's fabricator, towers, refinery, generators.
+- **Build:** walls bought with stone, towers, refinery, generators.
 - **Defend:** raids are telegraphed (a threat meter, warnings with direction). They come from burrows around the map.
 - **Launch:** you choose when to leave. Launching triggers a final siege. The ship carries over to the next planet.
 
@@ -57,7 +57,7 @@ One planet is one long run over several sessions, saved in the browser.
 
 ### Walls
 
-- Tetris-shaped pieces, rotatable, printed by the ship's fabricator from material. You see the next 3 shapes, can hold one, and can pay to reroll.
+- Tetris-shaped pieces, rotatable. Any of the 7 shapes can be bought with stone from the Q build wheel; the stone is paid as the piece goes down and refunded when an unlocked piece is picked up.
 - In real time: full refund for about 5 seconds after placing, then recycle for 50%.
 - Walls carry power from generators and the ship to towers.
 
@@ -118,7 +118,7 @@ Not locked yet: zoom range, final model shapes.
 | Resources | Ore, alloy, power; physical up to the ship |
 | Threat | Grows with extraction and base size; raids are telegraphed |
 | Attack targets | Every building; walls are walked around (wall breakers excepted) |
-| Wall supply | Fabricator: next 3, hold one, paid reroll |
+| Wall supply | Buy any shape with stone from the Q wheel (no supply drops) |
 | Wall removal | Full refund for ~5 s after placing, then recycle for 50% |
 | Power | Through walls, from generators and the ship |
 | Visual style | Clean low-poly 3D, fixed iso-style camera, evening light |
@@ -142,7 +142,7 @@ These were part of the round-based Phase 1 design. They stay in the game until t
 | Rounds: untimed planning phase, then a wave started with a button | Real time with telegraphed raids (M1b) |
 | Nexus and nexus HP bar | The ship; every building has its own HP (M1a, M2) |
 | Credits with flat income per round | Ore, then alloy (M1a, M3) |
-| Supply drop of 3 random walls per round | Fabricator with next 3, hold and reroll (M1a) |
+| Supply drop of 3 random walls per round | Buy any shape with stone from the Q wheel (done) |
 | Walls removable only in the planning phase they were built | Undo window, then recycle (M1b) |
 | WASD pans the camera | WASD moves the avatar; drag and arrows pan (M1a) |
 | TFT-style tower shop, rerolls, bench, interest | Towers built from material; shop ideas parked in the idea bank |

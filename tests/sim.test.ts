@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Game, SUPPLY_PER_ROUND } from "../src/sim/game";
+import { Game } from "../src/sim/game";
 import { computeField } from "../src/sim/pathfinding";
 import { pieceCells, shapeOffsets, SHAPE_IDS } from "../src/sim/pieces";
 import { World, type MapDef } from "../src/sim/world";
@@ -8,7 +8,7 @@ const open = (extra: Partial<MapDef> = {}): MapDef => ({
   name: "test", spawners: [[0, 0]], nexus: [[10, 0]], rocks: [], trees: [], ...extra,
 });
 
-/** A fresh game: planning phase, holding the first supply drop. */
+/** A fresh game in the planning phase. */
 function planningGame(map: MapDef, seed = 1): Game {
   const g = new Game(map, { seed });
   expect(g.phase).toBe("planning");
@@ -71,44 +71,45 @@ describe("pathfinding", () => {
   });
 });
 
-describe("supply", () => {
-  it("starts in planning with one supply drop in hand", () => {
-    const g = new Game(open(), { seed: 3 });
-    expect(g.phase).toBe("planning");
-    expect(g.hand).toHaveLength(SUPPLY_PER_ROUND);
-    expect(g.drainEvents().some(e => e.type === "supply")).toBe(true);
+describe("buying walls", () => {
+  it("any shape can be bought with stone, as long as there is enough", () => {
+    const g = new Game(open(), { seed: 3, tuning: { startStone: 150, wallCost: 25 } });
+    for (const s of SHAPE_IDS) expect(g.shapeCost(s)).toBe(100);
+    expect(g.canAffordShape("T")).toBe(true);
+    expect(g.place("T", 0, [5, 5]).ok).toBe(true);
+    expect(g.ore("stone")).toBe(50);
+    expect(g.canAffordShape("L")).toBe(false);
+    const r = g.place("L", 0, [5, -5]);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toBe("stone");
   });
 
-  it("delivers three more walls each round, and unused walls carry over", () => {
+  it("rounds bring no free walls", () => {
     const g = planningGame(open());
-    g.place(g.hand[0]!.uid, 0, [5, 5]);
-    expect(g.hand).toHaveLength(SUPPLY_PER_ROUND - 1);
     g.startWave();
     let guard = 0;
     while (g.phase === "wave" && guard++ < 60 * 120) g.step();
-    expect(g.phase).toBe("planning");
     expect(g.round).toBe(2);
-    expect(g.hand).toHaveLength(SUPPLY_PER_ROUND * 2 - 1);
+    expect(g.pieces).toHaveLength(0);
   });
 });
 
 describe("placement", () => {
-  it("places, then undo returns the piece to the hand", () => {
+  it("places, then undo takes the piece back and refunds its stone", () => {
     const g = planningGame(open());
-    const held = g.hand[0]!;
-    const r = g.place(held.uid, 0, [5, 4]);
+    const stone = g.ore("stone");
+    const r = g.place("S", 0, [5, 4]);
     expect(r.ok).toBe(true);
-    expect(g.hand).toHaveLength(SUPPLY_PER_ROUND - 1);
     expect(g.pieces).toHaveLength(1);
+    expect(g.ore("stone")).toBe(stone - g.shapeCost("S"));
     expect(g.undo()).not.toBeNull();
     expect(g.pieces).toHaveLength(0);
-    expect(g.hand).toHaveLength(SUPPLY_PER_ROUND);
-    expect(g.hand[SUPPLY_PER_ROUND - 1]!.shape).toBe(held.shape);
+    expect(g.ore("stone")).toBe(stone);
   });
 
   it("refuses overlapping terrain, nexus and rift", () => {
     const g = planningGame(open({ rocks: [{ x: 5, y: 5, h: 10 }] }));
-    const s = g.hand[0]!.shape;
+    const s = "T";
     for (const at of [[5, 5], [10, 0], [0, 0]] as const) {
       // Find a rotation whose cells include the target, pivot sits on it.
       const r = g.checkPlacement(s, 0, at);
@@ -145,12 +146,12 @@ describe("placement", () => {
 
   it("pieces placed in planning lock when the wave starts; mid-wave placements lock at once", () => {
     const g = planningGame(open({ nexus: [[20, 0]] }));
-    const p1 = g.place(g.hand[0]!.uid, 0, [5, 5]).piece!;
+    const p1 = g.place("T", 0, [5, 5]).piece!;
     expect(p1.locked).toBe(false);
     g.startWave();
     expect(p1.locked).toBe(true);
     expect(g.undo()).toBeNull();
-    const p2 = g.place(g.hand[0]!.uid, 0, [5, -5]).piece!;
+    const p2 = g.place("T", 0, [5, -5]).piece!;
     expect(p2.locked).toBe(true);
   });
 
@@ -159,7 +160,7 @@ describe("placement", () => {
     g.startWave();
     for (let i = 0; i < 40; i++) g.step();
     const before = g.field.at(0, 0);
-    const r = g.place(g.hand[0]!.uid, 1, [7, 0]);
+    const r = g.place("I", 1, [7, 0]);
     expect(r.ok).toBe(true);
     expect(g.field.at(0, 0)).toBeGreaterThan(before);
     // Everyone still arrives and the next round begins.

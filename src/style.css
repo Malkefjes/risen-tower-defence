@@ -72,7 +72,7 @@ button:focus-visible { outline: 2px solid var(--warm); outline-offset: 2px; }
 .center { grid-column: 2; display: flex; align-items: end; gap: 14px; flex-wrap: wrap; justify-content: center; }
 .actions { justify-self: end; }
 
-/* ---------- hotbar, "+N", supply notice, build wheel ---------- */
+/* ---------- hotbar, "+N", build wheel ---------- */
 .hotbar { display: flex; gap: 5px; padding: 5px; background: rgba(28,26,52,.62); border: 1px solid var(--line); border-radius: 10px; backdrop-filter: blur(6px); pointer-events: none; }
 .slot { position: relative; width: 52px; height: 52px; border-radius: 7px; background: rgba(61,68,87,.55); border: 2px solid rgba(255,255,255,.08); display: grid; place-items: center; }
 .slot.on { border-color: #d9573a; background: rgba(61,68,87,.85); }
@@ -81,8 +81,6 @@ button:focus-visible { outline: 2px solid var(--warm); outline-offset: 2px; }
 .gain { position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 2px; font-weight: 700; font-size: 17px; font-variant-numeric: tabular-nums; color: var(--text); text-shadow: 0 1px 4px rgba(20,18,40,.8); pointer-events: none; opacity: 0; white-space: nowrap; }
 .gain img { width: 26px; height: 26px; }
 .gain i { font-style: normal; margin-left: 6px; color: var(--muted); }
-.notice { position: absolute; left: 50%; top: 100px; transform: translateX(-50%); display: flex; gap: 14px; align-items: center; padding: 6px 14px; border-radius: 10px; background: rgba(28,26,52,.62); border: 1px solid var(--line); font-weight: 700; font-size: 16px; opacity: 0; pointer-events: none; }
-.notice span { display: inline-flex; align-items: center; gap: 4px; }
 .wheel { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 5; }
 .wheel svg { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); overflow: visible; }
 .wheel .it { position: absolute; transform: translate(-50%, -50%) scale(var(--s)); display: grid; justify-items: center; }

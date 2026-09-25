@@ -9,8 +9,7 @@ const tower = (kind: "twin" | "gatling" | "ship", key: keyof TowerStats, label: 
   ({ label, get: t => t[kind][key], set: (t, v) => { t[kind][key] = v; }, min, max, step });
 
 const SECTIONS: { title: string; knobs: Knob[] }[] = [
-  { title: "Supply and ore", knobs: [
-    top("supplyPerRound", "Walls per round", 1, 8, 1),
+  { title: "Costs and ore", knobs: [
     top("wallCost", "Stone per wall cell", 0, 100, 5),
     top("platingCost", "Metal plating per wall piece", 0, 500, 5),
     top("startStone", "Starting stone", 0, 2000, 50),

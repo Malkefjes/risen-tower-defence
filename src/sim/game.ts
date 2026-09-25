@@ -2,14 +2,12 @@ import { Avatar, defaultAvatarTuning, type AvatarInput, type AvatarTuning } from
 import { Hotbar } from "./inventory";
 import { nodeArea, nodeCellTop, nodeFootprint, nodeMax, ORE_STAGES, stagesLeft, viewGap, type OreKind, type OreNode } from "./ore";
 import { computeField, keysOf, type FlowField } from "./pathfinding";
-import { pieceCells, SHAPE_IDS, type ShapeId } from "./pieces";
+import { pieceCells, type ShapeId } from "./pieces";
 import { Rng } from "./rng";
 import { BOLT_SPEED, defaultTuning, TOWER_INFO, towerCells, type Tower, type TowerKind, type Tuning } from "./towers";
 import { cellKey, type Cell } from "./types";
 import { WALL_DECK, World, type MapDef } from "./world";
 
-/** Random walls delivered at the start of every round. Unused walls carry over. */
-export const SUPPLY_PER_ROUND = 3;
 export const TICK = 1 / 60;
 /** Shots from the ship's own gun carry this as their shooter id (tower ids start at 1). */
 export const SHIP_SHOOTER = 0;
@@ -21,8 +19,6 @@ const TRUNK_LO = 2, TRUNK_HI = 6;
 const RIM = 1;
 
 export type Phase = "planning" | "wave" | "over";
-
-export interface HandPiece { uid: number; shape: ShapeId }
 
 export interface PlacedPiece {
   id: number;
@@ -83,7 +79,6 @@ export type GameEvent =
   | { type: "removed"; piece: PlacedPiece }
   | { type: "walker-arrived"; walker: Walker }
   | { type: "phase"; phase: Phase }
-  | { type: "supply"; pieces: HandPiece[] }
   /** A stage broke off a node; `added` is the ore that went into the hotbar. */
   | { type: "node-broke"; node: OreNode; stagesLeft: number; added: number }
   | { type: "node-grew"; node: OreNode }
@@ -118,7 +113,6 @@ export const TOWER_REASON_TEXT: Record<TowerBlockReason, string> = {
 export interface GameOptions {
   seed?: number;
   waveSize?: (round: number) => number;
-  supply?: number;
   tuning?: Partial<Tuning>;
 }
 
@@ -131,7 +125,6 @@ export class Game {
   phase: Phase = "planning";
   /** The wave about to be fought, or being fought; the first wave is round 1. */
   round = 1;
-  hand: HandPiece[] = [];
   pieces: PlacedPiece[] = [];
   towers: Tower[] = [];
   walkers: Walker[] = [];
@@ -170,7 +163,6 @@ export class Game {
     this.rng = new Rng(opts.seed ?? Date.now());
     this.waveSize = opts.waveSize ?? (r => 6 + r * 2);
     this.tuning = { ...defaultTuning(), ...opts.tuning };
-    if (opts.supply !== undefined) this.tuning.supplyPerRound = opts.supply;
     this.nodes = (map.ore ?? []).map(o => ({ id: this.nextId++, kind: o.kind, x: o.x, y: o.y, amount: nodeMax(o.kind), max: nodeMax(o.kind) }));
     this.syncOre();
     this.field = computeField(this.world);
@@ -235,23 +227,18 @@ export class Game {
     return out;
   }
 
-  /** Walls delivered per round (a tuning knob). */
-  get supplyPerRound(): number { return this.tuning.supplyPerRound; }
-  set supplyPerRound(n: number) { this.tuning.supplyPerRound = n; }
-
   private startRun(): void {
     this.hotbar = new Hotbar();
     this.hotbar.add("stone", this.tuning.startStone);
     this.hotbar.add("metal", this.tuning.startMetal);
     this.hp = this.tuning.startHp;
-    this.supply();
   }
 
   /** Start a new run on the same map. Tuning is kept. */
   reset(): void {
     this.world.walls.clear();
     this.towerCellsMap.clear();
-    this.hand = []; this.pieces = []; this.towers = []; this.walkers = []; this.shots = [];
+    this.pieces = []; this.towers = []; this.walkers = []; this.shots = [];
     this.round = 1;
     this.phase = "planning";
     this.waveLeft = 0; this.spawnTimer = 0;
@@ -264,21 +251,16 @@ export class Game {
     this.startRun();
   }
 
-  // ---------------------------------------------------------------- supply
-
-  /** Deliver this round's random walls straight into the hand. */
-  private supply(): void {
-    const pieces: HandPiece[] = [];
-    for (let i = 0; i < this.tuning.supplyPerRound; i++) pieces.push({ uid: this.nextId++, shape: SHAPE_IDS[this.rng.int(SHAPE_IDS.length)]! });
-    this.hand.push(...pieces);
-    this.events.push({ type: "supply", pieces });
-  }
-
-  /** Walls in the hand, per shape. */
-  handCount(shape: ShapeId): number { return this.hand.reduce((n, h) => n + (h.shape === shape ? 1 : 0), 0); }
+  // ---------------------------------------------------------------- walls
 
   /** Stone it costs to place a wall of `cells` cells. */
   wallCost(cells: number): number { return cells * this.tuning.wallCost; }
+
+  /** Stone for one piece of a shape: walls are bought with stone as they go down. */
+  shapeCost(shape: ShapeId): number { return this.wallCost(pieceCells(shape, 0, [0, 0]).length); }
+
+  /** Is there stone for this shape? */
+  canAffordShape(shape: ShapeId): boolean { return this.ore("stone") >= this.shapeCost(shape); }
 
   // ---------------------------------------------------------------- ore
 
@@ -367,16 +349,13 @@ export class Game {
     return { ok: true, cells, field };
   }
 
-  /** Place a held piece. Pieces placed during a wave lock immediately. */
-  place(handUid: number, rot: number, at: Cell): PlacementCheck & { piece?: PlacedPiece } {
-    const hi = this.hand.findIndex(h => h.uid === handUid);
-    const held = this.hand[hi];
-    if (!this.canPlaceNow() || !held) return { ok: false, cells: [], reason: "occupied" };
-    const check = this.checkPlacement(held.shape, rot, at);
+  /** Buy and place a piece, paying its stone. Pieces placed during a wave lock immediately. */
+  place(shape: ShapeId, rot: number, at: Cell): PlacementCheck & { piece?: PlacedPiece } {
+    if (!this.canPlaceNow()) return { ok: false, cells: [], reason: "occupied" };
+    const check = this.checkPlacement(shape, rot, at);
     if (!check.ok) return check;
-    this.hand.splice(hi, 1);
     const paid = this.hotbar.remove("stone", this.wallCost(check.cells.length));
-    const piece: PlacedPiece = { id: this.nextId++, shape: held.shape, rot, at, cells: check.cells, locked: this.phase === "wave", paid, metal: false, plated: 0 };
+    const piece: PlacedPiece = { id: this.nextId++, shape, rot, at, cells: check.cells, locked: this.phase === "wave", paid, metal: false, plated: 0 };
     this.pieces.push(piece);
     for (const [x, y] of piece.cells) this.world.walls.set(cellKey(x, y), piece.id);
     this.field = computeField(this.world);
@@ -394,8 +373,8 @@ export class Game {
     return !!piece && !piece.locked && this.phase === "planning" && !piece.cells.some(([x, y]) => this.towerCellsMap.has(cellKey(x, y)));
   }
 
-  /** Return an unlocked piece to the hand and its stone to the hotbar. Returns the new hand entry. */
-  pickUp(pieceId: number): HandPiece | null {
+  /** Take up an unlocked piece, refunding its stone (and plating metal). Returns its shape. */
+  pickUp(pieceId: number): ShapeId | null {
     const piece = this.pieces.find(p => p.id === pieceId);
     if (!this.canPickUp(piece)) return null;
     this.pieces.splice(this.pieces.indexOf(piece), 1);
@@ -403,10 +382,8 @@ export class Game {
     this.field = computeField(this.world);
     this.hotbar.add("stone", piece.paid);
     if (piece.plated) this.hotbar.add("metal", piece.plated);
-    const entry: HandPiece = { uid: this.nextId++, shape: piece.shape };
-    this.hand.push(entry);
     this.events.push({ type: "removed", piece });
-    return entry;
+    return piece.shape;
   }
 
   /** Can this piece be plated now? Any stone piece, locked or not, while the run is on. */
@@ -556,7 +533,6 @@ export class Game {
     if (this.phase === "wave" && this.waveLeft === 0 && this.walkers.length === 0) {
       this.round++;
       this.setPhase("planning");
-      this.supply();
       this.regrowNodes();
     }
   }

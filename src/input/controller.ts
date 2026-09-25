@@ -1,6 +1,6 @@
 import { REASON_TEXT, TOWER_REASON_TEXT, type Game, type PlacedPiece, type PlacementCheck } from "../sim/game";
 import { WALL_DECK } from "../sim/world";
-import { SHAPE_IDS } from "../sim/pieces";
+import { SHAPE_IDS, type ShapeId } from "../sim/pieces";
 import { TOWER_INFO, TOWER_KINDS, type Tower, type TowerKind } from "../sim/towers";
 import type { Cell } from "../sim/types";
 import { BuildWheel, type WheelItem } from "../ui/buildWheel";
@@ -15,8 +15,8 @@ const PAN_SPEED = 1.1; // screen heights per second at current zoom
 
 /** Turns mouse and keyboard into game actions, and describes what to draw on top. */
 export class Controller {
-  /** Held wall piece (hand uid). */
-  selectedUid: number | null = null;
+  /** Held wall shape, bought with stone as each piece goes down. */
+  heldShape: ShapeId | null = null;
   /** Tower type being placed. */
   buildKind: TowerKind | null = null;
   /** Placed tower picked for inspecting and selling. */
@@ -57,7 +57,7 @@ export class Controller {
     el.addEventListener("auxclick", e => { if (e.button === 1) e.preventDefault(); });
     el.addEventListener("pointerdown", e => {
       if (e.button === 2) {
-        if (this.selectedUid !== null) this.rotate();
+        if (this.heldShape !== null) this.rotate();
         else if (this.buildKind) this.clearSelection();
         else this.openMods(e.clientX, e.clientY);
         return;
@@ -65,11 +65,11 @@ export class Controller {
       if (e.button === 1) e.preventDefault();
       el.setPointerCapture(e.pointerId);
       // A left press next to a node mines (the cursor aims); anywhere else a left drag pans.
-      const mining = e.button === 0 && this.selectedUid === null && this.buildKind === null && this.game.hotbar.held === "multitool" && this.game.nodeInReach() !== null;
+      const mining = e.button === 0 && this.heldShape === null && this.buildKind === null && this.game.hotbar.held === "multitool" && this.game.nodeInReach() !== null;
       this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, button: e.button, mining };
       this.pressedAt = performance.now();
       // Holding a wall or tower, the click places it. Otherwise the left button fires the tool.
-      if (e.button === 0 && this.selectedUid === null && this.buildKind === null) this.toolDown = true;
+      if (e.button === 0 && this.heldShape === null && this.buildKind === null) this.toolDown = true;
     });
     el.addEventListener("pointermove", e => {
       this.view.setPointer(e.clientX, e.clientY);
@@ -93,7 +93,7 @@ export class Controller {
       this.drag = null;
       if (e.button === 0) this.toolDown = false;
       if (!d || d.id !== e.pointerId || d.moved || d.button !== 0) return;
-      const holding = this.selectedUid !== null || this.buildKind !== null;
+      const holding = this.heldShape !== null || this.buildKind !== null;
       if (holding || performance.now() - this.pressedAt < CLICK_TIME) this.click();
     });
     el.addEventListener("pointerleave", () => { this.lastPointer = null; this.hoverCell = null; this.hoverPoint = null; this.hoverPieceId = null; });
@@ -119,7 +119,7 @@ export class Controller {
     const g = this.game;
     if (this.wheelKind === "mods") return [{ icon: sized(platingIcon()), off: !g.canPlate(this.modTarget ?? undefined) }];
     return this.wheelKind === "walls"
-      ? SHAPE_IDS.map(sh => { const n = g.handCount(sh); return { icon: sized(pieceIcon(sh)), count: n, off: n <= 0 }; })
+      ? SHAPE_IDS.map(sh => ({ icon: sized(pieceIcon(sh)), off: !g.canAffordShape(sh) }))
       : TOWER_KINDS.map(k => ({ icon: sized(towerIcon(k)), off: g.ore("metal") < g.towerCost(k) }));
   }
 
@@ -168,10 +168,10 @@ export class Controller {
     if (i === null || !this.game.canPlaceNow()) return;
     if (kind === "mods") { if (target) this.game.plate(target.id); return; }
     if (kind === "walls") {
-      const piece = this.game.hand.find(h => h.shape === SHAPE_IDS[i]);
-      if (!piece) return;
+      const shape = SHAPE_IDS[i]!;
+      if (!this.game.canAffordShape(shape)) return;
       this.clearSelection();
-      this.selectedUid = piece.uid;
+      this.heldShape = shape;
       this.checkSig = "";
     } else {
       this.clearSelection();
@@ -189,7 +189,7 @@ export class Controller {
       case "1": case "2": case "3": case "4": case "5": case "6": {
         // Hotbar slots; 1 is the multitool, so it also puts away a held wall or tower.
         this.game.hotbar.select(Number(k) - 1);
-        if (k === "1") { this.selectedUid = null; this.buildKind = null; }
+        if (k === "1") { this.heldShape = null; this.buildKind = null; }
         break;
       }
       case "r": this.rotate(); break;
@@ -213,19 +213,10 @@ export class Controller {
   // ---------------------------------------------------------------- actions
 
   clearSelection(): void {
-    this.selectedUid = null;
+    this.heldShape = null;
     this.buildKind = null;
     this.selectedTowerId = null;
     this.selectedShip = false;
-  }
-
-  select(uid: number | null): void {
-    if (uid !== null && !this.game.canPlaceNow()) return;
-    if (uid !== null && uid === this.selectedUid) { this.selectedUid = null; return; }
-    this.clearSelection();
-    this.selectedUid = uid;
-    this.checkSig = "";
-    this.updateHover();
   }
 
   /** Pick a tower type to place; picking it again puts it away. */
@@ -247,7 +238,7 @@ export class Controller {
   }
 
   rotate(): void {
-    if (this.selectedUid === null) return;
+    if (this.heldShape === null) return;
     this.rot = (this.rot + 1) % 4;
     this.updateHover();
   }
@@ -285,10 +276,10 @@ export class Controller {
       this.updateHover();
       return;
     }
-    if (this.selectedUid !== null) {
-      const r = this.game.place(this.selectedUid, this.rot, this.hoverCell);
-      // Keep holding the same shape while there are more of it.
-      if (r.ok) { this.selectedUid = this.game.hand.find(h => h.shape === r.piece!.shape)?.uid ?? null; this.checkSig = ""; }
+    if (this.heldShape !== null) {
+      const r = this.game.place(this.heldShape, this.rot, this.hoverCell);
+      // Keep holding the same shape while there is stone for another.
+      if (r.ok) { if (!this.game.canAffordShape(this.heldShape)) this.heldShape = null; this.checkSig = ""; }
       else this.hud.toast(REASON_TEXT[r.reason]);
       this.updateHover();
       return;
@@ -303,8 +294,8 @@ export class Controller {
     if (!piece) return;
     if (piece.locked) { this.hud.toast("That piece is locked in"); return; }
     if (this.game.phase !== "planning") return;
-    const entry = this.game.pickUp(piece.id);
-    if (entry) { this.selectedUid = entry.uid; this.rot = piece.rot; this.updateHover(); }
+    const shape = this.game.pickUp(piece.id);
+    if (shape) { this.heldShape = shape; this.rot = piece.rot; this.updateHover(); }
   }
 
   // ---------------------------------------------------------------- per frame
@@ -314,18 +305,18 @@ export class Controller {
     const p = this.view.pickGround(this.lastPointer.x, this.lastPointer.y);
     this.hoverCell = p ? [Math.floor(p.x), Math.floor(p.z)] : null;
     this.hoverPoint = p ? { x: p.x, z: p.z } : null;
-    const piece = this.hoverCell && this.selectedUid === null && this.buildKind === null && !this.towerUnderCursor() ? this.wallAt(this.lastPointer.x, this.lastPointer.y) : undefined;
+    const piece = this.hoverCell && this.heldShape === null && this.buildKind === null && !this.towerUnderCursor() ? this.wallAt(this.lastPointer.x, this.lastPointer.y) : undefined;
     this.hoverPieceId = piece && this.game.canPickUp(piece) ? piece.id : null;
   }
 
   private currentCheck(dt: number): PlacementCheck | null {
-    const held = this.game.hand.find(h => h.uid === this.selectedUid);
+    const held = this.heldShape;
     if (!held || !this.hoverCell || !this.game.canPlaceNow()) return null;
-    const sig = `${held.shape}|${this.rot}|${this.hoverCell[0]},${this.hoverCell[1]}|${this.game.pieces.length}`;
+    const sig = `${held}|${this.rot}|${this.hoverCell[0]},${this.hoverCell[1]}|${this.game.pieces.length}`;
     this.checkAge += dt;
     // During a wave, enemies move, so re-check a few times per second.
     if (sig !== this.checkSig || (this.game.phase === "wave" && this.checkAge > 0.12)) {
-      this.check = this.game.checkPlacement(held.shape, this.rot, this.hoverCell);
+      this.check = this.game.checkPlacement(held, this.rot, this.hoverCell);
       this.checkSig = sig;
       this.checkAge = 0;
     }
@@ -345,7 +336,7 @@ export class Controller {
     this.game.avatarInput.y = ml ? my / ml : 0;
     this.game.avatarInput.sprint = this.keys.has("shift");
     // The tool fires while the left button is held with nothing to place.
-    const holding = this.selectedUid !== null || this.buildKind !== null;
+    const holding = this.heldShape !== null || this.buildKind !== null;
     const firing = this.toolDown && !holding && !this.wheelKind && this.game.hotbar.held === "multitool";
     this.game.mineInput = { firing, onSpot: firing && this.view.cursorOnHotspot() };
     if (this.wheelKind && this.lastPointer) {
@@ -369,8 +360,8 @@ export class Controller {
       this.view.panScreen(pr * s, pu * s * 1.6);
       this.updateHover();
     }
-    // Drop a selection that no longer exists.
-    if (this.selectedUid !== null && (!this.game.hand.some(h => h.uid === this.selectedUid) || !this.game.canPlaceNow())) this.selectedUid = null;
+    // Walls can't be held once the run is over.
+    if (!this.game.canPlaceNow()) this.heldShape = null;
 
     if (!this.game.canPlaceNow()) this.buildKind = null;
     if (this.selectedTowerId !== null && !this.game.towers.some(t => t.id === this.selectedTowerId)) this.selectedTowerId = null;
@@ -387,7 +378,7 @@ export class Controller {
     const ship = this.selectedShip ? this.game.shipCenter() : null;
     return {
       towerGhost,
-      toolReady: this.selectedUid !== null || this.buildKind !== null,
+      toolReady: this.heldShape !== null || this.buildKind !== null,
       selectedTower: sel ? { cx: sel.cx, cy: sel.cy, range: this.game.tuning[sel.kind].range }
         : ship ? { cx: ship.x, cy: ship.y, range: this.game.tuning.ship.range } : null,
       ghost: check ? { cells: check.cells, valid: check.ok } : null,

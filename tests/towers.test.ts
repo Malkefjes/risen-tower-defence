@@ -61,7 +61,7 @@ describe("tower placement", () => {
 
   it("a wall carrying a tower can't be picked up until the tower is sold", () => {
     const g = new Game(open(), { seed: 1, tuning: { startMetal: 500 } });
-    const piece = g.place(g.hand[0]!.uid, 0, [8, 5]).piece!;
+    const piece = g.place("T", 0, [8, 5]).piece!;
     g.plate(piece.id);
     const [x, y] = piece.cells[0]!;
     const t = g.buildTower("twin", [x, y]).tower!;
@@ -161,7 +161,7 @@ describe("hp and the run", () => {
 
   it("the run ends at 0 HP, and reset starts a fresh run", () => {
     const g = new Game(open({ nexus: [[4, 0]] }), { seed: 1, waveSize: () => 5, tuning: { startHp: 2 } });
-    g.place(g.hand[0]!.uid, 0, [10, 10]);
+    g.place("T", 0, [10, 10]);
     g.startWave();
     finishWave(g);
     expect(g.phase).toBe("over");
@@ -173,7 +173,7 @@ describe("hp and the run", () => {
     expect(g.round).toBe(1);
     expect(g.pieces).toHaveLength(0);
     expect(g.world.walls.size).toBe(0);
-    expect(g.hand).toHaveLength(g.tuning.supplyPerRound);
+    expect(g.ore("stone")).toBe(g.tuning.startStone);
   });
 
   it("enemy HP grows each round", () => {

@@ -96,11 +96,10 @@ describe("mining", () => {
 describe("ore pays for building", () => {
   it("walls cost stone per cell and give it back when picked up", () => {
     const g = new Game(map(), { seed: 1, tuning: { startStone: 100 } });
-    const uid = g.hand[0]!.uid;
-    const r = g.place(uid, 0, [2, 10]);
+    const r = g.place("T", 0, [2, 10]);
     expect(r.ok).toBe(true);
     expect(g.ore("stone")).toBe(0);
-    const again = g.checkPlacement(g.hand[0]!.shape, 0, [2, 14]);
+    const again = g.checkPlacement("T", 0, [2, 14]);
     expect(again.ok).toBe(false);
     if (!again.ok) expect(again.reason).toBe("stone");
     g.pickUp(r.piece!.id);

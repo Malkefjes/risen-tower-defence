@@ -22,7 +22,6 @@ export interface TowerStats {
 
 /** Every number the tuning panel can change. The game reads these live. */
 export interface Tuning {
-  supplyPerRound: number;
   /** Stone per wall cell (a 4-cell wall costs four times this). */
   wallCost: number;
   /** Metal to plate a whole wall piece (the Armored deck, which towers need). */
@@ -53,7 +52,6 @@ export interface Tuning {
 }
 
 export const defaultTuning = (): Tuning => ({
-  supplyPerRound: 3,
   wallCost: 25,
   platingCost: 100,
   startStone: 400,

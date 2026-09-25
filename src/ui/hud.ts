@@ -53,10 +53,6 @@ export type Projector = (x: number, y: number, z: number) => { x: number; y: num
 
 /** Seconds the "+N" stays up after the last ore, and how long it takes to fade. */
 const GAIN_HOLD = 1, GAIN_FADE = 0.5;
-/** Seconds the supply notice stays, then fades. */
-const NOTICE_HOLD = 2.5, NOTICE_FADE = 0.6;
-
-const sized = (svg: string, px: number) => svg.replace("<svg ", `<svg width="${px}" height="${px}" `);
 
 /** DOM overlay: status, hotbar, wave button, notices. Re-renders only on change. */
 export class Hud {
@@ -66,7 +62,6 @@ export class Hud {
   private icons = itemIcons();
   /** "+N" over the node a stage just broke off (adds up if stages break close together). */
   private gain = { node: null as OreNode | null, amount: 0, idle: 9 };
-  private noticeT = 9;
 
   constructor(private game: Game, private h: HudHandlers) {
     $("waveBtn").addEventListener("click", () => h.startWave());
@@ -76,13 +71,7 @@ export class Hud {
   /** React to this frame's game events (notices, HP flash). */
   onEvents(events: readonly GameEvent[]): void {
     for (const e of events) {
-      if (e.type === "supply") {
-        // A short notice of what came in; the build wheel (Q) is where walls are counted.
-        const got = new Map<string, number>();
-        for (const p of e.pieces) got.set(p.shape, (got.get(p.shape) ?? 0) + 1);
-        $("notice").innerHTML = [...got].map(([sh, n]) => `<span>+${n} ${sized(pieceIcon(sh as ShapeId), 26)}</span>`).join("");
-        this.noticeT = got.size ? 0 : 9;
-      } else if (e.type === "node-broke") {
+      if (e.type === "node-broke") {
         const g = this.gain;
         if (g.node !== e.node || g.idle > GAIN_HOLD + GAIN_FADE) { g.node = e.node; g.amount = 0; }
         g.amount += e.added; g.idle = 0;
@@ -103,7 +92,7 @@ export class Hud {
     this.toastTimer = window.setTimeout(() => t.classList.remove("show"), kind === "info" ? 2400 : 1700);
   }
 
-  /** Per frame: the hotbar, the "+N" popup and the supply notice. `dt` in real seconds. */
+  /** Per frame: the hotbar, and the "+N" popup. `dt` in real seconds. */
   frame(dt: number, project: Projector): void {
     const g = this.game, bar = g.hotbar;
     const sig = bar.selected + "|" + bar.slots.map(s => (s ? s.kind + s.count : "")).join(",");
@@ -126,8 +115,6 @@ export class Hud {
     }
     el.style.opacity = String(a);
 
-    this.noticeT += dt;
-    $("notice").style.opacity = String(Math.max(0, Math.min(1, 1 - (this.noticeT - NOTICE_HOLD) / NOTICE_FADE)));
   }
 
   update(sel: HudSelection): void {

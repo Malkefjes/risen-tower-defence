@@ -5,7 +5,7 @@ import type { MapDef } from "../src/sim/world";
 const open = (extra: Partial<MapDef> = {}): MapDef => ({
   name: "test", spawners: [[0, 0]], nexus: [[20, 0]], rocks: [], trees: [], start: [2, 12], ...extra,
 });
-const place = (g: Game, at: [number, number] = [8, 5]) => g.place(g.hand[0]!.uid, 0, at).piece!;
+const place = (g: Game, at: [number, number] = [8, 5]) => g.place("T", 0, at).piece!;
 
 describe("stone and metal walls", () => {
   it("walls go down as stone, and towers can't stand on stone", () => {

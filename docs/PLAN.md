@@ -31,7 +31,7 @@ Whether it plays more like tower defense or survival should come out of what's f
 | Threat | More extraction and a bigger base draw more attention. Raids are telegraphed, not random surprises |
 | What gets attacked | Every building: ship, extractors, refineries, generators, stockpiles. Normal enemies walk around walls, so the maze stays the maze. Wall breakers are a special enemy type |
 | Targets | Enemies go for the nearest building (later: enemy types with preferred targets) |
-| Walls | Still Tetris pieces, printed by the ship's fabricator from material: you see the next 3 shapes, can hold one, and can pay to reroll |
+| Walls | Still Tetris pieces, bought with stone from the Q wheel: any of the 7 shapes (Erik, 2026-09-25; replaced the fabricator queue) |
 | Power | Generators make power, towers and industry draw it. Power runs through walls, so the wall layout is also the power grid |
 | Resource chain | Kept short on purpose: ore, alloy, power. No conveyor belts or Factorio chains |
 | Controls | WASD moves the avatar. The camera follows the avatar, but you can pan away freely to watch the base while farming |
@@ -64,7 +64,7 @@ Each milestone is a playable build that answers one question. I propose we stop 
 - **Ship replaces the nexus:** same role, new model (placeholder based on Reactor core until the ship mockup).
 - **Ore nodes on Frostfall:** a few nodes you can see. Stand next to one and hold the mine key to mine it by hand; the avatar carries a limited load and drops it off at the ship.
 - **Ore replaces credits:** walls and towers cost ore.
-- **Fabricator:** walls come from a queue with the next 3 shapes, one hold slot and a paid reroll, printed with ore. Replaces the supply drop.
+- **Buying walls:** any of the 7 shapes from the Q wheel, paid in stone as it goes down. Replaced the supply drop and the planned fabricator queue (Erik, 2026-09-25).
 - **Build range:** you can only build within a radius of the avatar (a tuning slider, so we can test with it large or small).
 - Waves and the wave button stay for now, so only one big thing changes at a time.
 
@@ -73,7 +73,7 @@ Brings the ore playground into the game, plus the build wheel.
 - **From the playground:** sprint (Shift, 1.4×, not while firing), longer beam and grip, hold LMB to mine with move-while-mining and torso twist, screen-space reach (1.5-cell gap), 3×3 stone and metal nodes breaking in three stages with a shrinking footprint and the hotspot glint (+20%), 200 stone / 100 metal per stage arriving at once, the 6-slot hotbar (multitool in slot 1, stacks of 1000, "x200" counts, Full when a chunk won't fit), icons rendered from the models, the fading "+N".
 - **Ore replaces credits:** pay straight from the hotbar (no delivery to the ship). Walls cost stone per cell (start 25), Twin 100 metal, Gatling 250, start with 400 stone and 100 metal; pick-up refunds stone, selling refunds metal. Credits and flat income go.
 - **Nodes block enemies** like terrain (mining one down only opens paths). Frostfall: 3 stone near the ship, 2 metal further out toward the enemy path. A mined-out node grows back at the start of the next planning phase if its space is clear and it wouldn't cut off the path.
-- **Build wheel:** hold Q for walls (7 shapes with counts, x0 greyed), E for towers; centred on the character; the centre picks nothing; slices are cones that run past the wheel; release picks. The wall bar goes; supply drops show a short "+1 T +2 L" notice. No costs in the wheel yet. Look picked from the ore playground (A/B/C).
+- **Build wheel:** hold Q for walls (7 shapes, greyed when you can't afford one), E for towers; centred on the character; the centre picks nothing; slices are cones that run past the wheel; release picks. The wall bar goes; supply drops show a short "+1 T +2 L" notice. No costs in the wheel yet. Look picked from the ore playground (A/B/C).
 - **Keys:** 1–6 are hotbar slots only (1 drops a held wall or tower); LMB places when holding a wall or tower, otherwise fires the tool. Mining runs on real time (game speed doesn't change it; pause freezes it).
 - **Tuning (K):** wall stone cost, tower metal costs, starting stock, node mine time, reach, sprint.
 - **Order:** nodes in the sim → mining and hotbar in `Game` → costs → rendering (shared with the playground) → input → HUD → tuning → docs, headless check, publish.
@@ -117,7 +117,7 @@ Brings the ore playground into the game, plus the build wheel.
 | --- | --- | --- |
 | Nexus | Your ship | M1a |
 | Credits and flat income | Ore (then alloy in M3) | M1a |
-| Supply drop of 3 random walls | Fabricator with next 3, hold and reroll | M1a |
+| Supply drop of 3 random walls | Buy any shape with stone from the Q wheel | done |
 | WASD pans the camera | WASD moves the avatar; drag and arrows pan | M1a |
 | Planning phase and waves with a button | Real time with telegraphed raids | M1b |
 | Pick up walls during the planning phase | Undo window, then recycle | M1b |
