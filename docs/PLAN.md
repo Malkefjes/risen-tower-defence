@@ -84,7 +84,7 @@ Built in this order:
 1. **Raid clock (done 2026-09-25):** no Start wave button; HUD clock to the next raid (grace 4:00, then 3:00 after each raid is cleared); activity pulls it closer (mining, smelting, building); 60 s warning that activity can't cut into, with the active caves stirring and their direction shown. Calm and raid replace planning and wave.
 2. **Targets and building HP (done 2026-09-25):** the ship and smelter get HP; enemies path to the nearest target and claw it; the ship can be destroyed (the run goes on) and the raid moves to what's left.
 3. **Breakable walls (done 2026-09-25):** walls get HP; crossing a wall costs its chew time in pathfinding, so enemies weigh walking a maze against breaking through; the "can't seal the path" rule goes; walls can be repaired. Basic enemies break walls slowly (walling in must not be a great opening). Towers break with the wall under them.
-4. **Upkeep and decay** from the ship and hub modules (the hub can be rebuilt and acts as a ship).
+4. **Supply, upkeep and decay** (agreed 2026-09-25, see DESIGN "Supply and upkeep"): A supply network and build rules (done), B the ship's 24-slot inventory, upkeep drain and decay, C the hub (mockups first).
 5. **Stray groups** between raids.
 - **Cave exits** (done): raids come from caves around the map; the nearest few are active.
 

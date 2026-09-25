@@ -68,6 +68,15 @@ Principle: **waiting must cost something.** You don't choose when you're attacke
 - Live path preview while placing a piece. This is essential.
 - **Attacks (built):** enemies walk to a cell next to their target and claw it (`enemyDamage` 2 HP/s each); ship 400 HP, smelter 150. **The ship can be destroyed:** it slumps into a dark wreck that still blocks, its gun goes silent, a notice offers a New run, and the run goes on; raids move on to the next-nearest targets. A destroyed smelter is gone with what was in it. With nothing left to attack, enemies burrow away, so a raid still ends. Later, **upkeep:** the ship and hub modules supply a large area; walls and buildings connected to a supply keep up, and lose it when the supply is destroyed, then decay over time.
 
+### Supply and upkeep (decided 2026-09-25)
+
+- **Supply** comes from the ship (later also hubs). A wall or building is supplied when it's **within the supply radius** (large: 40 cells from the ship's centre, so a big base fits) **and connected to the ship through walls or buildings** (touching counts, corners too, since diagonal walls form a closed seam).
+- **Building needs supply (built):** walls must join the network (the first touches the ship), so no loose walls in the open; a smelter must touch it; nothing goes down beyond the radius. A later tech could allow disconnected walls. The radius shows as a ring on the snow while you hold something to build; unsupplied walls look cold and dim.
+- **Breaches cut supply:** a broken or picked-up piece can leave the walls beyond it unsupplied.
+- **Upkeep costs resources:** the ship (and hubs) has its own 24-slot inventory (also storage). Every minute it takes 3% of each supplied thing's build price (stone for stone walls and the smelter, alloy for plating and towers), about 10% per raid cycle; a bigger base costs more. The ship's panel shows the upkeep per minute and how long the stock lasts. If the ship is destroyed its inventory is lost.
+- **Decay:** anything unsupplied (cut off, out of range, upkeep unpaid, or the ship destroyed) loses HP steadily, full to broken in about 5 minutes; it stops when supply returns, and repair works as normal. Towers keep firing (power may switch them later); they go when their wall breaks.
+- **The hub** (later): a buildable building with its own supply area and inventory that acts as a ship; it can be built anywhere, so you can recover or start an outpost.
+
 ### Walls
 
 - Tetris-shaped pieces, rotatable. Any of the 7 shapes can be bought with stone from the Q build wheel; the stone is paid as the piece goes down and refunded when an unlocked piece is picked up.
