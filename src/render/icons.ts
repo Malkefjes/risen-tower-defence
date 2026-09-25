@@ -9,6 +9,8 @@ import { createOreNode, type NodeKind } from "./ore";
  */
 
 let cache: Record<NodeKind, string> | undefined;
+/** How much brighter than the world the icons are lit: mostly the sun, so the facets contrast. */
+const ICON_BOOST = { sky: 1.05, sun: 1.9 };
 
 /** Ore icons: the last stage of a node (its core), seen from the game's camera angle. */
 export function oreIcons(size = 96): Record<NodeKind, string> {
@@ -20,9 +22,10 @@ export function oreIcons(size = 96): Record<NodeKind, string> {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
   const scene = new THREE.Scene();
-  // The world's lights, as set up in the view and the playgrounds.
-  scene.add(new THREE.HemisphereLight(EVENING.sky, EVENING.ground, EVENING.hemi * Math.PI * 0.62));
-  const sun = new THREE.DirectionalLight(EVENING.sun, EVENING.sunIntensity * Math.PI * 0.8);
+  // The world's lights, as set up in the view and the playgrounds, turned up so
+  // the icons pop against the dark hotbar.
+  scene.add(new THREE.HemisphereLight(EVENING.sky, EVENING.ground, EVENING.hemi * Math.PI * 0.62 * ICON_BOOST.sky));
+  const sun = new THREE.DirectionalLight(EVENING.sun, EVENING.sunIntensity * Math.PI * 0.8 * ICON_BOOST.sun);
   sun.castShadow = true;
   sun.shadow.mapSize.set(512, 512);
   sun.shadow.bias = -0.0006;

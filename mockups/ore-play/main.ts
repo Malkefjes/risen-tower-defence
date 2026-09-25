@@ -294,7 +294,7 @@ function drawHotbar(): void {
   if (sig === barSig) return;
   barSig = sig;
   bar.innerHTML = hotbar.slots.map((s, i) =>
-    `<div class="slot${i === hotbar.selected ? " on" : ""}">${s ? ICONS[s.kind] + (STACK_MAX[s.kind] > 1 ? `<b>${s.count}</b>` : "") : ""}</div>`).join("");
+    `<div class="slot${i === hotbar.selected ? " on" : ""}">${s ? ICONS[s.kind] + (STACK_MAX[s.kind] > 1 ? `<b>x${s.count}</b>` : "") : ""}</div>`).join("");
 }
 /** "+N" over the node when a stage breaks off (adds up if stages break close together), then fades. */
 const gainEl = document.getElementById("gain")!;
