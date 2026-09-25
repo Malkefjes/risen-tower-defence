@@ -36,7 +36,7 @@ export class Controller {
   private checkSig = "";
   private checkAge = 0;
   private keys = new Set<string>();
-  private drag: { id: number; x: number; y: number; moved: boolean; button: number } | null = null;
+  private drag: { id: number; x: number; y: number; moved: boolean; button: number; mining: boolean } | null = null;
   private lastPointer: { x: number; y: number } | null = null;
   /** Left button held with nothing to place: the multitool fires. */
   private toolDown = false;
@@ -64,7 +64,9 @@ export class Controller {
       }
       if (e.button === 1) e.preventDefault();
       el.setPointerCapture(e.pointerId);
-      this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, button: e.button };
+      // A left press next to a node mines (the cursor aims); anywhere else a left drag pans.
+      const mining = e.button === 0 && this.selectedUid === null && this.buildKind === null && this.game.hotbar.held === "multitool" && this.game.nodeInReach() !== null;
+      this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, button: e.button, mining };
       this.pressedAt = performance.now();
       // Holding a wall or tower, the click places it. Otherwise the left button fires the tool.
       if (e.button === 0 && this.selectedUid === null && this.buildKind === null) this.toolDown = true;
@@ -72,9 +74,12 @@ export class Controller {
     el.addEventListener("pointermove", e => {
       this.view.setPointer(e.clientX, e.clientY);
       if (this.drag && this.drag.id === e.pointerId) {
-        // The left button is the tool now; the middle button drags the camera.
-        const canDrag = this.drag.button === 1;
-        if (!this.drag.moved && canDrag && Math.hypot(e.clientX - this.drag.x, e.clientY - this.drag.y) > DRAG_THRESHOLD) this.drag.moved = true;
+        // The middle button always drags the camera; the left one too, unless it is mining.
+        const canDrag = this.drag.button === 1 || (this.drag.button === 0 && !this.drag.mining);
+        if (!this.drag.moved && canDrag && Math.hypot(e.clientX - this.drag.x, e.clientY - this.drag.y) > DRAG_THRESHOLD) {
+          this.drag.moved = true;
+          if (this.drag.button === 0) this.toolDown = false;
+        }
         if (this.drag.moved && this.lastPointer) {
           const a = this.view.pickGround(this.lastPointer.x, this.lastPointer.y), b = this.view.pickGround(e.clientX, e.clientY);
           if (a && b) this.view.userPan(a.x - b.x, a.z - b.z);
