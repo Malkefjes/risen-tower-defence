@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { EVENING } from "./models";
 import { createOreNode, type NodeKind } from "./ore";
+import { createMultitool } from "./rig";
 
 /**
  * Item icons rendered from the game's own models, lit exactly like the world
@@ -8,12 +9,16 @@ import { createOreNode, type NodeKind } from "./ore";
  * matches what you see. Rendered once, off screen, into PNG data URLs.
  */
 
-let cache: Record<NodeKind, string> | undefined;
+export type IconKind = NodeKind | "multitool";
+let cache: Record<IconKind, string> | undefined;
 /** How much brighter than the world the icons are lit: mostly the sun, so the facets contrast. */
 const ICON_BOOST = { sky: 1.05, sun: 1.9 };
 
-/** Ore icons: the last stage of a node (its core), seen from the game's camera angle. */
-export function oreIcons(size = 96): Record<NodeKind, string> {
+/**
+ * Hotbar icons. Ore: the last stage of a node (its core), seen from the game's
+ * camera angle. Multitool: the rig's own tool, side on, pointing right.
+ */
+export function itemIcons(size = 96): Record<IconKind, string> {
   if (cache) return cache;
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(1);
@@ -40,7 +45,7 @@ export function oreIcons(size = 96): Record<NodeKind, string> {
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
   const pmrem = new THREE.PMREMGenerator(renderer);
   const shine = pmrem.fromScene(stripRoom(), 0.02).texture;
-  const out = {} as Record<NodeKind, string>;
+  const out = {} as Record<IconKind, string>;
   for (const kind of ["stone", "metal"] as const) {
     const node = createOreNode(3, kind === "stone" ? 7 : 11, kind);
     node.setAmount(0.2); // only the core is left
@@ -74,6 +79,27 @@ export function oreIcons(size = 96): Record<NodeKind, string> {
       if (kind === "metal") (m.material as THREE.Material).dispose();
     });
   }
+  // The multitool, side on, in the same light; it's held, not lying on the snow.
+  scene.environment = null;
+  ground.visible = false;
+  const tool = createMultitool();
+  scene.add(tool);
+  tool.updateMatrixWorld(true);
+  const tb = new THREE.Box3().setFromObject(tool);
+  const tc = tb.getCenter(new THREE.Vector3());
+  const tr = Math.max(tb.max.z - tb.min.z, tb.max.y - tb.min.y) / 2 / 0.86;
+  Object.assign(camera, { left: -tr, right: tr, top: tr, bottom: -tr });
+  camera.updateProjectionMatrix();
+  // From the left side, a little in front and above: +z (the muzzle) points right.
+  camera.position.copy(tc).add(new THREE.Vector3(-5, 1.2, 0.8));
+  camera.lookAt(tc);
+  sun.target.position.copy(tc);
+  sun.position.copy(tc).add(new THREE.Vector3(-4, 6, 3));
+  renderer.render(scene, camera);
+  out.multitool = renderer.domElement.toDataURL("image/png");
+  scene.remove(tool);
+  tool.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).geometry.dispose(); });
+
   ground.geometry.dispose();
   shine.dispose();
   pmrem.dispose();

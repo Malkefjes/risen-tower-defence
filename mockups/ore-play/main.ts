@@ -1,9 +1,8 @@
 import * as THREE from "three";
 import { createMaterials, EVENING } from "../../src/render/models";
-import { oreIcons } from "../../src/render/icons";
+import { itemIcons } from "../../src/render/icons";
 import { createOreNode, type NodeKind, type OreNodeModel } from "../../src/render/ore";
 import { createRig, RigAnimator } from "../../src/render/rig";
-import { COLONY_ORANGE } from "../../src/render/palette";
 import { Avatar, defaultAvatarTuning } from "../../src/sim/avatar";
 import { Hotbar, STACK_MAX, type ItemKind } from "../../src/sim/inventory";
 import "./style.css";
@@ -280,12 +279,12 @@ const wrap = (v: number, c: number) => ((((v - c + H) % (2 * H)) + 2 * H) % (2 *
 
 // ------------------------------------------------------------------ loop
 
-const ORE_ICONS = oreIcons();
+const ITEM_ICONS = itemIcons();
 const ICONS: Record<ItemKind, string> = {
-  multitool: `<svg viewBox="0 0 40 40"><rect x="3" y="12" width="26" height="12" rx="2.5" fill="#e8eaf0"/><rect x="8" y="22" width="9" height="12" rx="2" fill="#3d4457"/><rect x="28" y="14.5" width="6" height="7" rx="1.5" fill="#3d4457"/><rect x="33" y="16.5" width="5" height="3" fill="#4fdcca"/><rect x="6" y="15.5" width="14" height="3" fill="${COLONY_ORANGE}"/></svg>`,
-  // The last stage of each node, rendered from the real model.
-  stone: `<img alt="" src="${ORE_ICONS.stone}">`,
-  metal: `<img alt="" src="${ORE_ICONS.metal}">`,
+  multitool: `<img alt="" src="${ITEM_ICONS.multitool}">`,
+  // Rendered from the real models: the tool itself, and the last stage of each node.
+  stone: `<img alt="" src="${ITEM_ICONS.stone}">`,
+  metal: `<img alt="" src="${ITEM_ICONS.metal}">`,
 };
 const bar = document.getElementById("hotbar")!;
 let barSig = "";

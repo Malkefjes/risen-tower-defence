@@ -108,15 +108,10 @@ export function createRig(): Rig {
   const arms = [-1, 1].map(sx => limb(torso, sx * (HIPS_W / 2 + ARM_W / 2), TORSO_TOP - 0.03, UPPER_ARM, FOREARM, ARM_W));
 
   // Multitool, locked to the right wrist and pointing on along the forearm.
-  const tool = new THREE.Group();
+  const tool = createMultitool();
   tool.position.y = -0.03;
   tool.rotation.x = Math.PI / 2;
   arms[1]!.end.add(tool);
-  tool.add(box(0.03, 0.06, 0.035, M.steelDark, 0, -0.035, -0.015));
-  tool.add(rbox(0.05, 0.055, 0.16, 0.012, M.suit, 0, 0.015, 0.035));
-  for (const sx of [-1, 1]) tool.add(box(0.004, 0.028, 0.08, M.orange, sx * (0.025 + bulge(0.012, 0.055)), 0.028, 0.03));
-  tool.add(box(0.034, 0.034, 0.06, M.steelDark, 0, 0.025, 0.14));
-  tool.add(box(0.024, 0.024, 0.012, M.power, 0, 0.03, 0.175));
   const beam = mesh(new THREE.CylinderGeometry(0.007, 0.007, 1, 6).rotateX(Math.PI / 2).translate(0, 0, 0.5), M.power, 0, 0.042, 0.18);
   beam.scale.z = 0.3;
   beam.visible = false;
@@ -124,6 +119,31 @@ export function createRig(): Rig {
 
   object.traverse(c => { if ((c as THREE.Mesh).isMesh) { c.castShadow = true; c.receiveShadow = true; } });
   return { object, root, body, legs, arms, beam };
+}
+
+/**
+ * The multitool on its own (also used for its hotbar icon). It points along +z,
+ * with its top at +y; the pistol grip hangs below, raked back toward the wrist.
+ */
+export function createMultitool(): THREE.Group {
+  M ??= palette();
+  const tool = new THREE.Group();
+  // Wrist mount.
+  tool.add(box(0.03, 0.06, 0.035, M.steelDark, 0, -0.035, -0.015));
+  // Body with orange side strips, then the emitter and its cyan lens.
+  tool.add(rbox(0.05, 0.055, 0.16, 0.012, M.suit, 0, 0.015, 0.035));
+  for (const sx of [-1, 1]) tool.add(box(0.004, 0.028, 0.08, M.orange, sx * (0.025 + bulge(0.012, 0.055)), 0.028, 0.03));
+  tool.add(box(0.034, 0.034, 0.06, M.steelDark, 0, 0.025, 0.14));
+  tool.add(box(0.024, 0.024, 0.012, M.power, 0, 0.03, 0.175));
+  // Pistol grip under the body, raked back, with a trigger in front of it.
+  const grip = new THREE.Group();
+  grip.position.set(0, 0.02, 0.03);
+  grip.rotation.x = 0.35;
+  grip.add(rbox(0.03, 0.085, 0.036, 0.008, M.steel, 0, -0.085, 0));
+  grip.add(box(0.032, 0.012, 0.04, M.orange, 0, -0.08, 0));
+  tool.add(grip);
+  tool.add(box(0.008, 0.022, 0.01, M.steelDark, 0, -0.005, 0.068));
+  return tool;
 }
 
 // ------------------------------------------------------------------ animation
