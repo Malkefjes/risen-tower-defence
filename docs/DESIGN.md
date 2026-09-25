@@ -148,7 +148,7 @@ These were part of the round-based Phase 1 design. They stay in the game until t
 
 ## Controls (current)
 
-WASD run (relative to the screen) · Space jump · drag or arrows pan · C follow the rig · H look at the ship · scroll zoom · 1–9 hold a wall · R or right-click rotate · Q Twin, E Gatling · click a tower, X sells · Z undo · Enter start wave · P pause · F speed · V path preview · G grid · T test walkers · K tuning.
+WASD run (relative to the screen) · Shift sprint · Space jump · hold left mouse to fire the multitool (mines a node in reach) · hold Q for the wall wheel, E for the tower wheel, release to pick · left click places what you hold · R or right-click rotate · 1–6 hotbar (1 puts away what you hold) · middle-drag or arrows pan · C follow the rig · H look at the ship · scroll zoom · click a tower, X sells · Z undo · Enter start wave · P pause · F speed · V path preview · G grid · T test walkers · K tuning.
 
 ## Open questions
 

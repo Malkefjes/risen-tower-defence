@@ -1,10 +1,15 @@
 import { REASON_TEXT, TOWER_REASON_TEXT, type Game, type PlacementCheck } from "../sim/game";
-import { TOWER_INFO, type TowerKind } from "../sim/towers";
+import { SHAPE_IDS } from "../sim/pieces";
+import { TOWER_INFO, TOWER_KINDS, type TowerKind } from "../sim/towers";
 import type { Cell } from "../sim/types";
-import type { Hud } from "../ui/hud";
+import { BuildWheel, type WheelItem } from "../ui/buildWheel";
+import { pieceIcon, towerIcon, type Hud } from "../ui/hud";
 import type { GameView, Overlay } from "../render/view";
 
 const DRAG_THRESHOLD = 5;
+/** A left press shorter than this is a click (select a tower, pick up a wall); longer is just the tool firing. */
+const CLICK_TIME = 250;
+const sized = (svg: string) => svg.replace("<svg ", '<svg width="40" height="40" ');
 const PAN_SPEED = 1.1; // screen heights per second at current zoom
 
 /** Turns mouse and keyboard into game actions, and describes what to draw on top. */
@@ -30,19 +35,31 @@ export class Controller {
   private keys = new Set<string>();
   private drag: { id: number; x: number; y: number; moved: boolean; button: number } | null = null;
   private lastPointer: { x: number; y: number } | null = null;
+  /** Left button held with nothing to place: the multitool fires. */
+  private toolDown = false;
+  private pressedAt = 0;
+  /** The build wheel, and which one is open (Q walls, E towers). */
+  private wheel!: BuildWheel;
+  private wheelKind: "walls" | "towers" | null = null;
 
   constructor(private game: Game, private view: GameView, private hud: Hud) {}
 
   attach(el: HTMLElement): void {
+    this.wheel = new BuildWheel(document.getElementById("app")!);
     el.addEventListener("contextmenu", e => e.preventDefault());
     el.addEventListener("pointerdown", e => {
       if (e.button === 2) { if (this.selectedUid !== null) this.rotate(); else if (this.buildKind) this.clearSelection(); return; }
       el.setPointerCapture(e.pointerId);
       this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, button: e.button };
+      this.pressedAt = performance.now();
+      // Holding a wall or tower, the click places it. Otherwise the left button fires the tool.
+      if (e.button === 0 && this.selectedUid === null && this.buildKind === null) this.toolDown = true;
     });
     el.addEventListener("pointermove", e => {
+      this.view.setPointer(e.clientX, e.clientY);
       if (this.drag && this.drag.id === e.pointerId) {
-        const canDrag = this.drag.button === 1 || (this.selectedUid === null && this.buildKind === null);
+        // The left button is the tool now; the middle button drags the camera.
+        const canDrag = this.drag.button === 1;
         if (!this.drag.moved && canDrag && Math.hypot(e.clientX - this.drag.x, e.clientY - this.drag.y) > DRAG_THRESHOLD) this.drag.moved = true;
         if (this.drag.moved && this.lastPointer) {
           const a = this.view.pickGround(this.lastPointer.x, this.lastPointer.y), b = this.view.pickGround(e.clientX, e.clientY);
@@ -55,8 +72,10 @@ export class Controller {
     el.addEventListener("pointerup", e => {
       const d = this.drag;
       this.drag = null;
+      if (e.button === 0) this.toolDown = false;
       if (!d || d.id !== e.pointerId || d.moved || d.button !== 0) return;
-      this.click();
+      const holding = this.selectedUid !== null || this.buildKind !== null;
+      if (holding || performance.now() - this.pressedAt < CLICK_TIME) this.click();
     });
     el.addEventListener("pointerleave", () => { this.lastPointer = null; this.hoverCell = null; this.hoverPoint = null; this.hoverPieceId = null; });
     el.addEventListener("wheel", e => {
@@ -66,20 +85,63 @@ export class Controller {
     }, { passive: false });
 
     window.addEventListener("keydown", e => this.onKey(e));
-    window.addEventListener("keyup", e => this.keys.delete(e.key.toLowerCase()));
-    window.addEventListener("blur", () => this.keys.clear());
+    window.addEventListener("keyup", e => {
+      const k = e.key.toLowerCase();
+      this.keys.delete(k);
+      if ((k === "q" && this.wheelKind === "walls") || (k === "e" && this.wheelKind === "towers")) this.closeWheel();
+    });
+    window.addEventListener("blur", () => { this.keys.clear(); this.toolDown = false; if (this.wheelKind) { this.wheel.hide(); this.wheelKind = null; } });
+  }
+
+  // ---------------------------------------------------------------- build wheel
+
+  private wheelItems(): WheelItem[] {
+    const g = this.game;
+    return this.wheelKind === "walls"
+      ? SHAPE_IDS.map(sh => { const n = g.handCount(sh); return { icon: sized(pieceIcon(sh)), count: n, off: n <= 0 }; })
+      : TOWER_KINDS.map(k => ({ icon: sized(towerIcon(k)), off: g.ore("metal") < g.towerCost(k) }));
+  }
+
+  private openWheel(kind: "walls" | "towers"): void {
+    if (!this.game.canPlaceNow()) return;
+    this.wheelKind = kind;
+    this.wheel.show(this.wheelItems());
+  }
+
+  /** Releasing the key picks the highlighted item. */
+  private closeWheel(): void {
+    const i = this.wheel.picked(), kind = this.wheelKind;
+    this.wheel.hide();
+    this.wheelKind = null;
+    if (i === null || !this.game.canPlaceNow()) return;
+    if (kind === "walls") {
+      const piece = this.game.hand.find(h => h.shape === SHAPE_IDS[i]);
+      if (!piece) return;
+      this.clearSelection();
+      this.selectedUid = piece.uid;
+      this.checkSig = "";
+    } else {
+      this.clearSelection();
+      this.buildKind = TOWER_KINDS[i]!;
+    }
+    this.updateHover();
   }
 
   private onKey(e: KeyboardEvent): void {
     const k = e.key.toLowerCase();
     if (e.target instanceof HTMLInputElement) return;
-    if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) { this.keys.add(k); if (k.startsWith("arrow")) e.preventDefault(); return; }
+    if (["w", "a", "s", "d", "shift", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) { this.keys.add(k); if (k.startsWith("arrow")) e.preventDefault(); return; }
     if ((e.ctrlKey || e.metaKey) && k === "z") { e.preventDefault(); this.undo(); return; }
     switch (k) {
-      case "1": case "2": case "3": case "4": case "5": case "6": case "7": case "8": case "9": { const p = this.game.hand[Number(k) - 1]; if (p) this.select(p.uid); break; }
+      case "1": case "2": case "3": case "4": case "5": case "6": {
+        // Hotbar slots; 1 is the multitool, so it also puts away a held wall or tower.
+        this.game.hotbar.select(Number(k) - 1);
+        if (k === "1") { this.selectedUid = null; this.buildKind = null; }
+        break;
+      }
       case "r": this.rotate(); break;
-      case "q": this.selectBuild("twin"); break;
-      case "e": this.selectBuild("gatling"); break;
+      case "q": if (!e.repeat) this.openWheel("walls"); break;
+      case "e": if (!e.repeat) this.openWheel("towers"); break;
       case "x": case "delete": case "backspace": this.sellSelected(); break;
       case "escape": this.clearSelection(); break;
       case "z": this.undo(); break;
@@ -127,7 +189,7 @@ export class Controller {
     const refund = this.game.sellTower(id);
     if (refund === null) return;
     this.selectedTowerId = null;
-    this.hud.toast(`Sold for ${refund} credits`, "info");
+    this.hud.toast(`Sold for ${refund} metal`, "info");
   }
 
   rotate(): void {
@@ -171,7 +233,8 @@ export class Controller {
     }
     if (this.selectedUid !== null) {
       const r = this.game.place(this.selectedUid, this.rot, this.hoverCell);
-      if (r.ok) { this.selectedUid = null; this.checkSig = ""; }
+      // Keep holding the same shape while there are more of it.
+      if (r.ok) { this.selectedUid = this.game.hand.find(h => h.shape === r.piece!.shape)?.uid ?? null; this.checkSig = ""; }
       else this.hud.toast(REASON_TEXT[r.reason]);
       this.updateHover();
       return;
@@ -223,6 +286,15 @@ export class Controller {
     const mx = (r - u) * Math.SQRT1_2, my = (-r - u) * Math.SQRT1_2, ml = Math.hypot(mx, my);
     this.game.avatarInput.x = ml ? mx / ml : 0;
     this.game.avatarInput.y = ml ? my / ml : 0;
+    this.game.avatarInput.sprint = this.keys.has("shift");
+    // The tool fires while the left button is held with nothing to place.
+    const holding = this.selectedUid !== null || this.buildKind !== null;
+    const firing = this.toolDown && !holding && !this.wheelKind && this.game.hotbar.held === "multitool";
+    this.game.mineInput = { firing, onSpot: firing && this.view.cursorOnHotspot() };
+    if (this.wheelKind && this.lastPointer) {
+      const c = this.view.avatarScreen();
+      this.wheel.update(this.wheelItems(), c.x, c.y, this.lastPointer.x, this.lastPointer.y);
+    }
     if (ml) this.updateHover();
 
     // Arrow keys pan the camera away from the avatar.

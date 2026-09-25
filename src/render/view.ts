@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { Game, GameEvent, PlacedPiece, Shot } from "../sim/game";
+import { MiningView } from "./mining";
 import { createRig, RigAnimator, type Rig } from "./rig";
 import type { ShipRig } from "./ship";
 import type { Tower, TowerKind } from "../sim/towers";
@@ -49,6 +50,9 @@ const LIGHT_DIST = Math.hypot(...EVENING.sunOffset);
 const LIGHT_RIGHT = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), LIGHT_DIR).normalize();
 const LIGHT_UP = new THREE.Vector3().crossVectors(LIGHT_DIR, LIGHT_RIGHT).normalize();
 const ZOOM_MIN = 3.2, ZOOM_MAX = 11;
+/** How far the torso may twist from the legs toward where the tool aims (radians). */
+const TWIST_MAX = 1.9;
+const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 
 interface PieceView { group: THREE.Object3D; drop: number; bodies: THREE.Mesh[]; cells: readonly Cell[] }
 
@@ -64,6 +68,12 @@ export class GameView {
   private camGoal: THREE.Vector3 | null = null;
   private rig: Rig;
   private rigAnim: RigAnimator;
+  /** Ore nodes, hotspot glint and mining sparks. */
+  readonly mining: MiningView;
+  /** The cursor, in normalized device coordinates (set by the input layer). */
+  private pointer = new THREE.Vector2(-9, -9);
+  private twist = 0;
+  private tip = new THREE.Vector3();
   private shipLand = 0;
 
   private mat: Materials;
@@ -130,6 +140,7 @@ export class GameView {
     this.scene.add(this.sun, this.sun.target);
 
     this.buildTerrain();
+    this.mining = new MiningView(this.scene, this.camera, game);
 
     const ghost = (kind: TowerKind) => {
       const o = this.models.create(kind);
@@ -221,7 +232,7 @@ export class GameView {
     for (let i = 0; i < 90; i++) {
       const x = b.x0 - 6 + hash(i, 1, 7) * (b.x1 - b.x0 + 12), z = b.y0 - 6 + hash(i, 2, 7) * (b.y1 - b.y0 + 12);
       const cx = Math.floor(x), cz = Math.floor(z);
-      let near = false;
+      let near = this.game.nodes.some(n => cx >= n.x - 1 && cx <= n.x + 3 && cz >= n.y - 1 && cz <= n.y + 3);
       for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) if (w.isNexus(cx + dx, cz + dz) || w.isSpawner(cx + dx, cz + dz)) near = true;
       if (near) continue;
       const m = this.models.create("snowMound", { scale: 0.3 + hash(i, 3, 7) * 0.3 });
@@ -266,12 +277,36 @@ export class GameView {
   }
 
   private placeCamera(): void {
-    const s = this.shake > 0 ? 0.05 : 0;
+    const s = this.shake > 0 || this.mining.shake > 0 ? 0.05 : 0;
     this.camera.position.copy(this.target).add(CAM_OFFSET);
     this.camera.position.x += (Math.random() - 0.5) * s;
     this.camera.position.y += (Math.random() - 0.5) * s;
     this.camera.lookAt(this.target.x, 0, this.target.z);
     this.camera.updateMatrixWorld();
+  }
+
+  /** Where the cursor is on screen (client pixels), for aiming the tool. */
+  setPointer(clientX: number, clientY: number): void {
+    const r = this.renderer.domElement.getBoundingClientRect();
+    this.pointer.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+  }
+
+  /** Screen position (client pixels) of a world point (x east, y up, z south). */
+  screenOf(x: number, y: number, z: number): { x: number; y: number } {
+    const r = this.renderer.domElement.getBoundingClientRect(), p = this.tmpV.set(x, y, z).project(this.camera);
+    return { x: r.left + ((p.x + 1) / 2) * r.width, y: r.top + ((1 - p.y) / 2) * r.height };
+  }
+
+  /** Where the character is on screen (client pixels), a little above the feet: the build wheel's centre. */
+  avatarScreen(): { x: number; y: number } {
+    const o = this.rig.object.position;
+    return this.screenOf(o.x, o.y + 0.45, o.z);
+  }
+
+  /** Is the cursor on the hotspot of the node in reach? */
+  cursorOnHotspot(): boolean {
+    const el = this.renderer.domElement;
+    return this.mining.onHotspot(this.pointer, this.game.nodeInReach(), el.clientWidth / Math.max(1, el.clientHeight));
   }
 
   /** Ground point under a screen position, or null. */
@@ -339,6 +374,7 @@ export class GameView {
       else if (ev.type === "killed") this.onKilled(ev.walker.x, ev.walker.y);
       else if (ev.type === "reset") { this.clearFx(); this.shipLand = 0; this.followAvatar(); }
     }
+    this.mining.onEvents(events);
     const landed = events.some(e => e.type === "avatar-landed");
     this.syncWalkers(simDt);
     this.aimTowers(simDt);
@@ -379,17 +415,33 @@ export class GameView {
     this.renderer.render(this.scene, this.camera);
   }
 
-  /** Draw the avatar between the last two sim ticks, and animate it every frame. */
+  /**
+   * Draw the avatar between the last two sim ticks, and animate it every frame.
+   * While the tool fires, the legs keep running where you steer and the torso
+   * twists toward the aim; standing still, the whole rig turns to face it.
+   */
   private updateAvatar(dt: number, alpha: number, landed: boolean, ready: boolean): void {
     const av = this.game.avatar, T = this.game.avatarTuning;
+    const firing = this.game.mineInput.firing;
     const lerp = (a: number, b: number) => a + (b - a) * alpha;
-    const df = Math.atan2(Math.sin(av.facing - av.prevFacing), Math.cos(av.facing - av.prevFacing));
-    this.rig.object.position.set(lerp(av.prevX, av.x), lerp(av.prevZ, av.z), lerp(av.prevY, av.y));
+    const rx = lerp(av.prevX, av.x), rz = lerp(av.prevY, av.y);
+    const node = this.game.nodeInReach();
+    const aim = this.mining.aimPoint(this.pointer, node, new THREE.Vector3(rx + Math.sin(av.facing), 0, rz + Math.cos(av.facing)));
+    const aimYaw = Math.atan2(aim.x - rx, aim.z - rz);
+    if (firing && av.speed < 0.3) av.facing += wrapAngle(aimYaw - av.facing) * Math.min(1, dt * 10);
+    const df = wrapAngle(av.facing - av.prevFacing);
+    this.rig.object.position.set(rx, lerp(av.prevZ, av.z), rz);
     this.rig.object.rotation.y = av.prevFacing + df * alpha;
     this.rigAnim.update(dt, {
       speed: av.speed, topSpeed: T.speed, grounded: av.grounded, vz: av.vz,
-      jumpSpeed: (2 * T.jumpHeight) / T.jumpRise, landed, ready, mining: false,
+      jumpSpeed: (2 * T.jumpHeight) / T.jumpRise, landed, ready: ready || firing, mining: firing,
     });
+    const want = firing ? Math.max(-TWIST_MAX, Math.min(TWIST_MAX, wrapAngle(aimYaw - this.rig.object.rotation.y))) : 0;
+    this.twist += (want - this.twist) * Math.min(1, dt * 14);
+    this.rig.body.rotation.y += this.twist;
+    this.rig.object.updateMatrixWorld(true);
+    this.rig.beam.localToWorld(this.tip.set(0, 0, 1));
+    this.mining.update(dt, node, firing, this.game.mineInput.onSpot, firing ? this.tip : null);
   }
 
   /** The ship comes down with its door shut, lands with a snow burst, then opens the ramp. */

@@ -1,6 +1,9 @@
 import type { Game, GameEvent } from "../sim/game";
+import { STACK_MAX } from "../sim/inventory";
+import type { OreNode } from "../sim/ore";
+import { itemIcons } from "../render/icons";
 import { shapeOffsets, type ShapeId } from "../sim/pieces";
-import { TOWER_INFO, TOWER_KINDS, type TowerKind } from "../sim/towers";
+import { TOWER_INFO, type TowerKind } from "../sim/towers";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -29,29 +32,35 @@ export function towerIcon(kind: TowerKind): string {
 }
 
 export interface HudHandlers {
-  selectHand(uid: number): void;
   startWave(): void;
-  selectBuild(kind: TowerKind): void;
   sell(): void;
   restart(): void;
 }
 
 /** What the input layer has selected, for highlighting. */
 export interface HudSelection {
-  selectedUid: number | null;
-  rot: number;
-  buildKind: TowerKind | null;
   selectedTowerId: number | null;
 }
 
-const BUILD_KEYS: Record<TowerKind, string> = { twin: "Q", gatling: "E" };
+/** Screen position (page pixels) of a world point, from the view. */
+export type Projector = (x: number, y: number, z: number) => { x: number; y: number };
 
-/** DOM overlay: status, wall bar, wave button, toasts. Re-renders only on change. */
+/** Seconds the "+N" stays up after the last ore, and how long it takes to fade. */
+const GAIN_HOLD = 1, GAIN_FADE = 0.5;
+/** Seconds the supply notice stays, then fades. */
+const NOTICE_HOLD = 2.5, NOTICE_FADE = 0.6;
+
+const sized = (svg: string, px: number) => svg.replace("<svg ", `<svg width="${px}" height="${px}" `);
+
+/** DOM overlay: status, hotbar, wave button, notices. Re-renders only on change. */
 export class Hud {
   private lastSig = "";
+  private barSig = "";
   private toastTimer = 0;
-  /** Hand entries that just arrived, so their cards can pop in. */
-  private fresh = new Set<number>();
+  private icons = itemIcons();
+  /** "+N" over the node a stage just broke off (adds up if stages break close together). */
+  private gain = { node: null as OreNode | null, amount: 0, idle: 9 };
+  private noticeT = 9;
 
   constructor(private game: Game, private h: HudHandlers) {
     $("waveBtn").addEventListener("click", () => h.startWave());
@@ -62,11 +71,15 @@ export class Hud {
   onEvents(events: readonly GameEvent[]): void {
     for (const e of events) {
       if (e.type === "supply") {
-        for (const p of e.pieces) this.fresh.add(p.uid);
-        const uids = e.pieces.map(p => p.uid);
-        this.toast(`Supply drop: +${uids.length} walls${e.credits ? `, +${e.credits} credits` : ""}`, "info");
-        this.lastSig = "";
-        window.setTimeout(() => { for (const u of uids) this.fresh.delete(u); }, 900);
+        // A short notice of what came in; the build wheel (Q) is where walls are counted.
+        const got = new Map<string, number>();
+        for (const p of e.pieces) got.set(p.shape, (got.get(p.shape) ?? 0) + 1);
+        $("notice").innerHTML = [...got].map(([sh, n]) => `<span>+${n} ${sized(pieceIcon(sh as ShapeId), 26)}</span>`).join("");
+        this.noticeT = got.size ? 0 : 9;
+      } else if (e.type === "node-broke") {
+        const g = this.gain;
+        if (g.node !== e.node || g.idle > GAIN_HOLD + GAIN_FADE) { g.node = e.node; g.amount = 0; }
+        g.amount += e.added; g.idle = 0;
       } else if (e.type === "leak") {
         const hp = $("hp");
         hp.classList.remove("hurt");
@@ -84,11 +97,37 @@ export class Hud {
     this.toastTimer = window.setTimeout(() => t.classList.remove("show"), kind === "info" ? 2400 : 1700);
   }
 
+  /** Per frame: the hotbar, the "+N" popup and the supply notice. `dt` in real seconds. */
+  frame(dt: number, project: Projector): void {
+    const g = this.game, bar = g.hotbar;
+    const sig = bar.selected + "|" + bar.slots.map(s => (s ? s.kind + s.count : "")).join(",");
+    if (sig !== this.barSig) {
+      this.barSig = sig;
+      $("hotbar").innerHTML = bar.slots.map((s, i) =>
+        `<div class="slot${i === bar.selected ? " on" : ""}">${s ? `<img alt="" src="${this.icons[s.kind]}">` + (STACK_MAX[s.kind] > 1 ? `<b>x${s.count}</b>` : "") : ""}</div>`).join("");
+    }
+
+    // "+N" over the node, or "Full" while the hotbar can't take the next chunk.
+    const gn = this.gain, full = g.mining.full ? g.mining.node : null;
+    if (full) { if (gn.node !== full) { gn.node = full; gn.amount = 0; } gn.idle = 0; }
+    gn.idle += dt;
+    const el = $("gain");
+    const a = gn.node && (gn.amount > 0 || full) ? Math.max(0, Math.min(1, 1 - (gn.idle - GAIN_HOLD) / GAIN_FADE)) : 0;
+    if (a > 0 && gn.node) {
+      const n = gn.node, p = project(n.x + 1.5, 1.6 + Math.max(0, gn.idle - GAIN_HOLD) * 0.5, n.y + 1.5);
+      el.style.transform = `translate(${p.x}px, ${p.y}px) translate(-50%, -50%)`;
+      el.innerHTML = (gn.amount > 0 ? `<img alt="" src="${this.icons[n.kind]}">+${gn.amount}` : "") + (full ? "<i>Full</i>" : "");
+    }
+    el.style.opacity = String(a);
+
+    this.noticeT += dt;
+    $("notice").style.opacity = String(Math.max(0, Math.min(1, 1 - (this.noticeT - NOTICE_HOLD) / NOTICE_FADE)));
+  }
+
   update(sel: HudSelection): void {
     const g = this.game;
-    const { selectedUid, rot } = sel;
     const tower = g.towers.find(t => t.id === sel.selectedTowerId);
-    const sig = JSON.stringify([g.phase, g.round, g.hand, selectedUid, rot, sel.buildKind, sel.selectedTowerId, g.waveRemaining, this.fresh.size, g.credits, g.hp,
+    const sig = JSON.stringify([g.phase, g.round, sel.selectedTowerId, g.waveRemaining, g.hp,
       g.tuning.twin, g.tuning.gatling, g.tuning.sellRefund, tower?.fresh]);
     if (sig === this.lastSig) return;
     this.lastSig = sig;
@@ -97,26 +136,12 @@ export class Hud {
     const pill = $("phase");
     pill.textContent = g.phase === "planning" ? "Planning" : g.phase === "wave" ? "Wave" : "Run over";
     pill.className = `pill ${g.phase}`;
-    $("credits").innerHTML = `Credits <b>${g.credits}</b>`;
     $("hp").innerHTML = `HP <b>${g.hp}</b>`;
 
     // Run over: a notice, not a popup. The map stays visible behind it.
     const over = $("over");
     over.hidden = g.phase !== "over";
-    $("overText").textContent = `The nexus fell in round ${g.round}.`;
-
-    // Build menu
-    const build = $("build");
-    build.innerHTML = "";
-    for (const kind of TOWER_KINDS) {
-      const info = TOWER_INFO[kind], cost = g.tuning[kind].cost;
-      const b = document.createElement("button");
-      b.className = "card tower" + (sel.buildKind === kind ? " sel" : "") + (g.credits < cost ? " poor" : "");
-      b.innerHTML = `<span class="key">${BUILD_KEYS[kind]}</span><span class="cost">${cost}</span>${towerIcon(kind)}<span class="name">${info.name.toUpperCase()} ${info.size}×${info.size}</span>`;
-      b.title = `Build ${info.name} (${info.size}×${info.size}, ${cost} credits) (${BUILD_KEYS[kind]})`;
-      b.addEventListener("click", () => this.h.selectBuild(kind));
-      build.appendChild(b);
-    }
+    $("overText").textContent = `The ship fell in round ${g.round}.`;
 
     // Selected tower
     const inspect = $("inspect");
@@ -126,28 +151,9 @@ export class Hud {
       inspect.innerHTML = `
         <h3>${info.name} <span>${info.size}×${info.size}</span></h3>
         <dl><dt>Damage</dt><dd>${s.damage}</dd><dt>Shots/s</dt><dd>${s.rate}</dd><dt>Range</dt><dd>${s.range}</dd></dl>
-        <button class="sell" id="sellBtn" ${g.phase === "over" ? "disabled" : ""}>Sell for ${value}</button>`;
+        <button class="sell" id="sellBtn" ${g.phase === "over" ? "disabled" : ""}>Sell for <img alt="" src="${this.icons.metal}">${value}</button>`;
       $("sellBtn").addEventListener("click", () => this.h.sell());
     }
-
-    // Wall bar
-    const hand = $("hand");
-    hand.innerHTML = "";
-    if (!g.hand.length) {
-      const e = document.createElement("div");
-      e.className = "card empty";
-      e.innerHTML = `<span class="name">No walls</span>`;
-      hand.appendChild(e);
-    }
-    g.hand.forEach((p, i) => {
-      const b = document.createElement("button");
-      b.className = "card" + (p.uid === selectedUid ? " sel" : "") + (this.fresh.has(p.uid) ? " new" : "");
-      const key = i < 9 ? `<span class="key">${i + 1}</span>` : "";
-      b.innerHTML = `${key}${pieceIcon(p.shape, p.uid === selectedUid ? rot : 0)}<span class="name">${p.shape}</span>`;
-      b.title = `Hold ${p.shape} wall${i < 9 ? ` (${i + 1})` : ""}`;
-      b.addEventListener("click", () => this.h.selectHand(p.uid));
-      hand.appendChild(b);
-    });
 
     // Wave button
     const wave = $("waveBtn") as HTMLButtonElement;

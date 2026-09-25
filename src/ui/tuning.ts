@@ -9,29 +9,36 @@ const tower = (kind: "twin" | "gatling", key: keyof TowerStats, label: string, m
   ({ label, get: t => t[kind][key], set: (t, v) => { t[kind][key] = v; }, min, max, step });
 
 const SECTIONS: { title: string; knobs: Knob[] }[] = [
-  { title: "Supply and economy", knobs: [
+  { title: "Supply and ore", knobs: [
     top("supplyPerRound", "Walls per round", 1, 8, 1),
-    top("income", "Income per round", 0, 30, 1),
-    top("startCredits", "Starting credits", 0, 60, 1),
+    top("wallCost", "Stone per wall cell", 0, 100, 5),
+    top("startStone", "Starting stone", 0, 2000, 50),
+    top("startMetal", "Starting metal", 0, 1000, 25),
     top("sellRefund", "Sell refund (after the wave starts)", 0, 1, 0.05, true),
+  ] },
+  { title: "Mining and moving", knobs: [
+    top("mineTime", "Seconds to mine a node", 1, 30, 0.5),
+    top("reach", "Mining reach (cells)", 0.5, 4, 0.1),
+    top("sprint", "Sprint (× run speed)", 1, 2.5, 0.05),
   ] },
   { title: "Enemies", knobs: [
     top("enemyHp", "HP in round 1", 1, 60, 1),
     top("enemyHpGrowth", "HP growth per round", 1, 1.6, 0.01),
     top("enemySpeed", "Speed", 0.4, 2.5, 0.05),
-    top("startHp", "Nexus HP", 1, 50, 1),
+    top("startHp", "Ship HP", 1, 50, 1),
   ] },
   { title: "Twin 1×1", knobs: [
-    tower("twin", "cost", "Cost", 1, 40, 1), tower("twin", "damage", "Damage", 0.5, 10, 0.5),
+    tower("twin", "cost", "Metal cost", 0, 500, 10), tower("twin", "damage", "Damage", 0.5, 10, 0.5),
     tower("twin", "rate", "Shots per second", 0.5, 12, 0.5), tower("twin", "range", "Range", 1, 8, 0.25),
   ] },
   { title: "Gatling 2×2", knobs: [
-    tower("gatling", "cost", "Cost", 1, 60, 1), tower("gatling", "damage", "Damage", 0.5, 10, 0.5),
+    tower("gatling", "cost", "Metal cost", 0, 1000, 10), tower("gatling", "damage", "Damage", 0.5, 10, 0.5),
     tower("gatling", "rate", "Shots per second", 0.5, 20, 0.5), tower("gatling", "range", "Range", 1, 10, 0.25),
   ] },
 ];
 
-const STORE = "risen.tuning.v1";
+// v2: ore replaced credits (prices changed scale), so older saved tuning is dropped.
+const STORE = "risen.tuning.v2";
 
 /** Tuning saved in this browser, if any. Never throws. */
 export function loadTuning(): Partial<Tuning> | undefined {
@@ -50,7 +57,7 @@ function save(t: Tuning): void {
 
 const fmt = (k: Knob, v: number) => k.pct ? `${Math.round(v * 100)}%` : String(+v.toFixed(2));
 
-/** Slider panel that edits the live tuning. Starting credits and nexus HP apply from the next run. */
+/** Slider panel that edits the live tuning. Starting ore and ship HP apply from the next run. */
 export class TuningPanel {
   private el = document.getElementById("tune")!;
 
@@ -83,7 +90,7 @@ export class TuningPanel {
     });
     const note = document.createElement("p");
     note.className = "note";
-    note.textContent = "Changes apply at once and are saved in this browser. Starting credits and nexus HP apply from the next run.";
+    note.textContent = "Changes apply at once and are saved in this browser. Starting ore and ship HP apply from the next run.";
     this.el.appendChild(note);
     this.el.querySelector("#tuneReset")!.addEventListener("click", () => {
       const d = defaultTuning();

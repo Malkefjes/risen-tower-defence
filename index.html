@@ -18,7 +18,6 @@
         <div class="status">
           <span id="round">Round 1</span>
           <span id="phase" class="pill">Planning</span>
-          <span id="credits" class="stat credits" title="Credits"></span>
           <span id="hp" class="stat hp" title="Ship HP"></span>
         </div>
         <div class="tools">
@@ -32,6 +31,8 @@
       </header>
 
       <div id="toast" role="status" aria-live="polite"></div>
+      <div id="notice" class="notice" aria-live="polite"></div>
+      <div id="gain" class="gain"></div>
 
       <div id="paused" class="paused" hidden aria-live="polite">
         <span class="bars" aria-hidden="true"><i></i><i></i></span>
@@ -48,8 +49,7 @@
       <div class="bottom">
         <div class="inspect" id="inspect" hidden></div>
         <div class="center">
-          <div class="hand" id="hand" aria-label="Your walls"></div>
-          <div class="build" id="build" aria-label="Towers"></div>
+          <div class="hotbar" id="hotbar" aria-label="Hotbar"></div>
         </div>
         <div class="actions">
           <button id="waveBtn" class="primary">Start wave</button>

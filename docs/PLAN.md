@@ -68,7 +68,7 @@ Each milestone is a playable build that answers one question. I propose we stop 
 - **Build range:** you can only build within a radius of the avatar (a tuning slider, so we can test with it large or small).
 - Waves and the wave button stay for now, so only one big thing changes at a time.
 
-#### M1a part 2 plan (approved 2026-09-25)
+#### M1a part 2 plan (approved and built 2026-09-25)
 Brings the ore playground into the game, plus the build wheel.
 - **From the playground:** sprint (Shift, 1.4×, not while firing), longer beam and grip, hold LMB to mine with move-while-mining and torso twist, screen-space reach (1.5-cell gap), 3×3 stone and metal nodes breaking in three stages with a shrinking footprint and the hotspot glint (+20%), 200 stone / 100 metal per stage arriving at once, the 6-slot hotbar (multitool in slot 1, stacks of 1000, "x200" counts, Full when a chunk won't fit), icons rendered from the models, the fading "+N".
 - **Ore replaces credits:** pay straight from the hotbar (no delivery to the ship). Walls cost stone per cell (start 25), Twin 100 metal, Gatling 250, start with 400 stone and 100 metal; pick-up refunds stone, selling refunds metal. Credits and flat income go.

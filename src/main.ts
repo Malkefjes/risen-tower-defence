@@ -11,9 +11,7 @@ const view = new GameView(document.getElementById("view")!, game);
 
 let controller!: Controller;
 const hud = new Hud(game, {
-  selectHand: uid => controller.select(uid),
   startWave: () => controller.startWave(),
-  selectBuild: kind => controller.selectBuild(kind),
   sell: () => controller.sellSelected(),
   restart: () => { controller.clearSelection(); game.reset(); },
 });
@@ -66,6 +64,7 @@ function frame(now: number): void {
   const events = game.drainEvents();
   hud.onEvents(events);
   hud.update(controller);
+  hud.frame(dt, (x, y, z) => view.screenOf(x, y, z));
   syncTools();
   // Draw moving things between the last two ticks, so they stay smooth at any refresh rate.
   view.render(dt, simDt, overlay, events, Math.min(1, avatarAcc / TICK));
