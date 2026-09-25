@@ -59,7 +59,7 @@ const LIGHT_DIR = new THREE.Vector3(-EVENING.sunOffset[0], -EVENING.sunOffset[1]
 const LIGHT_DIST = Math.hypot(...EVENING.sunOffset);
 const LIGHT_RIGHT = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), LIGHT_DIR).normalize();
 const LIGHT_UP = new THREE.Vector3().crossVectors(LIGHT_DIR, LIGHT_RIGHT).normalize();
-const ZOOM_MIN = 3.2, ZOOM_MAX = 11;
+const ZOOM_MIN = 3.2, ZOOM_MAX = 14;
 /**
  * Snow: flakes per square cell that look right at the default zoom (1400 over
  * ±18 cells), and a snow field wide enough for the most zoomed-out view.
