@@ -24,10 +24,10 @@ Whether it ends up feeling more like tower defense or more like survival should 
 ## Core loop
 
 - **Arrive:** a drop pod lands you on the planet. Explore on foot and find ore nodes.
-- **Settle:** call the ship down where you think you can hold it. The ship is your core: it holds your cargo, prints walls, and is how you leave. Losing it ends the run.
+- **Settle:** call the ship down where you think you can hold it. The ship is your core: it supplies upkeep to what's connected to it and is how you leave. Losing it does **not** end the run (decided 2026-09-25): the ship is destroyed, what depended on it starts to decay, and you rebuild around a hub (later), which can be rebuilt and acts as a ship.
 - **Mine:** by hand at first (carry ore home), then extractors on nodes, then a rover and drones to haul.
 - **Build:** walls bought with stone, towers, the smelter, generators.
-- **Defend:** raids are telegraphed (a threat meter, warnings with direction). They come from burrows around the map.
+- **Defend:** raids come on their own (no Start wave button). A raid clock always shows the time to the next raid; your activity pulls it closer; a warning shows where it will come from. They come from cave exits around the map.
 - **Launch:** you choose when to leave. Launching triggers a final siege. The ship carries over to the next planet.
 
 One planet is one long run over several sessions, saved in the browser.
@@ -48,12 +48,25 @@ One planet is one long run over several sessions, saved in the browser.
 - **Physical up to the ship:** ore is mined at nodes and physically brought home (carried, then hauled). Once at the ship, the refinery turns it into alloy without routing.
 - **Power** comes from generators and the ship, runs through connected walls, and is drawn by towers and industry.
 
+### Raids (decided 2026-09-25)
+
+Principle: **waiting must cost something.** You don't choose when you're attacked, but you always see it coming, because mazing needs a readable threat and time to prepare.
+
+- **Raid clock, no button:** the HUD always shows the time to the next raid. First raid after a grace period (start: 4:00 after landing), then a set time after the last raid is cleared (start: 3:00). All numbers are tuning sliders; Erik tunes by playing.
+- **Activity pulls it closer:** mining, smelting and building make noise the planet hears (start: each mined stage takes 4 s off, metal 6 s; each wall piece 2 s; each tower or building 5 s; the clock runs 50% faster while a smelter works). You can't call a raid yourself, only push it by what you do.
+- **Warning:** the last 60 s are fixed (activity can't pull a raid into its own warning); the active caves stir and the HUD shows where it will come from.
+- **Raids grow** with how many you've survived (size and enemy HP).
+- **Calm and raid** replace planning and wave. Walls can be picked up during calm and lock during a raid; nodes regrow when a raid is cleared.
+- **Later:** stray groups between raids, a steady pressure on the base that grows over time.
+
 ### Enemies and pathing
 
-- Enemies take the fastest path to the nearest building (later: enemy types with preferred targets), recalculated when walls change. They move in 8 directions but never cut a wall corner, so two diagonal walls form a closed seam.
-- Every building can be attacked: ship, extractors, refinery, generators, stockpiles. Normal enemies walk around walls; wall breakers are a special enemy type.
-- Walls may never seal a building off from the spawns, and no placement may trap an enemy.
+- **Targets and obstacles:** enemies go for the **nearest target** (the ship, the smelter, later hub modules, extractors, generators), not always the ship. Walls, terrain and ore are **obstacles**, never targets. **Towers are not targets:** a tower breaks only when a wall under it breaks (a 2×2 breaks if any one of its walls does).
+- **Walls are slow obstacles (planned):** enemies take the quickest way to their target, where crossing a wall costs the time it takes to chew through it (its HP against their damage) and terrain can't be crossed at all. A maze that holds is walked; a full block gets chewed through. You may wall in completely, but it must be **sufficiently slow** for basic enemies (a decent amount of time, not impossible), so walling in the ship is never a great starting strategy; mazing stays the efficient play (a holding maze costs nothing, a block costs repairs). Plated walls are tougher. Wall breakers come later as a special enemy. The path preview shows where enemies will chew through.
+- They move in 8 directions but never cut a wall corner, so two diagonal walls form a closed seam.
+- Until breakable walls exist, walls may never seal a target off from the caves, and no placement may trap an enemy.
 - Live path preview while placing a piece. This is essential.
+- **The ship can be destroyed:** raids then move on to the next-nearest targets. Later, **upkeep:** the ship and hub modules supply a large area; walls and buildings connected to a supply keep up, and lose it when the supply is destroyed, then decay over time.
 
 ### Walls
 

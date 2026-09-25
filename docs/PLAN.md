@@ -79,12 +79,14 @@ Brings the ore playground into the game, plus the build wheel.
 - **Order:** nodes in the sim → mining and hotbar in `Game` → costs → rendering (shared with the playground) → input → HUD → tuning → docs, headless check, publish.
 - **Answers:** is walking out and mining fun, or a chore? Does building near yourself feel good?
 
-### M1b: The planet reacts
-- **Real time instead of rounds:** no more planning phase and Start wave button.
-- **Threat meter:** rises with time and with how much you mine. At thresholds a raid comes, announced ahead of time with its direction and a countdown (a non-blocking notice).
-- **Burrows:** raids come from spawn points around the map instead of one rift.
-- **Wall rules in real time:** the old "pick up during planning" rule goes away. Proposal: full refund within a few seconds of placing (an undo window), then recycle for part of the cost.
-- **Answers:** do telegraphed raids give the "base could be raided any moment" tension while still letting you prepare the maze?
+### M1b: The planet reacts (direction agreed 2026-09-25; see DESIGN "Raids" and "Enemies and pathing")
+Built in this order:
+1. **Raid clock:** no Start wave button; HUD clock to the next raid (grace 4:00, then 3:00 after each raid is cleared); activity pulls it closer (mining, smelting, building); 60 s warning that activity can't cut into, with the active caves stirring and their direction shown. Calm and raid replace planning and wave.
+2. **Targets and building HP:** the ship and smelter get HP; enemies path to the nearest target and claw it; the ship can be destroyed (the run goes on) and the raid moves to what's left.
+3. **Breakable walls:** walls get HP; crossing a wall costs its chew time in pathfinding, so enemies weigh walking a maze against breaking through; the "can't seal the path" rule goes; walls can be repaired. Basic enemies break walls slowly (walling in must not be a great opening). Towers break with the wall under them.
+4. **Upkeep and decay** from the ship and hub modules (the hub can be rebuilt and acts as a ship).
+5. **Stray groups** between raids.
+- **Cave exits** (done): raids come from caves around the map; the nearest few are active.
 
 ### M2: Outposts
 - **Extractors** built on nodes: they mine on their own into a visible stockpile next to them, which you collect by walking over.
