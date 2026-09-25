@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Risen Tower Defence</title>
+    <title>Frostfall</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&display=swap" />
@@ -14,32 +14,48 @@
       <div class="vignette"></div>
 
       <header class="topbar">
-        <div class="brand">RISEN <span>Frostfall</span></div>
+        <div class="brand">FROSTFALL</div>
         <div class="status">
           <span id="round">Round 1</span>
-          <span id="phase" class="pill">Draft</span>
+          <span id="phase" class="pill">Planning</span>
+          <span id="hp" class="stat hp" title="Ship HP"></span>
+          <span id="upkeep" class="pill over" hidden>Upkeep unpaid</span>
         </div>
         <div class="tools">
-          <button id="bPath" class="tool" aria-pressed="true" title="Path preview (P)">Path</button>
+          <button id="bPath" class="tool" aria-pressed="true" title="Path preview (V)">Path</button>
           <button id="bGrid" class="tool" aria-pressed="false" title="Grid (G)">Grid</button>
           <button id="bWalkers" class="tool" aria-pressed="false" title="Test walkers during planning (T)">Test walkers</button>
           <button id="bSpeed" class="tool" title="Game speed (F)">1×</button>
-          <button id="bPause" class="tool" aria-pressed="false" title="Pause (Space)">Pause</button>
+          <button id="bPause" class="tool" aria-pressed="false" title="Pause (P)">Pause</button>
+          <button id="bTune" class="tool" aria-pressed="false" title="Tuning panel (K)">Tune</button>
         </div>
       </header>
 
       <div id="toast" role="status" aria-live="polite"></div>
+      <div id="gain" class="gain"></div>
+      <div id="caveMarks" class="cavemarks" aria-hidden="true"></div>
+
+      <div id="paused" class="paused" hidden aria-live="polite">
+        <span class="bars" aria-hidden="true"><i></i><i></i></span>
+        <b>Paused</b>
+      </div>
+
+      <div id="over" class="over" hidden>
+        <span id="overText">The nexus fell.</span>
+        <button id="restartBtn" class="primary small">New run</button>
+      </div>
+
+      <aside id="tune" class="tune" hidden aria-label="Tuning"></aside>
 
       <div class="bottom">
-        <div class="help" id="help">
-          <div><kbd>1</kbd>–<kbd>9</kbd> or click a wall to hold it</div>
-          <div><kbd>R</kbd> / right-click rotate, click to place</div>
-          <div>Click your glowing walls to pick them up, <kbd>Z</kbd> undo</div>
-          <div>Drag or <kbd>WASD</kbd> to pan, scroll to zoom</div>
+        <div class="inspect" id="inspect" hidden></div>
+        <div class="center">
+          <div class="smelter" id="smelter" hidden aria-label="Smelter"></div>
+          <div class="smelter shipstore" id="shipStore" hidden aria-label="Ship"></div>
+          <div class="hotbar" id="hotbar" aria-label="Hotbar"></div>
         </div>
-        <div class="hand" id="hand" aria-label="Your walls"></div>
         <div class="actions">
-          <button id="waveBtn" class="primary">Start wave <kbd>Enter</kbd></button>
+          <div id="raidClock" class="raidclock" aria-live="polite"></div>
         </div>
       </div>
 

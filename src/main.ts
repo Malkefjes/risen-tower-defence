@@ -2,17 +2,23 @@ import "./style.css";
 import { Controller } from "./input/controller";
 import { GameView } from "./render/view";
 import { Game, TICK } from "./sim/game";
-import { FROSTFALL } from "./sim/maps";
+import { generateWorld } from "./sim/worldgen";
 import { Hud } from "./ui/hud";
+import { loadTuning, TuningPanel } from "./ui/tuning";
 
-const game = new Game(FROSTFALL);
-const view = new GameView(document.getElementById("view")!, game);
+// The world is generated from a seed (stored in this browser; 1 unless changed).
+let seed = 1;
+try { seed = Number(localStorage.getItem("risen.world.seed")) || 1; } catch { /* storage blocked */ }
+const world = generateWorld(seed);
+const game = new Game(world.map, { tuning: loadTuning(), supply: true });
+const view = new GameView(document.getElementById("view")!, game, world);
 
 let controller!: Controller;
 const hud = new Hud(game, {
-  selectHand: uid => controller.select(uid),
-  startWave: () => controller.startWave(),
+  sell: () => controller.sellSelected(),
+  restart: () => { controller.clearSelection(); game.reset(); },
 });
+const tuning = new TuningPanel(game.tuning);
 controller = new Controller(game, view, hud);
 controller.attach(view.renderer.domElement);
 
@@ -23,6 +29,8 @@ btn("bGrid").addEventListener("click", () => { controller.showGrid = !controller
 btn("bWalkers").addEventListener("click", () => controller.toggleWalkers());
 btn("bSpeed").addEventListener("click", () => controller.toggleSpeed());
 btn("bPause").addEventListener("click", () => controller.togglePause());
+btn("bTune").addEventListener("click", () => tuning.toggle());
+addEventListener("keydown", e => { if (e.key.toLowerCase() === "k" && !(e.target instanceof HTMLInputElement)) tuning.toggle(); });
 function syncTools(): void {
   btn("bPath").setAttribute("aria-pressed", String(controller.showPath));
   btn("bGrid").setAttribute("aria-pressed", String(controller.showGrid));
@@ -31,6 +39,10 @@ function syncTools(): void {
   btn("bSpeed").textContent = `${controller.speed}×`;
   btn("bPause").setAttribute("aria-pressed", String(controller.paused));
   btn("bPause").textContent = controller.paused ? "Paused" : "Pause";
+  // Make pause impossible to miss, without blocking the map.
+  document.getElementById("app")!.classList.toggle("is-paused", controller.paused);
+  document.getElementById("paused")!.hidden = !controller.paused;
+  btn("bTune").setAttribute("aria-pressed", String(tuning.open));
 }
 
 addEventListener("resize", () => view.resize());
@@ -38,22 +50,34 @@ addEventListener("resize", () => view.resize());
 document.addEventListener("click", e => (e.target as HTMLElement).closest("button")?.blur());
 
 // Fixed-step simulation, rendered every animation frame.
-let last = performance.now(), acc = 0;
+// The avatar runs on real time; game speed only scales the world (waves, enemies, towers).
+let last = performance.now(), acc = 0, avatarAcc = 0;
 function frame(now: number): void {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
   let simDt = 0;
   if (!controller.paused) {
+    avatarAcc += dt;
+    while (avatarAcc >= TICK) { game.stepAvatar(TICK); avatarAcc -= TICK; }
     acc += dt * controller.speed;
     let steps = 0;
     while (acc >= TICK && steps++ < 12) { game.step(TICK); acc -= TICK; simDt += TICK; }
   }
   const overlay = controller.frame(dt);
-  hud.update(controller.selectedUid, controller.rot);
+  const events = game.drainEvents();
+  hud.onEvents(events);
+  hud.update(controller);
+  hud.frame(dt, (x, y, z) => view.screenOf(x, y, z));
   syncTools();
-  const fresh = game.events.filter(e => e.type === "supply");
-  for (const e of fresh) if (e.type === "supply") hud.supplyArrived(e.pieces.map(p => p.uid));
-  view.render(dt, simDt, overlay);
+  // Draw moving things between the last two ticks, so they stay smooth at any refresh rate.
+  // The world's clock for animation runs every frame (not just on ticks), at game speed.
+  const worldDt = controller.paused ? 0 : dt * controller.speed;
+  view.render(dt, simDt, overlay, events, Math.min(1, avatarAcc / TICK), worldDt, Math.min(1, acc / TICK));
+  // Numbers for headless checks: draws and triangles last frame, and enemies on the map.
+  (window as unknown as { perfInfo: object }).perfInfo = { calls: view.renderer.info.render.calls, tris: view.renderer.info.render.triangles, walkers: game.walkers.length, phase: game.phase, active: game.activeSpawners() };
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+// For headless checks: glide the camera to a cell.
+(window as unknown as { lookAtCell: (x: number, y: number) => void }).lookAtCell = (x, y) => view.userPan(x + 0.5 - view.target.x, y + 0.5 - view.target.z);
+(window as unknown as { game: Game }).game = game;

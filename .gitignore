@@ -6,3 +6,4 @@ dist-single/
 Thumbs.db
 .vscode/*
 !.vscode/extensions.json
+dist-mockup/
