@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { crystalCluster, deadTree } from "../../src/render/alien";
-import { cliffCell } from "../../src/render/terrain";
+import { cliffRun } from "../../src/render/terrain";
 import { computeField } from "../../src/sim/pathfinding";
 import { World, type MapDef } from "../../src/sim/world";
 import { bakeStatic } from "../../src/render/bake";
@@ -243,13 +243,11 @@ function generate(): void {
     cells.set(cellKey(x, y), { kind: "rock", top: rockTop(h) });
     put(models.create("rock", { scale: h, seed: x * 31 + y + seed }), x + 0.5, y + 0.5);
   };
-  /** Cliff cells and their models, so a pass can be carved through later. */
-  const cliffObjs = new Map<string, THREE.Object3D>();
+  /** Cliff cells; their models are built per chunk at the end, fused like walls. */
+  const cliffs = new Set<string>();
   const cliff = (x: number, y: number, h: number) => {
-    const k = cellKey(x, y), o = cliffCell(x * 7919 + y * 31 + seed, h);
-    cells.set(k, { kind: "cliff", top: h });
-    put(o, x + 0.5, y + 0.5);
-    cliffObjs.set(k, o);
+    cells.set(cellKey(x, y), { kind: "cliff", top: h });
+    cliffs.add(cellKey(x, y));
   };
   const crystal = (x: number, y: number, s: number) => {
     cells.set(cellKey(x, y), { kind: "crystal", top: TREE_HURDLE });
@@ -274,6 +272,8 @@ function generate(): void {
   // Cliff ridges: long winding rock walls too tall to jump, through the highlands,
   // the outer forest and the wastes. Gaps in them are the passes (and chokepoints).
   const ridgeLine = noise(seed * 23 + 8), passes = noise(seed * 29 + 9), heights = noise(seed * 31 + 10);
+  // Two heights, changing slowly along a ridge, so neighbouring cells line up.
+  const cliffHeight = (x: number, y: number) => (heights(x / 10, y / 10) > 0.55 ? 1.75 : 1.4);
   for (let y = -R; y < R; y++) for (let x = -R; x < R; x++) {
     const d = Math.hypot(x, y);
     if (d < 20) continue;
@@ -281,7 +281,17 @@ function generate(): void {
     if (z.highlands + z.forest * smooth(26, 40, d) + z.wastes * 0.7 < 0.45) continue;
     if (Math.abs(ridgeLine(x / 20, y / 20) - 0.5) > 0.028) continue;
     if (passes(x / 8, y / 8) > 0.66 || !free(x, y)) continue;
-    cliff(x, y, 1.3 + heights(x / 6, y / 6) * 0.5);
+    cliff(x, y, cliffHeight(x, y));
+  }
+  // Ridges that only touch corner to corner get the corner filled, so every wall is
+  // one continuous mass (no see-through diagonal gaps).
+  for (const k of [...cliffs]) {
+    const [x, y] = k.split(",").map(Number) as [number, number];
+    for (const [dx, dy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]] as [number, number][]) {
+      if (!cliffs.has(cellKey(x + dx, y + dy)) || cliffs.has(cellKey(x + dx, y)) || cliffs.has(cellKey(x, y + dy))) continue;
+      if (free(x + dx, y)) cliff(x + dx, y, cliffHeight(x + dx, y));
+      else if (free(x, y + dy)) cliff(x, y + dy, cliffHeight(x, y + dy));
+    }
   }
 
   // Ore where it belongs: stone in the forest belt and highland outcrops, metal up
@@ -357,10 +367,9 @@ function generate(): void {
       for (let i = 0; i <= steps; i++) {
         const x = Math.round(rx * (1 - i / steps)), y = Math.round(ry * (1 - i / steps));
         for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-          const k = cellKey(x + dx, y + dy), o = cliffObjs.get(k);
-          if (!o) continue;
-          o.removeFromParent();
-          cliffObjs.delete(k);
+          const k = cellKey(x + dx, y + dy);
+          if (!cliffs.has(k)) continue;
+          cliffs.delete(k);
           cells.delete(k);
         }
       }
@@ -371,6 +380,9 @@ function generate(): void {
   // Merge each chunk's scenery, and give it its own patch of ground.
   for (let cy = -R; cy < R; cy += CHUNK) for (let cx = -R; cx < R; cx += CHUNK) {
     const g = chunks.get(`${Math.floor(cx / CHUNK)},${Math.floor(cy / CHUNK)}`) ?? new THREE.Group();
+    const own: [number, number][] = [];
+    for (let y = cy; y < cy + CHUNK; y++) for (let x = cx; x < cx + CHUNK; x++) if (cliffs.has(cellKey(x, y))) own.push([x, y]);
+    if (own.length) g.add(cliffRun(own, (x, y) => cells.get(cellKey(x, y))?.top ?? 1.4, (x, y) => cliffs.has(cellKey(x, y)), cx * 31 + cy + seed));
     bakeStatic(g);
     const bare = bareChunk(cx, cy);
     if (bare) g.add(bare);
@@ -449,15 +461,38 @@ addEventListener("keydown", e => {
   const k = e.key.toLowerCase();
   if (k === " ") { e.preventDefault(); if (!e.repeat) jumpQueued = true; return; }
   // The key left of 1 (backquote; on some layouts it arrives as a dead key or §).
+  if (k === "c") { following = true; return; }
   if (e.code === "Backquote" || k === "`" || k === "§") {
     showStats = !showStats; stats.hidden = !showStats;
     try { localStorage.setItem("risen.world.stats", showStats ? "1" : "0"); } catch { /* storage blocked */ }
     return;
   }
+  if (k.startsWith("arrow")) e.preventDefault();
   keys.add(k);
 });
 addEventListener("keyup", e => keys.delete(e.key.toLowerCase()));
 addEventListener("blur", () => keys.clear());
+// Camera, as in the game: it follows the rig until you pan (drag, or the arrow keys);
+// C follows again. A drag is measured on the ground, so the land moves with the mouse.
+let following = true;
+let drag: { x: number; y: number; moved: boolean } | null = null;
+const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), rayc = new THREE.Raycaster();
+function groundAt(clientX: number, clientY: number): THREE.Vector3 | null {
+  const r = renderer.domElement.getBoundingClientRect();
+  rayc.setFromCamera(new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1), camera);
+  const p = new THREE.Vector3();
+  return rayc.ray.intersectPlane(groundPlane, p) ? p : null;
+}
+renderer.domElement.addEventListener("contextmenu", e => e.preventDefault());
+renderer.domElement.addEventListener("pointerdown", e => { renderer.domElement.setPointerCapture(e.pointerId); drag = { x: e.clientX, y: e.clientY, moved: false }; });
+renderer.domElement.addEventListener("pointermove", e => {
+  if (!drag) return;
+  if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 6) return;
+  const a = groundAt(drag.x, drag.y), b = groundAt(e.clientX, e.clientY);
+  if (a && b) { target.x += a.x - b.x; target.z += a.z - b.z; following = false; }
+  drag = { x: e.clientX, y: e.clientY, moved: true };
+});
+addEventListener("pointerup", () => { drag = null; });
 renderer.domElement.addEventListener("wheel", e => { e.preventDefault(); wantZoom = Math.min(OVERVIEW_ZOOM, Math.max(2.5, wantZoom * Math.exp(e.deltaY * 0.0012))); }, { passive: false });
 addEventListener("resize", () => renderer.setSize(container.clientWidth, container.clientHeight));
 renderer.setSize(container.clientWidth, container.clientHeight);
@@ -585,8 +620,22 @@ function frame(now: number): void {
   anim.update(dt, { speed: avatar.speed, topSpeed: T.speed, grounded: avatar.grounded, vz: avatar.vz, jumpSpeed: (2 * T.jumpHeight) / T.jumpRise, landed, ready: false, mining: false });
   for (const a of animated) (a.userData.update as ((t: number, dt: number) => void) | undefined)?.(time, dt);
 
+  // Arrow keys pan along the screen (screen right is (1, -1) on the ground, up is (-1, -1)).
+  let pr = 0, pu = 0;
+  if (keys.has("arrowright")) pr += 1;
+  if (keys.has("arrowleft")) pr -= 1;
+  if (keys.has("arrowup")) pu += 1;
+  if (keys.has("arrowdown")) pu -= 1;
+  if (pr || pu) {
+    const sp = zoom * 2.2 * dt;
+    target.x += (pr - pu) * K * sp; target.z += (-pr - pu) * K * sp;
+    following = false;
+  }
   const k = 1 - Math.exp(-dt * 4);
-  target.x += (rx - target.x) * k; target.z += (ry - target.z) * k;
+  if (following) { target.x += (rx - target.x) * k; target.z += (ry - target.z) * k; }
+  // Stay over the world.
+  target.x = Math.max(-R - 6, Math.min(R + 6, target.x));
+  target.z = Math.max(-R - 6, Math.min(R + 6, target.z));
   zoom += (wantZoom - zoom) * (1 - Math.exp(-dt * 8));
   // Snow always falls the same way; zoom only changes how many flakes are drawn,
   // fewer when zoomed out, so the snow looks equally dense on screen.
