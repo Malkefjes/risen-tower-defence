@@ -32,7 +32,7 @@ export interface AvatarTuning {
 
 /** Tuned by Erik in the movement playground (2026-09-25). */
 export const defaultAvatarTuning = (): AvatarTuning => ({
-  speed: 4,
+  speed: 5,
   accel: 40,
   airControl: 0.5,
   turnSpeed: 20,

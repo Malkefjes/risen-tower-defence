@@ -129,7 +129,7 @@ function renderPanel(): void {
   panel.querySelector("#reset")!.addEventListener("click", () => {
     const d = defaultAvatarTuning();
     Object.assign(T, d);
-    anim.tuning.stride = 3;
+    anim.tuning.stride = 2;
     view.follow = 4;
     save();
     renderPanel();
