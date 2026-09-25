@@ -75,18 +75,17 @@ const nodeAt = (x: number, y: number) => nodes.find(nd => blocks(nd, x, y));
 // Nodes are solid; everything else is snow.
 const heightAt = (x: number, y: number) => (nodeAt(x, y) ? Infinity : 0);
 
-/** The node within reach of the avatar (edge distance), if any. */
-const REACH = 0.8;
+/**
+ * The node within reach of the avatar: a fixed circle around the node's centre,
+ * the same from every side and at every stage (reaches the corners of a full 3×3).
+ */
+const REACH = 2.5;
 function nodeInReach(): Node | null {
   let best: Node | null = null, bestD = REACH;
   for (const nd of nodes) {
     if (nd.amount <= 0) continue;
-    // Distance to the nearest cell the node still blocks.
-    for (let y = nd.y; y < nd.y + nd.n; y++) for (let x = nd.x; x < nd.x + nd.n; x++) {
-      if (!blocks(nd, x, y)) continue;
-      const d = Math.hypot(Math.max(x - avatar.x, 0, avatar.x - (x + 1)), Math.max(y - avatar.y, 0, avatar.y - (y + 1)));
-      if (d < bestD) { bestD = d; best = nd; }
-    }
+    const d = Math.hypot(avatar.x - (nd.x + nd.n / 2), avatar.y - (nd.y + nd.n / 2));
+    if (d <= bestD) { bestD = d; best = nd; }
   }
   return best;
 }
