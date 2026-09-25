@@ -169,11 +169,11 @@ const ringTex = (() => {
   g.beginPath(); g.arc(32, 32, 27, 0, Math.PI * 2); g.stroke();
   return new THREE.CanvasTexture(c);
 })();
-const ring = new THREE.Sprite(new THREE.SpriteMaterial({ map: ringTex, color: "#7ff5e6", transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
+const ring = new THREE.Sprite(new THREE.SpriteMaterial({ map: ringTex, color: "#ffffff", transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
 ring.visible = false;
 ring.renderOrder = 5;
 scene.add(ring);
-const IDLE_TINT = new THREE.Color("#ffffff"), HIT_TINT = new THREE.Color("#7ff5e6");
+const IDLE_TINT = new THREE.Color("#ffffff"), HIT_TINT = new THREE.Color("#ffffff");
 let targetW = 0, glintSpin = 0;
 /** The glint shown for the node in reach; glides when that node's spot moves. */
 const hotspot = { node: null as Node | null, pos: new THREE.Vector3(), from: new THREE.Vector3(), move: 1 };
@@ -227,8 +227,8 @@ function nodeUnderAvatar(nd: Node): boolean {
   // Respawning restores the full 3×3, so keep it clear of the avatar.
   return avatar.x + r > nd.x && avatar.x - r < nd.x + nd.n && avatar.y + r > nd.y && avatar.y - r < nd.y + nd.n;
 }
-/** A spark (cyan when it comes off the hotspot), or a small chip of the node's material. */
-const cyanSparkMat = new THREE.MeshBasicMaterial({ color: "#7ff5e6" });
+/** A spark (white burst when it comes off the hotspot), or a small chip of the node's material. */
+const cyanSparkMat = new THREE.MeshBasicMaterial({ color: "#ffffff" });
 function spark(at: THREE.Vector3, chip: NodeKind | null, cyan = false): void {
   const m = new THREE.Mesh(sparkGeo, cyan ? cyanSparkMat : chip === "metal" ? chipMat : chip === "stone" ? rockMat : sparkMat);
   m.position.copy(at);
@@ -327,7 +327,7 @@ function frame(now: number): void {
   // The glint glides to its new spot, and flares while it's being hit.
   hotspot.move = Math.min(1, hotspot.move + dt * 5);
   if (target_?.spot) hotspot.pos.lerpVectors(hotspot.from, target_.spot, 1 - (1 - hotspot.move) ** 2);
-  // Two clear states: idle (small, soft white) and targeted (bright cyan, bigger, spinning, with a ring).
+  // Two clear states: idle (small, soft, see-through) and targeted (full bright, bigger, spinning, with a ring).
   glint.visible = !!target_?.spot && target_.amount > 0;
   targetW += ((onSpot ? 1 : 0) - targetW) * Math.min(1, dt * 14);
   glint.position.copy(hotspot.pos).add(new THREE.Vector3(0, -0.05, 0));
