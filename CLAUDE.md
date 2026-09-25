@@ -5,7 +5,7 @@ Read this first in every session. Sessions do not share memory; this file and `d
 ## Status
 
 - **Done:** Phase 1 step 1 (map, supply drops, wall bar, placement with path preview, undo/pick-up, waves, camera). Phase 1 step 2: Twin tower (1×1) and its Gatling form (2×2) on walls, credits with flat income, selling (full refund in the phase built, 75% after, also mid-wave), enemy HP with growth, nexus HP and run over/restart, tuning panel (K) saved in localStorage. Turret look picked by Erik: design B "Twin" from `mockups/turrets/`.
-- **Next:** Erik plays and tunes step 2 (walls per round, economy). Then Phase 2: tower variety. Ask before starting.
+- **Next:** Stronghold look: Erik is picking wall and nexus styles from `mockups/stronghold/` (published at https://claude.ai/artifact/DkXNNFtuUA26uCJPa3sLa5). Then bring the pick into the game. Erik also plays and tunes step 2. Phase 2 (tower variety) after that; ask before starting.
 - **Run locally:** double-click `start-dev.cmd` (Windows) or `npm install && npm run dev`, then http://localhost:5173.
 
 ## Collaboration
