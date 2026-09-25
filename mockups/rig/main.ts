@@ -213,15 +213,16 @@ function jumpPose(k: number): number {
 }
 
 let jumpK = -1;
-/** Run cycle speed (radians per second of the stride phase), flight bounce and matching ground speed. */
-const RUN_CADENCE = 9.5, RUN_BOUNCE = 0.025, RUN_SPEED = 1.8;
-
-function animate(t: number, dt: number): void {
+/** Running-jump progress 0..1 while leaping in the wall-hop loop, else -1. */
+let leapK = -1;
+const LEAP_BLEND = 0.3;
+/** Part of a leap spent in the air, and the arc height above the line between take-off and landing. */
+const LEAP_AIR: [number, number] = [0.12, 0.9];
+const LEAP_ARC = 0.32;
+/** The run cycle at time t. */
+function runPose(t: number): void {
   const { legs, arms, body } = rig;
-  if (jumpK >= 0) {
-    jumpPose(jumpK);
-  } else if (pose === "run" || pose === "hop") {
-    const r = t * RUN_CADENCE;
+  const r = t * RUN_CADENCE;
     [0, 1].forEach(i => {
       const ph = r + i * Math.PI;
       // Long stride: the hip swings well forward and back.
@@ -236,7 +237,53 @@ function animate(t: number, dt: number): void {
     // Forward lean and a little counter-twist; the body sits steady relative to the hips.
     body.position.y = HIP_Y + 0;
     body.rotation.set(0.14, Math.sin(r) * 0.06, 0);
+}
+
+/** Every animated joint value, so two poses can be blended. */
+function capturePose(): number[] {
+  const { legs, arms, body } = rig;
+  const joints = [...legs.flatMap(l => [l.top, l.mid, l.end]), ...arms.flatMap(a => [a.top, a.mid])];
+  return [...joints.map(j => j.rotation.x), body.rotation.x, body.rotation.y, body.position.y];
+}
+function applyPose(v: number[]): void {
+  const { legs, arms, body } = rig;
+  const joints = [...legs.flatMap(l => [l.top, l.mid, l.end]), ...arms.flatMap(a => [a.top, a.mid])];
+  joints.forEach((j, i) => { j.rotation.x = v[i]!; });
+  const n = joints.length;
+  body.rotation.x = v[n]!; body.rotation.y = v[n + 1]!; body.position.y = v[n + 2]!;
+}
+
+/** Running leap for k in 0..1: drive one knee up, trailing leg stretched back, then reach down to land. */
+function leapPose(k: number): void {
+  const { legs, arms, body } = rig;
+  const reach = smooth((k - 0.45) / 0.45);
+  poseLeg(legs[0]!, -0.75 + 0.35 * reach, 1.15 - 0.8 * reach);
+  poseLeg(legs[1]!, 0.45 - 0.7 * reach, 0.55 - 0.25 * reach);
+  poseArm(arms[0]!, 0.45 - 0.3 * reach, -1.2);
+  poseArm(arms[1]!, -0.7 + 0.4 * reach, -1.2);
+  body.rotation.set(0.2, 0, 0);
+  body.position.y = HIP_Y;
+}
+
+/** Run cycle speed (radians per second of the stride phase), flight bounce and matching ground speed. */
+const RUN_CADENCE = 9.5, RUN_BOUNCE = 0.025, RUN_SPEED = 1.8;
+
+function animate(t: number, dt: number): void {
+  const { legs, arms, body } = rig;
+  if (jumpK >= 0) {
+    jumpPose(jumpK);
+  } else if (pose === "run" || pose === "hop") {
+    runPose(t);
+    if (leapK >= 0) {
+      // Running jump: blend from the run into the leap and back, so the stride never stops.
+      const a = capturePose();
+      leapPose(leapK);
+      const b = capturePose();
+      const w = smooth(leapK / LEAP_BLEND) * smooth((1 - leapK) / LEAP_BLEND);
+      applyPose(a.map((v, i) => v + (b[i]! - v) * w));
+    }
   } else if (pose === "idle") {
+
     poseLeg(legs[0]!, 0, 0.06); poseLeg(legs[1]!, 0, 0.06);
     poseArm(arms[0]!, 0.05, -0.2); poseArm(arms[1]!, 0.05, -0.2);
     body.position.y = HIP_Y + Math.sin(t * 2) * 0.004;
@@ -260,11 +307,11 @@ function animate(t: number, dt: number): void {
     const a = l.top.rotation.x, b = a + l.mid.rotation.x;
     return HIP_Y - FOOT_H - (THIGH * Math.cos(a) + SHIN * Math.cos(b));
   });
-  const airborne = jumpK >= CROUCH_END && jumpK < LAND_START;
+  const airborne = (jumpK >= CROUCH_END && jumpK < LAND_START) || (leapK >= LEAP_AIR[0] && leapK < LEAP_AIR[1]);
   const grounded = jumpK >= 0 ? !airborne : pose !== "idle" && pose !== "build";
   let target = grounded ? -softMin(drops[0]!, drops[1]!) * SCALE : 0;
   // Running: a short, rounded flight between steps. Lowest at mid-stance, highest mid-flight.
-  if (jumpK < 0 && (pose === "run" || pose === "hop")) target += RUN_BOUNCE * (1 - Math.cos(2 * t * RUN_CADENCE)) / 2;
+  if (jumpK < 0 && !airborne && (pose === "run" || pose === "hop")) target += RUN_BOUNCE * (1 - Math.cos(2 * t * RUN_CADENCE)) / 2;
   rootY += (target - rootY) * Math.min(1, dt * (jumpK >= 0 ? 40 : 14));
   rig.root.position.y = rootY;
   rig.beam.visible = pose === "mine";
@@ -332,7 +379,8 @@ const hopPath: Leg[] = (() => {
   ];
   return pts.map(([kind, from, to, h0, h1]) => ({
     kind: kind as Leg["kind"], from, to, h0, h1,
-    dur: kind === "jump" ? JUMP_TIME : from.distanceTo(to) / RUN_SPEED,
+    // Leaps are timed at running speed (with a floor), so the rig never slows down for them.
+    dur: kind === "jump" ? Math.max(0.5, from.distanceTo(to) / RUN_SPEED) : from.distanceTo(to) / RUN_SPEED,
   }));
 })();
 const hopTotal = hopPath.reduce((a, l) => a + l.dur, 0);
@@ -344,16 +392,17 @@ function followHop(dt: number): void {
   let t = hopT, leg = hopPath[0]!;
   for (const l of hopPath) { if (t < l.dur) { leg = l; break; } t -= l.dur; }
   const k = t / leg.dur;
+  jumpK = -1;
+  // Constant forward speed through runs and leaps alike.
+  mover.position.lerpVectors(leg.from, leg.to, k);
   if (leg.kind === "walk") {
-    jumpK = -1;
-    mover.position.lerpVectors(leg.from, leg.to, k);
+    leapK = -1;
     mover.position.y = leg.h0;
   } else {
-    jumpK = k;
-    const u = jumpPose(k);
-    const e = smooth(u);
-    mover.position.lerpVectors(leg.from, leg.to, e);
-    mover.position.y = leg.h0 + (leg.h1 - leg.h0) * e + 4 * JUMP_ARC * u * (1 - u);
+    leapK = k;
+    // Airborne between push-off and touch-down; before and after, the feet are on the start or end surface.
+    const u = Math.min(1, Math.max(0, (k - LEAP_AIR[0]) / (LEAP_AIR[1] - LEAP_AIR[0])));
+    mover.position.y = leg.h0 + (leg.h1 - leg.h0) * u + 4 * LEAP_ARC * u * (1 - u);
   }
   const dir = new THREE.Vector3().subVectors(leg.to, leg.from);
   const want = Math.atan2(dir.x, dir.z);
@@ -378,6 +427,7 @@ function frame(): void {
   } else {
     mover.position.set(0, 0, 0);
     mover.rotation.y = heading;
+    leapK = -1;
     if (pose === "jump") {
       // Jump in place, then stand for a moment.
       inPlaceT = (inPlaceT + dt) % (JUMP_TIME + 0.6);
