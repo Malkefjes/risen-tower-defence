@@ -1,6 +1,6 @@
 # Risen: Survival direction plan
 
-Status: **draft, waiting for Erik's approval.** Nothing below is built yet.
+Status: **approved by Erik on 2026-09-25.** Work one step at a time: before each step, Claude describes exactly what it will build and waits for Erik's feedback.
 Written 2026-09-25 from the design conversation where Erik chose the survival direction.
 
 This file has three jobs:
@@ -134,12 +134,10 @@ Good ideas that don't have a milestone yet. Review this list at every milestone.
 - **Enemy types with preferred targets** (e.g. some go for power, some for stockpiles).
 - **Ship modules** you install and carry between planets.
 
-## 7. Open questions for Erik
+## 7. Settled questions (2026-09-25)
 
-These don't block M0. Each has my recommendation.
-
-1. **Split M1 into M1a and M1b?** Recommended: yes. Changing the player, the camera and the economy at once is already a lot; real-time raids on top would make it hard to tell what feels off.
-2. **Camera keys:** WASD moves, dragging and arrow keys pan and stop following. Recommended snap keys: **C** back to the avatar, **H** to the ship. Space stays pause.
-3. **Wall recycling in real time (M1b):** recommended full refund for about 5 seconds after placing, then recycle for 50%. Or should placed walls be permanent?
-4. **Avatar danger:** recommended the avatar can't be hurt in M1 and becomes hurtable in M2. Should it ever have a weapon, or stay a builder who relies on the base?
-5. **Ship model:** mockup a ship (based on Reactor core as its engine) during M1a, or keep the Reactor core as a placeholder until later?
+1. M1 is split into M1a and M1b.
+2. Camera: WASD moves the avatar; dragging and arrow keys pan and stop following; **C** snaps to the avatar, **H** to the ship; Space stays pause.
+3. Walls in real time (M1b): full refund for about 5 seconds after placing, then recycle for 50%.
+4. The avatar is a builder: it can't be hurt in M1 and can be from M2. No weapon for now; revisit later.
+5. The ship gets its own mockup (engine core based on Reactor core) before it goes into the game in M1a.
