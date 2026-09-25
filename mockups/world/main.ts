@@ -49,13 +49,12 @@ sun.shadow.mapSize.set(2048, 2048);
 sun.shadow.bias = -0.0006;
 sun.shadow.radius = 3;
 scene.add(sun, sun.target);
-// Plain snow far beyond the world's edge.
+// The snow: always pure white. Variety comes from bare patches where it's gone (see below).
 const farGround = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), mat.snow);
 farGround.rotation.x = -Math.PI / 2;
-farGround.position.y = -0.01;
 farGround.receiveShadow = true;
 scene.add(farGround);
-const groundMat = new THREE.MeshStandardMaterial({ color: "#ffffff", vertexColors: true, roughness: 1, metalness: 0 });
+const bareMat = new THREE.MeshStandardMaterial({ color: "#ffffff", vertexColors: true, roughness: 0.95, metalness: 0, flatShading: true });
 
 // ------------------------------------------------------------------ noise
 
@@ -100,16 +99,79 @@ function zonesAt(x: number, y: number): Zones {
   return { clearing, forest, highlands: Math.max(0, highlands), wastes };
 }
 
-// Ground colour per zone: fresh snow in the clearing, bluer shaded snow in the forest,
-// grey rocky ground in the highlands, and violet-stained snow in the wastes.
-const GROUND = {
-  clearing: new THREE.Color("#f1f4fa"),
-  forest: new THREE.Color("#dfe3ef"),
-  highlands: new THREE.Color("#b9bcc9"),
-  highlandsRock: new THREE.Color("#8d909e"),
-  wastes: new THREE.Color("#cbbde6"),
-  wastesDeep: new THREE.Color("#9c86c9"),
+// ------------------------------------------------------------------ bare ground
+
+/**
+ * Where the snow is gone, and why. Each kind has a cause, a colour for the ground
+ * it reveals, and a paler rim where the last thin snow lies, so every patch ends
+ * in a crisp line against the white. Ice (frozen lakes) is flat open ground.
+ */
+type Bare = "ice" | "scorch" | "rift" | "rock" | "needles";
+const BARE: Record<Bare, { core: THREE.Color; rim: THREE.Color }> = {
+  ice: { core: new THREE.Color("#9fc8e2"), rim: new THREE.Color("#d8eaf5") },
+  scorch: { core: new THREE.Color("#6a6572"), rim: new THREE.Color("#b3afbb") },
+  rift: { core: new THREE.Color("#4a3a5e"), rim: new THREE.Color("#a08fbf") },
+  rock: { core: new THREE.Color("#6e717e"), rim: new THREE.Color("#b3b6c1") },
+  needles: { core: new THREE.Color("#5e6553"), rim: new THREE.Color("#c5cabd") },
 };
+const BARE_KINDS: Bare[] = ["ice", "scorch", "rift", "rock", "needles"];
+/** Patch levels: at `RIM` the snow thins, at `CORE` the ground shows. */
+const RIM = 0.5, CORE = 0.6;
+
+/** How strongly each kind of bare ground is at a point (0..1); set up per seed in `generate`. */
+let bareAt: (x: number, y: number) => Record<Bare, number> = () => ({ ice: 0, scorch: 0, rift: 0, rock: 0, needles: 0 });
+/** The kind of bare ground at a point, if any (for footprints: they only show in snow). */
+function bareKind(x: number, y: number): Bare | null {
+  const m = bareAt(x, y);
+  for (const k of BARE_KINDS) if (m[k] >= RIM) return k;
+  return null;
+}
+
+/**
+ * Bare patches for one chunk, as one mesh: marching squares over each kind's
+ * strength at half-cell steps, filled with the rim colour above RIM and the ground
+ * colour above CORE. Low-poly, crisp edges, one draw per chunk.
+ */
+function bareChunk(cx: number, cy: number): THREE.Mesh | null {
+  const STEP = 0.5, n = CHUNK / STEP + 1;
+  const pos: number[] = [], col: number[] = [];
+  const grid: Record<Bare, number>[] = [];
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) grid.push(bareAt(cx + i * STEP, cy + j * STEP));
+  const poly = (vals: number[], xs: number[], zs: number[], t: number) => {
+    const out: [number, number][] = [];
+    for (let e = 0; e < 4; e++) {
+      const a = e, b = (e + 1) % 4;
+      if (vals[a]! >= t) out.push([xs[a]!, zs[a]!]);
+      if ((vals[a]! >= t) !== (vals[b]! >= t)) {
+        const f = (t - vals[a]!) / (vals[b]! - vals[a]!);
+        out.push([xs[a]! + (xs[b]! - xs[a]!) * f, zs[a]! + (zs[b]! - zs[a]!) * f]);
+      }
+    }
+    return out;
+  };
+  for (const kind of BARE_KINDS) {
+    for (let j = 0; j < n - 1; j++) for (let i = 0; i < n - 1; i++) {
+      const v = [grid[j * n + i]![kind], grid[j * n + i + 1]![kind], grid[(j + 1) * n + i + 1]![kind], grid[(j + 1) * n + i]![kind]];
+      if (Math.max(...v) < RIM) continue;
+      const x0 = cx + i * STEP, z0 = cy + j * STEP;
+      const xs = [x0, x0 + STEP, x0 + STEP, x0], zs = [z0, z0, z0 + STEP, z0 + STEP];
+      for (const [t, c, y] of [[RIM, BARE[kind].rim, 0.004], [CORE, BARE[kind].core, 0.007]] as [number, THREE.Color, number][]) {
+        const p = poly(v, xs, zs, t);
+        for (let k = 1; k + 1 < p.length; k++) {
+          for (const q of [p[0]!, p[k + 1]!, p[k]!]) { pos.push(q[0], y, q[1]); col.push(c.r, c.g, c.b); }
+        }
+      }
+    }
+  }
+  if (!pos.length) return null;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+  g.computeVertexNormals();
+  const m = new THREE.Mesh(g, bareMat);
+  m.receiveShadow = true;
+  return m;
+}
 
 // ------------------------------------------------------------------ the world
 
@@ -131,29 +193,32 @@ function clearWorld(): void {
   animated.length = 0;
 }
 
-/** Ground for one chunk: a grid of vertices coloured by zone, with patchy variation. */
-function groundChunk(cx: number, cy: number, detail: (x: number, y: number) => number): THREE.Mesh {
-  const g = new THREE.PlaneGeometry(CHUNK, CHUNK, CHUNK, CHUNK).rotateX(-Math.PI / 2);
-  g.translate(cx + CHUNK / 2, 0, cy + CHUNK / 2);
-  const pos = g.attributes.position!, col = new Float32Array(pos.count * 3), c = new THREE.Color(), t = new THREE.Color();
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), y = pos.getZ(i), z = zonesAt(x, y), p = detail(x, y);
-    c.copy(GROUND.clearing).multiplyScalar(z.clearing);
-    c.add(t.copy(GROUND.forest).multiplyScalar(z.forest));
-    c.add(t.copy(GROUND.highlands).lerp(GROUND.highlandsRock, smooth(0.55, 0.75, p)).multiplyScalar(z.highlands));
-    c.add(t.copy(GROUND.wastes).lerp(GROUND.wastesDeep, smooth(0.5, 0.8, p)).multiplyScalar(z.wastes));
-    col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
-  }
-  g.setAttribute("color", new THREE.BufferAttribute(col, 3));
-  const m = new THREE.Mesh(g, groundMat);
-  m.receiveShadow = true;
-  return m;
-}
-
 function generate(): void {
   clearWorld();
   edgeNoise = noise(seed * 5 + 3);
   const rand = rng(seed), grove = noise(seed * 3 + 1), rocky = noise(seed * 7 + 2), detail = noise(seed * 11 + 4);
+  const lakes = noise(seed * 13 + 5), ridges = noise(seed * 17 + 6), jitter = noise(seed * 19 + 7);
+  const rifts: [number, number][] = [0, 1].map(i => {
+    const a = WASTES_DIR + (i ? 0.35 : -0.3), d = 88 + i * 10;
+    return [Math.round(Math.cos(a) * d), Math.round(Math.sin(a) * d)];
+  });
+  bareAt = (x, y) => {
+    const z = zonesAt(x, y), j = (jitter(x / 2.5, y / 2.5) - 0.5) * 0.25, d = Math.hypot(x, y);
+    // Frozen lakes: in the forest belt and clearing, well away from the landing site.
+    const ice = smooth(0.66, 0.74, lakes(x / 16, y / 16) + j * 0.3) * (1 - z.highlands - z.wastes) * smooth(16, 22, d);
+    // The ship's engines melted and scorched a ring where it came down.
+    const scorch = 1 - smooth(2.6, 4.2, d + j * 3);
+    // Rift heat: patches across the wastes, and bare earth right around each rift.
+    const nearRift = Math.max(...rifts.map(([rx, ry]) => 1 - smooth(4, 9, Math.hypot(x - rx - 0.5, y - ry - 0.5))));
+    const rift = Math.max(z.wastes * smooth(0.6, 0.72, detail(x / 5, y / 5) + j), nearRift + j);
+    // Wind scours the highland ridges down to rock.
+    const rock = z.highlands * smooth(0.62, 0.72, ridges(x / 7, y / 7) + j);
+    // Under dense pines the canopy catches the snow.
+    const needles = z.forest * smooth(0.6, 0.7, grove(x / 7, y / 7) + j * 0.5);
+    const clear = 1 - Math.min(1, ice * 1.6);
+    return { ice, scorch, rift: rift * clear, rock: rock * clear, needles: needles * clear * (1 - scorch) };
+  };
+  const onIce = (x: number, y: number) => bareAt(x + 0.5, y + 0.5).ice >= RIM - 0.1;
   /** Scenery goes into the chunk it stands in; each chunk is merged at the end. */
   const chunks = new Map<string, THREE.Group>();
   const put = (o: THREE.Object3D, x: number, y: number) => {
@@ -166,7 +231,7 @@ function generate(): void {
   const free = (x: number, y: number, pad = 0) => {
     for (let dy = -pad; dy <= pad; dy++) for (let dx = -pad; dx <= pad; dx++) {
       const k = cellKey(x + dx, y + dy);
-      if (cells.has(k) || reserved.has(k)) return false;
+      if (cells.has(k) || reserved.has(k) || onIce(x + dx, y + dy)) return false;
     }
     return true;
   };
@@ -185,9 +250,7 @@ function generate(): void {
 
   // Two rifts deep in the wastes: landmarks you can see the glow of from afar,
   // with open ground around them and a ring of large crystals.
-  for (let i = 0; i < 2; i++) {
-    const a = WASTES_DIR + (i ? 0.35 : -0.3), d = 88 + i * 10;
-    const x = Math.round(Math.cos(a) * d), y = Math.round(Math.sin(a) * d);
+  for (const [x, y] of rifts) {
     const r = models.create("rift");
     r.position.set(x + 0.5, 0, y + 0.5);
     worldGroup.add(r);
@@ -248,7 +311,7 @@ function generate(): void {
     const x = (rand() * 2 - 1) * R, y = (rand() * 2 - 1) * R;
     if (!free(Math.floor(x), Math.floor(y), 1)) continue;
     const z = zonesAt(x, y);
-    if (rand() > z.clearing + z.forest + z.highlands * 0.3) continue;
+    if (bareKind(x, y) || rand() > z.clearing + z.forest + z.highlands * 0.3) continue;
     put(models.create("snowMound", { scale: 0.3 + rand() * 0.45 }), x, y);
   }
 
@@ -256,7 +319,8 @@ function generate(): void {
   for (let cy = -R; cy < R; cy += CHUNK) for (let cx = -R; cx < R; cx += CHUNK) {
     const g = chunks.get(`${Math.floor(cx / CHUNK)},${Math.floor(cy / CHUNK)}`) ?? new THREE.Group();
     bakeStatic(g);
-    g.add(groundChunk(cx, cy, (x, y) => detail(x / 6, y / 6)));
+    const bare = bareChunk(cx, cy);
+    if (bare) g.add(bare);
     worldGroup.add(g);
   }
 }
@@ -327,6 +391,7 @@ document.getElementById("seed")!.addEventListener("click", () => {
   try { localStorage.setItem("risen.world.seed", String(seed)); } catch { /* storage blocked */ }
   generate();
   avatar.place(0.5, 0.5);
+  prints.count = 0; printNext = 0;
 });
 generate();
 
@@ -351,6 +416,48 @@ snow.frustumCulled = false;
 scene.add(snow);
 const wrap = (v: number, c: number) => ((((v - c + H) % (2 * H)) + 2 * H) % (2 * H)) + c - H;
 
+// ------------------------------------------------------------------ footprints
+
+/**
+ * The rig leaves prints in fresh snow, left and right in turn, that slowly fill
+ * back in (their colour eases back to the snow's). None on bare ground or ice, or
+ * when up on a rock or node. One instanced mesh, so they cost a single draw.
+ */
+const PRINTS = 500, PRINT_LIFE = 25, PRINT_STEP = 0.36;
+const PRINT_DENT = new THREE.Color("#aeb9d0"), SNOW_WHITE = (mat.snow as THREE.MeshStandardMaterial).color.clone();
+const prints = new THREE.InstancedMesh(new THREE.CircleGeometry(0.5, 8).rotateX(-Math.PI / 2),
+  new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), PRINTS);
+prints.receiveShadow = true;
+prints.frustumCulled = false;
+prints.count = 0;
+scene.add(prints);
+const printAge = new Float32Array(PRINTS).fill(PRINT_LIFE);
+let printNext = 0, printDist = 0, printSide = 1;
+const printM = new THREE.Matrix4(), printQ = new THREE.Quaternion(), printC = new THREE.Color();
+function stepPrints(dt: number, moved: number): void {
+  if (avatar.grounded && avatar.z < 0.05) printDist += moved; else printDist = 0;
+  if (printDist >= PRINT_STEP) {
+    printDist = 0;
+    printSide = -printSide;
+    const f = avatar.facing, sx = Math.cos(f) * 0.07 * printSide, sz = -Math.sin(f) * 0.07 * printSide;
+    const x = avatar.x + sx, z = avatar.y + sz;
+    if (!bareKind(x, z)) {
+      printQ.setFromAxisAngle(new THREE.Vector3(0, 1, 0), f);
+      printM.compose(new THREE.Vector3(x, 0.003, z), printQ, new THREE.Vector3(0.11, 1, 0.17));
+      prints.setMatrixAt(printNext, printM);
+      printAge[printNext] = 0;
+      printNext = (printNext + 1) % PRINTS;
+      prints.count = Math.min(PRINTS, prints.count + 1);
+      prints.instanceMatrix.needsUpdate = true;
+    }
+  }
+  for (let i = 0; i < prints.count; i++) {
+    printAge[i] = Math.min(PRINT_LIFE, printAge[i]! + dt);
+    prints.setColorAt(i, printC.copy(PRINT_DENT).lerp(SNOW_WHITE, smooth(0, 1, printAge[i]! / PRINT_LIFE)));
+  }
+  if (prints.instanceColor) prints.instanceColor.needsUpdate = true;
+}
+
 const TICK = 1 / 60;
 const prev = { x: avatar.x, y: avatar.y, z: avatar.z, facing: avatar.facing };
 const target = new THREE.Vector3(avatar.x, 0, avatar.y);
@@ -364,6 +471,7 @@ function frame(now: number): void {
   time += dt;
   acc += dt;
   let landed = false;
+  const before = { x: avatar.x, y: avatar.y };
   while (acc >= TICK) {
     prev.x = avatar.x; prev.y = avatar.y; prev.z = avatar.z; prev.facing = avatar.facing;
     const m = moveInput();
@@ -372,6 +480,7 @@ function frame(now: number): void {
     landed ||= avatar.landed;
     acc -= TICK;
   }
+  stepPrints(dt, Math.hypot(avatar.x - before.x, avatar.y - before.y));
   const alpha = acc / TICK;
   const rx = prev.x + (avatar.x - prev.x) * alpha, ry = prev.y + (avatar.y - prev.y) * alpha;
   rig.object.position.set(rx, prev.z + (avatar.z - prev.z) * alpha, ry);
