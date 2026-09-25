@@ -76,16 +76,21 @@ export function cliffLook(look: CliffLook, cells: readonly Cell[], isCliff: (x: 
       put(m.snow, cap, x0 + ox, y2 + r2 * 0.72, z0 + oz, rand() * 6);
     } else if (look === "B") {
       // Tilted slabs: flat rock sheets stacked at slight angles, like frost-split strata.
+      // Snow settles evenly on every slab's upper face, following its tilt, so the
+      // ledges that stick out are white and the top slab wears a full, even blanket.
       let y = 0;
       const n = 3 + Math.floor(rand() * 2);
       for (let i = 0; i < n; i++) {
-        const t = 0.3 + rand() * 0.14, w = 1.15 - i * 0.08 + rand() * 0.12;
-        const g = roughBox(w, t, w * (0.85 + rand() * 0.2), rand, 0.12);
-        put(i % 2 ? m.rock : m.rockDark, g, x0 + (rand() - 0.5) * 0.2, y + t / 2, z0 + (rand() - 0.5) * 0.2, rand() * 0.8, (rand() - 0.5) * 0.25, (rand() - 0.5) * 0.25);
+        const t = 0.3 + rand() * 0.14, w = 1.15 - i * 0.08 + rand() * 0.12, d = w * (0.85 + rand() * 0.2);
+        const px = x0 + (rand() - 0.5) * 0.2, pz = z0 + (rand() - 0.5) * 0.2;
+        const ry = rand() * 0.8, rx = (rand() - 0.5) * 0.2, rz = (rand() - 0.5) * 0.2;
+        put(i % 2 ? m.rock : m.rockDark, roughBox(w, t, d, rand, 0.06), px, y + t / 2, pz, ry, rx, rz);
+        const top = i === n - 1, st = top ? 0.09 : 0.05;
+        const snow = roughBox(w - 0.05, st, d - 0.05, rand, 0.02);
+        snow.translate(0, t / 2 + st / 2 - 0.01, 0);
+        put(m.snow, snow, px, y + t / 2, pz, ry, rx, rz);
         y += t * 0.92;
       }
-      const cap = roughBox(0.85, 0.08, 0.8, rand, 0.1);
-      put(m.snow, cap, x0 + (rand() - 0.5) * 0.12, y + 0.02, z0 + (rand() - 0.5) * 0.12, rand() * 0.8, (rand() - 0.5) * 0.15, (rand() - 0.5) * 0.15);
     } else {
       // Crags: tight clusters of leaning rock spires of mixed heights, snow on the tallest tips.
       const n = 3 + Math.floor(rand() * 3);
