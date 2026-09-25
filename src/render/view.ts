@@ -1,5 +1,7 @@
 import * as THREE from "three";
 import type { Game, GameEvent, PlacedPiece, Shot } from "../sim/game";
+import { createRig, RigAnimator, type Rig } from "./rig";
+import type { ShipRig } from "./ship";
 import type { Tower, TowerKind } from "../sim/towers";
 import type { Cell } from "../sim/types";
 import { createDefaultModels, createGlows, createMaterials, DECK_TOP, EVENING, hash, type Glows, type Materials, type ModelLibrary, type TurretRig } from "./models";
@@ -22,6 +24,8 @@ export interface Overlay {
   towerGhost: { kind: TowerKind; cells: Cell[]; valid: boolean; cx: number; cy: number; range: number } | null;
   /** Reach of the selected tower. */
   selectedTower: { cx: number; cy: number; range: number } | null;
+  /** The avatar has its tool raised (holding a wall or tower to place). */
+  toolReady: boolean;
 }
 
 /** Height of the wall deck, where towers stand. */
@@ -35,6 +39,15 @@ interface Bolt { mesh: THREE.Mesh; from: THREE.Vector3; to: THREE.Vector3; walke
 interface Flash { sprite: THREE.Sprite; life: number; max: number; size: number }
 
 const CAM_OFFSET = new THREE.Vector3(20, 16.33, 20); // ~30° elevation, 45° around: classic iso
+/** How tightly the camera follows the avatar (Erik's playground tuning). */
+const FOLLOW = 4;
+/** Ship landing: descent, then a pause, then the cargo door opens. */
+const LAND_DROP = 10, LAND_DESCENT = 2.6, LAND_HOLD = 0.5, LAND_OPEN = 1.0;
+// Light space, for snapping the shadow camera to its texels (steady shadows while the camera moves).
+const LIGHT_DIR = new THREE.Vector3(-EVENING.sunOffset[0], -EVENING.sunOffset[1], -EVENING.sunOffset[2]).normalize();
+const LIGHT_DIST = Math.hypot(...EVENING.sunOffset);
+const LIGHT_RIGHT = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), LIGHT_DIR).normalize();
+const LIGHT_UP = new THREE.Vector3().crossVectors(LIGHT_DIR, LIGHT_RIGHT).normalize();
 const ZOOM_MIN = 3.2, ZOOM_MAX = 11;
 
 interface PieceView { group: THREE.Object3D; drop: number; bodies: THREE.Mesh[]; cells: readonly Cell[] }
@@ -45,6 +58,13 @@ export class GameView {
   readonly camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
   readonly target = new THREE.Vector3();
   zoom = 6.2;
+  /** The camera follows the avatar until the player pans away. */
+  following = true;
+  /** Where the camera is gliding to (the ship, after H), if anywhere. */
+  private camGoal: THREE.Vector3 | null = null;
+  private rig: Rig;
+  private rigAnim: RigAnimator;
+  private shipLand = 0;
 
   private mat: Materials;
   private models: ModelLibrary;
@@ -82,6 +102,7 @@ export class GameView {
   private raycaster = new THREE.Raycaster();
   private groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   private tmp = new THREE.Object3D();
+  private tmpV = new THREE.Vector3();
 
   constructor(private container: HTMLElement, private game: Game) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -124,6 +145,9 @@ export class GameView {
     this.rangeRing.visible = this.rangeDisc.visible = false;
     this.scene.add(this.rangeRing, this.rangeDisc);
     this.nexus = this.buildNexusAndRifts();
+    this.rig = createRig();
+    this.rigAnim = new RigAnimator(this.rig);
+    this.scene.add(this.rig.object);
 
     const dashGeo = new THREE.BoxGeometry(0.16, 0.02, 0.06), dotGeo = new THREE.BoxGeometry(0.05, 0.015, 0.05);
     this.dashes = new THREE.InstancedMesh(dashGeo, this.mat.path, 1500);
@@ -167,9 +191,8 @@ export class GameView {
     this.snow.frustumCulled = false;
     this.scene.add(this.snow);
 
-    // Start centered between the rift and the nexus.
-    const n = this.nexusCenter(), s = game.world.spawners[0]!;
-    this.target.set((n.x + s[0] + 0.5) / 2 + 1, 0, (n.z + s[1] + 0.5) / 2 + 1);
+    // Start on the avatar.
+    this.target.set(game.avatar.x, 0, game.avatar.y);
     this.resize();
   }
 
@@ -214,7 +237,7 @@ export class GameView {
   }
 
   private buildNexusAndRifts(): THREE.Object3D {
-    const nexus = this.models.create("nexus");
+    const nexus = this.models.create("ship");
     nexus.position.copy(this.nexusCenter());
     this.scene.add(nexus);
     this.animated.push(nexus);
@@ -260,6 +283,19 @@ export class GameView {
     return this.raycaster.ray.intersectPlane(this.groundPlane, p) ? p : null;
   }
 
+  /** A pan by the player: stops following the avatar. */
+  userPan(dx: number, dz: number): void {
+    this.following = false;
+    this.camGoal = null;
+    this.panBy(dx, dz);
+  }
+
+  /** Follow the avatar again (C). */
+  followAvatar(): void { this.following = true; this.camGoal = null; }
+
+  /** Glide to the ship and stay there (H). */
+  lookAtShip(): void { this.following = false; this.camGoal = this.nexusCenter(); }
+
   panBy(dx: number, dz: number): void {
     this.target.x += dx;
     this.target.z += dz;
@@ -272,7 +308,7 @@ export class GameView {
   panScreen(right: number, up: number): void {
     // Screen right on the ground is (1,0,-1)/√2; screen up is (-1,0,-1)/√2 for this camera.
     const k = Math.SQRT1_2;
-    this.panBy((right - up) * k, (-right - up) * k);
+    this.userPan((right - up) * k, (-right - up) * k);
   }
 
   /** Zoom keeping the ground point under the cursor fixed. */
@@ -286,7 +322,8 @@ export class GameView {
 
   // ------------------------------------------------------------------ frame
 
-  render(frameDt: number, simDt: number, o: Overlay, events: readonly GameEvent[]): void {
+  /** `alpha` is how far the simulation is between its last tick and the next (0..1). */
+  render(frameDt: number, simDt: number, o: Overlay, events: readonly GameEvent[], alpha = 1): void {
     this.time += frameDt;
     const t = this.time;
     // Sync first so shots from this frame find their towers and targets.
@@ -299,8 +336,9 @@ export class GameView {
       else if (ev.type === "shot") this.onShot(ev.shot);
       else if (ev.type === "hit") { const w = this.walkers.get(ev.walker.id); if (w) w.userData.flash = 0.09; }
       else if (ev.type === "killed") this.onKilled(ev.walker.x, ev.walker.y);
-      else if (ev.type === "reset") this.clearFx();
+      else if (ev.type === "reset") { this.clearFx(); this.shipLand = 0; this.followAvatar(); }
     }
+    const landed = events.some(e => e.type === "avatar-landed");
     this.syncWalkers(simDt);
     this.aimTowers(simDt);
     this.updateBolts(simDt);
@@ -313,16 +351,62 @@ export class GameView {
     this.grid.visible = o.showGrid;
 
     for (const a of this.animated) (a.userData.update as (t: number, dt: number) => void)?.(t, frameDt);
+    this.updateShipLanding(frameDt);
+    this.updateAvatar(frameDt, alpha, landed, o.toolReady);
     this.updateFx(frameDt);
+
+    // Camera: follow the avatar, or glide to a goal, or stay where the player panned.
+    const a = this.rig.object.position;
+    const k = 1 - Math.exp(-frameDt * FOLLOW);
+    if (this.following) { this.target.x += (a.x - this.target.x) * k; this.target.z += (a.z - this.target.z) * k; }
+    else if (this.camGoal) {
+      this.target.x += (this.camGoal.x - this.target.x) * k; this.target.z += (this.camGoal.z - this.target.z) * k;
+      if (Math.hypot(this.camGoal.x - this.target.x, this.camGoal.z - this.target.z) < 0.01) this.camGoal = null;
+    }
 
     this.shake = Math.max(0, this.shake - frameDt);
     this.placeCamera();
-    this.sun.position.set(this.target.x + EVENING.sunOffset[0], EVENING.sunOffset[1], this.target.z + EVENING.sunOffset[2]);
-    this.sun.target.position.set(this.target.x, 0, this.target.z);
     const sc = Math.max(16, this.zoom * 2.4);
     Object.assign(this.sun.shadow.camera, { left: -sc, right: sc, top: sc, bottom: -sc });
     this.sun.shadow.camera.updateProjectionMatrix();
+    // Snap the sun to the shadow map's texel grid so shadows don't shimmer while the camera slides.
+    const texel = (2 * sc) / this.sun.shadow.mapSize.x, p = this.tmpV.set(this.target.x, 0, this.target.z);
+    const u = Math.round(p.dot(LIGHT_RIGHT) / texel) * texel, v = Math.round(p.dot(LIGHT_UP) / texel) * texel, w = p.dot(LIGHT_DIR);
+    const snapped = p.set(0, 0, 0).addScaledVector(LIGHT_RIGHT, u).addScaledVector(LIGHT_UP, v).addScaledVector(LIGHT_DIR, w);
+    this.sun.target.position.copy(snapped);
+    this.sun.position.copy(snapped).addScaledVector(LIGHT_DIR, -LIGHT_DIST);
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /** Draw the avatar between the last two sim ticks, and animate it every frame. */
+  private updateAvatar(dt: number, alpha: number, landed: boolean, ready: boolean): void {
+    const av = this.game.avatar, T = this.game.avatarTuning;
+    const lerp = (a: number, b: number) => a + (b - a) * alpha;
+    const df = Math.atan2(Math.sin(av.facing - av.prevFacing), Math.cos(av.facing - av.prevFacing));
+    this.rig.object.position.set(lerp(av.prevX, av.x), lerp(av.prevZ, av.z), lerp(av.prevY, av.y));
+    this.rig.object.rotation.y = av.prevFacing + df * alpha;
+    this.rigAnim.update(dt, {
+      speed: av.speed, topSpeed: T.speed, grounded: av.grounded, vz: av.vz,
+      jumpSpeed: (2 * T.jumpHeight) / T.jumpRise, landed, ready, mining: false,
+    });
+  }
+
+  /** The ship comes down with its door shut, lands with a snow burst, then opens the ramp. */
+  private updateShipLanding(dt: number): void {
+    const rig = this.nexus.userData.rig as ShipRig;
+    const before = this.shipLand;
+    this.shipLand += dt;
+    const t = this.shipLand, c = this.nexusCenter();
+    const k = Math.min(1, t / LAND_DESCENT);
+    this.nexus.position.set(c.x, LAND_DROP * (1 - (1 - (1 - k) ** 3)), c.z);
+    const open = Math.min(1, Math.max(0, (t - LAND_DESCENT - LAND_HOLD) / LAND_OPEN));
+    const e = open < 0.5 ? 2 * open * open : 1 - (-2 * open + 2) ** 2 / 2;
+    rig.door.rotation.x = e * rig.openAngle;
+    rig.materials.bayLight.emissiveIntensity = e * 1.2;
+    if (before < LAND_DESCENT && t >= LAND_DESCENT) {
+      this.shake = 0.25;
+      for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; this.puff(c.x + Math.cos(a) * 1.3, c.z + Math.sin(a) * 1.3, 0.3); }
+    }
   }
 
   private onPlaced(p: PlacedPiece): void {

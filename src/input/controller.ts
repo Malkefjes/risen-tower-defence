@@ -46,7 +46,7 @@ export class Controller {
         if (!this.drag.moved && canDrag && Math.hypot(e.clientX - this.drag.x, e.clientY - this.drag.y) > DRAG_THRESHOLD) this.drag.moved = true;
         if (this.drag.moved && this.lastPointer) {
           const a = this.view.pickGround(this.lastPointer.x, this.lastPointer.y), b = this.view.pickGround(e.clientX, e.clientY);
-          if (a && b) this.view.panBy(a.x - b.x, a.z - b.z);
+          if (a && b) this.view.userPan(a.x - b.x, a.z - b.z);
         }
       }
       this.lastPointer = { x: e.clientX, y: e.clientY };
@@ -84,9 +84,12 @@ export class Controller {
       case "escape": this.clearSelection(); break;
       case "z": this.undo(); break;
       case "enter": this.startWave(); break;
-      case " ": e.preventDefault(); this.togglePause(); break;
+      case " ": e.preventDefault(); if (!e.repeat) this.game.avatarInput.jump = true; break;
+      case "p": this.togglePause(); break;
       case "f": this.toggleSpeed(); break;
-      case "p": this.showPath = !this.showPath; break;
+      case "v": this.showPath = !this.showPath; break;
+      case "c": this.view.followAvatar(); break;
+      case "h": this.view.lookAtShip(); break;
       case "g": this.showGrid = !this.showGrid; break;
       case "t": this.toggleWalkers(); break;
     }
@@ -210,15 +213,27 @@ export class Controller {
   }
 
   frame(dt: number): Overlay {
-    // Keyboard panning.
+    // WASD runs the avatar, relative to the screen: W is up the screen.
     let r = 0, u = 0;
-    if (this.keys.has("d") || this.keys.has("arrowright")) r += 1;
-    if (this.keys.has("a") || this.keys.has("arrowleft")) r -= 1;
-    if (this.keys.has("w") || this.keys.has("arrowup")) u += 1;
-    if (this.keys.has("s") || this.keys.has("arrowdown")) u -= 1;
-    if (r || u) {
+    if (this.keys.has("d")) r += 1;
+    if (this.keys.has("a")) r -= 1;
+    if (this.keys.has("w")) u += 1;
+    if (this.keys.has("s")) u -= 1;
+    // On the ground, screen right is (1, -1) and screen up is (-1, -1).
+    const mx = (r - u) * Math.SQRT1_2, my = (-r - u) * Math.SQRT1_2, ml = Math.hypot(mx, my);
+    this.game.avatarInput.x = ml ? mx / ml : 0;
+    this.game.avatarInput.y = ml ? my / ml : 0;
+    if (ml) this.updateHover();
+
+    // Arrow keys pan the camera away from the avatar.
+    let pr = 0, pu = 0;
+    if (this.keys.has("arrowright")) pr += 1;
+    if (this.keys.has("arrowleft")) pr -= 1;
+    if (this.keys.has("arrowup")) pu += 1;
+    if (this.keys.has("arrowdown")) pu -= 1;
+    if (pr || pu) {
       const s = PAN_SPEED * this.view.zoom * 2 * dt;
-      this.view.panScreen(r * s, u * s * 1.6);
+      this.view.panScreen(pr * s, pu * s * 1.6);
       this.updateHover();
     }
     // Drop a selection that no longer exists.
@@ -238,6 +253,7 @@ export class Controller {
     const sel = this.game.towers.find(t => t.id === this.selectedTowerId);
     return {
       towerGhost,
+      toolReady: this.selectedUid !== null || this.buildKind !== null,
       selectedTower: sel ? { cx: sel.cx, cy: sel.cy, range: this.game.tuning[sel.kind].range } : null,
       ghost: check ? { cells: check.cells, valid: check.ok } : null,
       route: check?.ok ? this.game.routes(check.field) : current,

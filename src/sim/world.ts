@@ -3,9 +3,14 @@ import { cellKey, parseKey, type Cell } from "./types";
 export interface RockDef { x: number; y: number; h: number }
 export interface TreeDef { x: number; y: number; s: number }
 
+/** Height of a wall's deck, in cells: where towers stand and the avatar can run. */
+export const WALL_DECK = 0.58;
+
 export interface MapDef {
   name: string;
   spawners: Cell[];
+  /** Where the avatar starts (cell). Defaults to the first spawner. */
+  start?: Cell;
   /** Cells covered by the nexus. Enemies path to any of them. */
   nexus: Cell[];
   rocks: RockDef[];

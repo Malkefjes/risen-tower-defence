@@ -177,6 +177,13 @@ export function shipModel(orange: string): THREE.Object3D {
   rocket.group.rotation.y = Math.PI / 4;
   root.add(rocket.group);
   root.userData.rig = { ...rocket, materials } satisfies ShipRig;
-  root.userData.update = (t: number) => rocket.update(t);
+  // The core flashes when an enemy reaches the ship.
+  let flash = 0;
+  root.userData.flash = () => { flash = 0.45; };
+  root.userData.update = (t: number, dt = 0) => {
+    rocket.update(t);
+    flash = Math.max(0, flash - dt);
+    materials.crystal.emissiveIntensity = 0.95 * (1 + (flash > 0 ? 1.4 : 0));
+  };
   return root;
 }

@@ -62,14 +62,24 @@ export class Avatar {
   landed = false;
   /** True on the tick the avatar left the ground by jumping. */
   jumped = false;
+  /** State at the start of the last tick, so the renderer can draw in between ticks. */
+  prevX: number; prevY: number; prevZ = 0; prevFacing = 0;
 
-  constructor(x: number, y: number) { this.x = x; this.y = y; }
+  constructor(x: number, y: number) { this.x = x; this.y = y; this.prevX = x; this.prevY = y; }
+
+  /** Put the avatar somewhere, standing still. */
+  place(x: number, y: number, z = 0): void {
+    this.x = this.prevX = x; this.y = this.prevY = y; this.z = this.prevZ = z;
+    this.vx = this.vy = this.vz = 0;
+    this.grounded = true;
+  }
 
   get speed(): number { return Math.hypot(this.vx, this.vy); }
 
   step(dt: number, input: AvatarInput, heightAt: HeightAt, t: AvatarTuning): void {
     this.landed = false;
     this.jumped = false;
+    this.prevX = this.x; this.prevY = this.y; this.prevZ = this.z; this.prevFacing = this.facing;
 
     // Horizontal velocity eases toward the desired velocity.
     let ix = input.x, iy = input.y;

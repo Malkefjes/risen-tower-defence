@@ -64,7 +64,8 @@ function frame(now: number): void {
   hud.onEvents(events);
   hud.update(controller);
   syncTools();
-  view.render(dt, simDt, overlay, events);
+  // Draw moving things between the last two ticks, so they stay smooth at any refresh rate.
+  view.render(dt, simDt, overlay, events, Math.min(1, acc / TICK));
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

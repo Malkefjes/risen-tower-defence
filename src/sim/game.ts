@@ -1,9 +1,10 @@
+import { Avatar, defaultAvatarTuning, type AvatarInput, type AvatarTuning } from "./avatar";
 import { computeField, keysOf, type FlowField } from "./pathfinding";
 import { pieceCells, SHAPE_IDS, type ShapeId } from "./pieces";
 import { Rng } from "./rng";
 import { BOLT_SPEED, defaultTuning, TOWER_INFO, towerCells, type Tower, type TowerKind, type Tuning } from "./towers";
 import { cellKey, type Cell } from "./types";
-import { World, type MapDef } from "./world";
+import { WALL_DECK, World, type MapDef } from "./world";
 
 /** Random walls delivered at the start of every round. Unused walls carry over. */
 export const SUPPLY_PER_ROUND = 3;
@@ -49,13 +50,13 @@ export interface Shot {
   dur: number;
 }
 
-export type BlockReason = "occupied" | "walker" | "cuts-off-rift" | "traps-walker";
+export type BlockReason = "occupied" | "walker" | "avatar" | "cuts-off-rift" | "traps-walker";
 
 export type PlacementCheck =
   | { ok: true; cells: Cell[]; field: FlowField }
   | { ok: false; cells: Cell[]; reason: BlockReason };
 
-export type TowerBlockReason = "no-wall" | "tower-there" | "credits" | "run-over";
+export type TowerBlockReason = "no-wall" | "tower-there" | "avatar" | "credits" | "run-over";
 
 export type TowerCheck =
   | { ok: true; cells: Cell[] }
@@ -73,11 +74,13 @@ export type GameEvent =
   | { type: "hit"; walker: Walker }
   | { type: "killed"; walker: Walker }
   | { type: "leak"; walker: Walker; hp: number }
+  | { type: "avatar-landed" }
   | { type: "reset" };
 
 export const REASON_TEXT: Record<BlockReason, string> = {
   "occupied": "Something is already there",
   "walker": "An enemy is in the way",
+  "avatar": "You're standing there",
   "cuts-off-rift": "Enemies must always have a path to the nexus",
   "traps-walker": "That would trap an enemy",
 };
@@ -85,6 +88,7 @@ export const REASON_TEXT: Record<BlockReason, string> = {
 export const TOWER_REASON_TEXT: Record<TowerBlockReason, string> = {
   "no-wall": "Towers go on top of walls",
   "tower-there": "There's already a tower there",
+  "avatar": "You're standing there",
   "credits": "Not enough credits",
   "run-over": "The run is over",
 };
@@ -116,6 +120,11 @@ export class Game {
   events: GameEvent[] = [];
   /** Spawn practice walkers during planning so rerouting can be watched. */
   testWalkers = false;
+  /** The player's avatar. Moves every tick in every phase; never blocks enemies. */
+  readonly avatar: Avatar;
+  readonly avatarTuning: AvatarTuning = defaultAvatarTuning();
+  /** Movement input, set by the input layer. `jump` is consumed by the next tick. */
+  avatarInput: AvatarInput = { x: 0, y: 0, jump: false };
 
   private nextId = 1;
   private waveLeft = 0;
@@ -131,7 +140,27 @@ export class Game {
     this.tuning = { ...defaultTuning(), ...opts.tuning };
     if (opts.supply !== undefined) this.tuning.supplyPerRound = opts.supply;
     this.field = computeField(this.world);
+    const [sx, sy] = map.start ?? map.spawners[0]!;
+    this.avatar = new Avatar(sx + 0.5, sy + 0.5);
     this.startRun();
+  }
+
+  /**
+   * How tall each cell is for the avatar: walls are decks it can jump onto;
+   * terrain, the ship and towers are solid; everything else is snow.
+   */
+  readonly heightAt = (x: number, y: number): number => {
+    if (this.world.isTerrain(x, y) || this.world.isNexus(x, y) || this.towerCellsMap.has(cellKey(x, y))) return Infinity;
+    return this.world.walls.has(cellKey(x, y)) ? WALL_DECK : 0;
+  };
+
+  /** Cells under the avatar's footprint. */
+  avatarCells(): Set<string> {
+    const a = this.avatar, r = this.avatarTuning.radius, out = new Set<string>();
+    for (let y = Math.floor(a.y - r); y <= Math.floor(a.y + r - 1e-4); y++) {
+      for (let x = Math.floor(a.x - r); x <= Math.floor(a.x + r - 1e-4); x++) out.add(cellKey(x, y));
+    }
+    return out;
   }
 
   /** Walls delivered per round (a tuning knob). */
@@ -152,6 +181,8 @@ export class Game {
     this.round = 1;
     this.phase = "planning";
     this.waveLeft = 0; this.spawnTimer = 0;
+    const [sx, sy] = this.world.map.start ?? this.world.map.spawners[0]!;
+    this.avatar.place(sx + 0.5, sy + 0.5);
     this.field = computeField(this.world);
     this.events.push({ type: "reset" });
     this.startRun();
@@ -177,6 +208,8 @@ export class Game {
     const cells = pieceCells(shape, rot, at);
     for (const [x, y] of cells) if (this.world.isOccupied(x, y)) return { ok: false, cells, reason: "occupied" };
     const set = keysOf(cells);
+    // A wall can't be dropped on the avatar (only matters while it's below deck height).
+    if (this.avatar.z < WALL_DECK) for (const k of this.avatarCells()) if (set.has(k)) return { ok: false, cells, reason: "avatar" };
     for (const w of this.walkers) {
       if (set.has(cellKey(w.cx, w.cy)) || set.has(cellKey(w.tx, w.ty))) return { ok: false, cells, reason: "walker" };
     }
@@ -244,6 +277,8 @@ export class Game {
     if (!this.canPlaceNow()) return { ok: false, cells, reason: "run-over" };
     for (const [x, y] of cells) if (!this.world.walls.has(cellKey(x, y))) return { ok: false, cells, reason: "no-wall" };
     for (const [x, y] of cells) if (this.towerCellsMap.has(cellKey(x, y))) return { ok: false, cells, reason: "tower-there" };
+    const under = this.avatarCells();
+    for (const [x, y] of cells) if (under.has(cellKey(x, y))) return { ok: false, cells, reason: "avatar" };
     if (this.credits < this.towerCost(kind)) return { ok: false, cells, reason: "credits" };
     return { ok: true, cells };
   }
@@ -319,6 +354,9 @@ export class Game {
 
   /** Advance the simulation by one fixed tick. */
   step(dt = TICK): void {
+    this.avatar.step(dt, this.avatarInput, this.heightAt, this.avatarTuning);
+    this.avatarInput.jump = false;
+    if (this.avatar.landed) this.events.push({ type: "avatar-landed" });
     if (this.phase === "over") return;
     if (this.phase === "wave") {
       this.spawnTimer -= dt;

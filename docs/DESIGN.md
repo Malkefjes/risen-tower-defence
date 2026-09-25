@@ -145,6 +145,10 @@ These were part of the round-based Phase 1 design. They stay in the game until t
 | Star-ups and traits | Parked in the idea bank; revisit once the survival loop works |
 | Roadmap phases 1 to 5 (core maze, tower variety, roguelite layer, depth, identity) | Milestones M0 to M5 in `docs/PLAN.md` |
 
+## Controls (current)
+
+WASD run (relative to the screen) · Space jump · drag or arrows pan · C follow the rig · H look at the ship · scroll zoom · 1–9 hold a wall · R or right-click rotate · Q Twin, E Gatling · click a tower, X sells · Z undo · Enter start wave · P pause · F speed · V path preview · G grid · T test walkers · K tuning.
+
 ## Open questions
 
 - Economy numbers: ore per trip, costs of walls, towers and buildings. Found through play, with the tuning panel.

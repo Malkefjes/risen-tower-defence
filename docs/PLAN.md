@@ -58,7 +58,7 @@ Each milestone is a playable build that answers one question. I propose we stop 
 - Write the agreed direction into `docs/DESIGN.md`. Old parts that are replaced get marked "retired" there, with what replaced them.
 - **Answers:** does the base look like a stronghold in the real game?
 
-### M1a: Boots on the ground
+### M1a: Boots on the ground (part 1 done 2026-09-25: rig, Rocket, camera)
 - **Avatar:** the player rig (`mockups/rig/`). Walks with WASD, jumps (Space) onto wall decks and runs along them; rocks, the Rocket and towers block it. Never blocks enemies. Pause moves to P. Always a run cycle, never a walk.
 - **Camera:** follows the avatar. Dragging or arrow keys pan freely and stop following. One key snaps back to the avatar, another jumps to the ship.
 - **Ship replaces the nexus:** same role, new model (placeholder based on Reactor core until the ship mockup).

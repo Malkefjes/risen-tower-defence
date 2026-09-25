@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { Cell } from "../sim/types";
+import { WALL_DECK } from "../sim/world";
 import { cellBounds, pieceOutline, SIDES, type OutlineCell, type Side } from "./pieceShape";
 import { shipModel } from "./ship";
 
@@ -64,8 +65,8 @@ export const EVENING = {
 } as const;
 
 export const WALL_HEIGHT = 0.55;
-/** Top of the Armored deck walls: where towers stand. */
-export const DECK_TOP = 0.58;
+/** Top of the Armored deck walls: where towers stand. Shared with the game rules. */
+export const DECK_TOP = WALL_DECK;
 
 export function roundedBox(w: number, h: number, d: number, r: number): THREE.BufferGeometry {
   const s = new THREE.Shape(), x = -w / 2 + r, y = -d / 2 + r, W = w - 2 * r, D = d - 2 * r;

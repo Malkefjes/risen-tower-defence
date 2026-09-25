@@ -4,7 +4,9 @@ import type { MapDef } from "./world";
 export const FROSTFALL: MapDef = {
   name: "Frostfall",
   spawners: [[0, 1]],
-  nexus: [[11, 5], [12, 5], [11, 6], [12, 6]],
+  /** The ship: 3×3. */
+  nexus: [[11, 5], [12, 5], [13, 5], [11, 6], [12, 6], [13, 6], [11, 7], [12, 7], [13, 7]],
+  start: [14, 9],
   rocks: [
     { x: 5, y: 8, h: 14 }, { x: 6, y: 8, h: 11 }, { x: 6, y: 9, h: 16 },
     { x: 8, y: 0, h: 12 }, { x: 9, y: 0, h: 15 }, { x: 3, y: 5, h: 13 },
