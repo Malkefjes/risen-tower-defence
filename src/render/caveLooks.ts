@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { ConvexGeometry } from "three/examples/jsm/geometries/ConvexGeometry.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { rng, roughBox } from "./terrain";
 
@@ -10,8 +11,9 @@ import { rng, roughBox } from "./terrain";
  *   A: an outcrop with a low cave mouth under an overhang, icicles on the lip.
  *   B: a sinkhole, a dark shaft in the snow with a broken rock rim.
  *   C: a fissure, a long dark crack torn open between tilted slabs.
- * Erik picked A as the best; A1–A3 build on it with the cliff slabs (look B of the
- * cliffs): tilted rock sheets, each with snow settled evenly on its upper face.
+ * Erik picked A as the best; A1–A3 build on it. Their rock is natural stone: each
+ * piece an irregular convex chunk (a hull of random points, so no two faces are
+ * alike and no edge is straight across), in mixed sizes, with snow settled on top.
  *   A1: a mouth cut into the face of a small slab cliff.
  *   A2: two great slabs leaning together over the mouth, stacked slabs behind.
  *   A3: slab terraces stepping up and back, a wide low mouth under the first step.
@@ -65,13 +67,32 @@ export function caveLook(look: CaveLook, seed = 1): Cave {
   const rockMat = () => { const r = rand(); return r < 0.4 ? m.rock : r < 0.75 ? m.rockDark : m.rockLight; };
   const root = new THREE.Group();
 
-  /** A cliff slab with snow settled on its upper face, sharing its tilt (as in cliff look B). */
+  /**
+   * A natural stone: the hull of random points inside a w×h×d box, pushed toward
+   * its surface and with the corners pulled in, so it's a faceted chunk, never a block.
+   */
+  const chunk = (w: number, h: number, d: number): THREE.BufferGeometry => {
+    const pts: THREE.Vector3[] = [];
+    for (let i = 0; i < 18; i++) {
+      const v = new THREE.Vector3(rand() * 2 - 1, rand() * 2 - 1, rand() * 2 - 1);
+      // Toward the surface of a rounded box: big on the flat faces, pulled in at the corners.
+      const k = Math.max(Math.abs(v.x), Math.abs(v.y), Math.abs(v.z)) || 1;
+      v.divideScalar(k).multiplyScalar(0.82 + rand() * 0.18);
+      const corner = (Math.abs(v.x) + Math.abs(v.y) + Math.abs(v.z)) / 3;
+      v.multiplyScalar(1 - Math.max(0, corner - 0.55) * 0.55);
+      pts.push(new THREE.Vector3(v.x * w / 2, v.y * h / 2, v.z * d / 2));
+    }
+    const g = new ConvexGeometry(pts);
+    g.computeVertexNormals();
+    return g;
+  };
+  /** A stone with a snow cap settled on its top, sharing its tilt. */
   const slab = (w: number, t: number, d: number, x: number, y: number, z: number, ry = 0, rx = 0, rz = 0, snow = 0.05, mat?: THREE.Material) => {
-    put(mat ?? (rand() < 0.5 ? m.rock : m.rockDark), roughBox(w, t, d, rand, 0.06), x, y, z, ry, rx, rz);
+    put(mat ?? (rand() < 0.5 ? m.rock : rand() < 0.6 ? m.rockDark : m.rockLight), chunk(w, t, d), x, y, z, ry, rx, rz);
     if (snow <= 0) return;
-    const sg = roughBox(w - 0.05, snow, d - 0.05, rand, 0.02);
-    sg.translate(0, t / 2 + snow / 2 - 0.01, 0);
-    put(m.snow, sg, x, y, z, ry, rx, rz);
+    const cap = chunk(w * 0.82, snow * 2.2, d * 0.82);
+    cap.translate(0, t / 2 - snow * 0.35, 0);
+    put(m.snow, cap, x, y, z, ry, rx, rz);
   };
   const darkMouth = (w: number, h: number, x: number, y: number, z: number) => {
     const mouth = new THREE.Mesh(new THREE.CircleGeometry(0.5, 8), new THREE.MeshBasicMaterial({ color: "#0a0b0f" }));
