@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Frostfall Player Rig B2</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&display=swap" />
+  </head>
+  <body>
+    <div id="app">
+      <div id="view"></div>
+      <div class="vignette"></div>
+      <header class="top">
+        <div class="brand">RISEN <span>Player rig B2</span></div>
+        <p class="sub">B2 revised: no shoulder pads, torso as wide as the hips, backpack flush with the top of the torso, square helmet with visors.</p>
+      </header>
+      <div class="bottom">
+        <div class="picker" role="group" aria-label="Pose">
+          <button id="pWalk" class="chip" aria-pressed="true">Walk</button>
+          <button id="pIdle" class="chip" aria-pressed="false">Idle</button>
+          <button id="pMine" class="chip" aria-pressed="false">Mine</button>
+        </div>
+        <div class="picker" role="group" aria-label="Zoom">
+          <button id="zClose" class="chip" aria-pressed="true">Close up</button>
+          <button id="zGame" class="chip" aria-pressed="false">Game zoom</button>
+          <button id="spin" class="chip" aria-pressed="true">Turn</button>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
