@@ -83,6 +83,8 @@ const THIGH = 0.21, SHIN = 0.2, FOOT_H = 0.045, HIP_Y = THIGH + SHIN + FOOT_H;
 const HIP_W = 0.065, LEG_W = 0.075;
 const TORSO_W = 2 * HIP_W + LEG_W, TORSO_D = 0.15, WAIST_H = 0.08, TORSO_H = 0.26;
 const TORSO_Y = HIP_Y + WAIST_H * 0.5, TORSO_TOP = TORSO_Y + TORSO_H;
+/** Visible torso width: in line with the outer edges of the hips. */
+const TORSO_VIS = TORSO_W * 0.96;
 const ARM_W = 0.062, UPPER_ARM = 0.17, FOREARM = 0.16;
 
 function buildRig() {
@@ -98,7 +100,8 @@ function buildRig() {
   root.add(rbox(TORSO_W * 0.88, WAIST_H, TORSO_D * 0.72, 0.02, M.steelDark, 0, HIP_Y - WAIST_H * 0.5, 0));
 
   // Torso: exactly as wide as the hips and legs.
-  torso.add(rbox(TORSO_W, TORSO_H, TORSO_D, 0.045, M.suit, 0, TORSO_Y, 0));
+  // The rounded box's bevel bulges past its width, so subtract it: the torso's visible width matches the hips.
+  torso.add(rbox(TORSO_VIS - 2 * bulge(0.045, TORSO_H), TORSO_H, TORSO_D, 0.045, M.suit, 0, TORSO_Y, 0));
 
   // A short neck, then a square helmet with a front visor.
   const NECK_H = 0.04;
@@ -125,7 +128,7 @@ function buildRig() {
     return l;
   });
   // Arms from the top corners of the torso.
-  const arms = [-1, 1].map(sx => limb(torso, sx * (TORSO_W / 2 + ARM_W / 2), TORSO_TOP - 0.03, UPPER_ARM, FOREARM, ARM_W));
+  const arms = [-1, 1].map(sx => limb(torso, sx * (TORSO_VIS / 2 + ARM_W / 2), TORSO_TOP - 0.03, UPPER_ARM, FOREARM, ARM_W));
   // Multitool: a blocky prefab tool gun locked to the wrist, pointing straight on along the forearm.
   const tool = new THREE.Group();
   tool.position.y = -0.03;
