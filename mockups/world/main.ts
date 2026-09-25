@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { bakeStatic } from "../../src/render/bake";
 import { createDefaultModels, createGlows, createMaterials, EVENING } from "../../src/render/models";
 import { createOreNode } from "../../src/render/ore";
 import { createRig, RigAnimator } from "../../src/render/rig";
@@ -136,6 +137,7 @@ function generate(): void {
     m.position.set(x, 0, z);
     worldGroup.add(m);
   }
+  bakeStatic(worldGroup);
 }
 
 // ------------------------------------------------------------------ avatar

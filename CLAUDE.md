@@ -56,6 +56,7 @@ Mockups: `node scripts/mockup.mjs <name>` builds `mockups/<name>/` (can import t
 - `src/input/controller.ts` mouse/keyboard to actions; `src/ui/hud.ts` DOM overlay (hotbar, notices); `src/ui/buildWheel.ts` + `wheel.ts` build wheel; `src/ui/tuning.ts` tuning sliders; `src/main.ts` fixed-step loop (60 ticks/s).
 - Every orange part (walls, towers, ship, rig bands) uses `colonyOrange()` from `src/render/palette.ts`: one colour, glow and finish, so all oranges match. Don't create other oranges.
 - Rendering uses `THREE.ColorManagement.enabled = false` and legacy-like light intensities to match the mockups.
+- Scenery that never moves (trees, rocks, drifts) is merged per material with `bakeStatic` (`src/render/bake.ts`) to keep draw calls low; the World playground went from ~6,000 draw calls zoomed out to ~100. Anything that moves or changes (nodes being mined, walls) stays separate.
 
 ## Locked decisions (see design doc for the full list)
 

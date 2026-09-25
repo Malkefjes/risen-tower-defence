@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { SHIP_SHOOTER, type Game, type GameEvent, type PlacedPiece, type Shot } from "../sim/game";
+import { bakeStatic } from "./bake";
 import { MiningView } from "./mining";
 import { stoneWallMaterials, stoneWallPiece } from "./stoneWall";
 import { createRig, RigAnimator, type Rig } from "./rig";
@@ -232,15 +233,17 @@ export class GameView {
     ground.receiveShadow = true;
     this.scene.add(ground);
 
+    // Rocks, trees and drifts never move: build them into one group and merge it (few draw calls).
+    const scenery = new THREE.Group();
     for (const r of w.map.rocks) {
       const m = this.models.create("rock", { scale: r.h, seed: r.x * 31 + r.y });
       m.position.set(r.x + 0.5, 0, r.y + 0.5);
-      this.scene.add(m);
+      scenery.add(m);
     }
     for (const t of w.map.trees) {
       const m = this.models.create("tree", { scale: t.s, seed: t.x * 17 + t.y });
       m.position.set(t.x + 0.5, 0, t.y + 0.5);
-      this.scene.add(m);
+      scenery.add(m);
     }
     // Decorative snow drifts away from anything important.
     const b = w.bounds();
@@ -252,8 +255,10 @@ export class GameView {
       if (near) continue;
       const m = this.models.create("snowMound", { scale: 0.3 + hash(i, 3, 7) * 0.3 });
       m.position.set(x, 0, z);
-      this.scene.add(m);
+      scenery.add(m);
     }
+    bakeStatic(scenery);
+    this.scene.add(scenery);
   }
 
   private nexusCenter(): THREE.Vector3 {
