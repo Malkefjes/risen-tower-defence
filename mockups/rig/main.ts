@@ -94,7 +94,6 @@ function buildRig() {
   body.add(rbox(TORSO_W, TORSO_H, TORSO_D, 0.045, M.suit, 0, TORSO_Y, 0));
   const chestZ = TORSO_D / 2 + bulge(0.045, TORSO_H);
   body.add(box(TORSO_W * 0.62, 0.1, 0.02, M.orange, 0, TORSO_Y + 0.12, chestZ));
-  body.add(box(TORSO_W * 0.4, 0.018, 0.012, M.power, 0, TORSO_Y + 0.07, chestZ + 0.002));
 
   // A short neck, then a square helmet with a front visor.
   const NECK_H = 0.04;
@@ -167,20 +166,26 @@ let pose: Pose = "walk";
  * travels forward (the lift), and the body dips at mid-stride and rises when a
  * leg passes under it. The hip drops to match the knee bend, so feet never sink.
  */
-function animate(t: number): void {
-  const s = t * 7;
-  const { legs, arms, body, bit } = rig;
+let rootY = 0;
+/** Smooth minimum: like Math.min, but eases between the two instead of switching with a jolt. */
+const softMin = (a: number, b: number, k = 40) => -Math.log(Math.exp(-k * a) + Math.exp(-k * b)) / k;
+
+function animate(t: number, dt: number): void {
+  const s = t * 6;
+  const { legs, arms, body } = rig;
   if (pose === "walk") {
     [0, 1].forEach(i => {
       const ph = s + i * Math.PI;
-      const swing = Math.sin(ph) * 0.42;
-      const lift = Math.max(0, Math.cos(ph)) * 0.85;
-      poseLeg(legs[i]!, -swing, lift + 0.08);
+      const swing = Math.sin(ph) * 0.38;
+      // Knee lift eases in and out (no hard start or stop) while the leg travels forward.
+      const lift = 0.7 * ((1 + Math.cos(ph)) / 2) ** 2;
+      poseLeg(legs[i]!, -swing, lift + 0.1);
     });
-    poseArm(arms[0]!, Math.sin(s) * 0.45, -0.35);
-    poseArm(arms[1]!, -0.25 + Math.sin(s + Math.PI) * 0.15, -0.9);
-    body.position.y = -0.012 + Math.abs(Math.sin(s)) * 0.02;
-    body.rotation.set(0.04, Math.sin(s) * 0.05, 0);
+    poseArm(arms[0]!, Math.sin(s) * 0.35, -0.35);
+    poseArm(arms[1]!, -0.25 + Math.sin(s + Math.PI) * 0.1, -0.9);
+    // Gentle, rounded bob: lowest as each foot lands, highest as the other leg passes under.
+    body.position.y = -0.006 + Math.cos(2 * s) * 0.006;
+    body.rotation.set(0.03, Math.sin(s) * 0.03, 0);
   } else if (pose === "idle") {
     poseLeg(legs[0]!, 0, 0.06); poseLeg(legs[1]!, 0, 0.06);
     poseArm(arms[0]!, 0.05, -0.2); poseArm(arms[1]!, -0.2, -0.9);
@@ -193,20 +198,19 @@ function animate(t: number): void {
     body.position.y = -0.02;
     body.rotation.set(0.14, -0.1, 0);
   }
-  // Keep the lowest foot on the snow: drop the rig by how much the bent legs got shorter.
-  if (pose !== "idle") {
-    const planted = Math.min(...legs.map(l => {
-      const a = l.top.rotation.x, b = a + l.mid.rotation.x;
-      return HIP_Y - FOOT_H - (THIGH * Math.cos(a) + SHIN * Math.cos(b));
-    }));
-    rig.root.position.y = -planted * SCALE;
-  } else rig.root.position.y = 0;
+  // Keep the lower foot on the snow, eased so the hand-over between feet has no jolt.
+  const drops = legs.map(l => {
+    const a = l.top.rotation.x, b = a + l.mid.rotation.x;
+    return HIP_Y - FOOT_H - (THIGH * Math.cos(a) + SHIN * Math.cos(b));
+  });
+  const target = pose === "idle" ? 0 : -softMin(drops[0]!, drops[1]!) * SCALE;
+  rootY += (target - rootY) * Math.min(1, dt * 14);
+  rig.root.position.y = rootY;
   // Keep the multitool level whatever the arm does; fire the beam while mining.
   const arm = arms[1]!;
   rig.tool.rotation.x = -(arm.top.rotation.x + arm.mid.rotation.x);
   rig.beam.visible = pose === "mine";
   rig.beam.scale.z = 0.28 + Math.sin(t * 40) * 0.02;
-  void bit;
 }
 
 // Rocket nearby for scale.
@@ -261,7 +265,7 @@ function frame(): void {
   (ship.userData.update as (t: number) => void)(time);
   if (spinning) heading += dt * 0.5;
   rig.root.rotation.y = heading;
-  animate(time);
+  animate(time, dt);
 
   if (pose === "mine" && Math.random() < dt * 30) {
     rig.root.updateMatrixWorld(true);
