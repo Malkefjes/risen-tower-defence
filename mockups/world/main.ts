@@ -106,20 +106,19 @@ function zonesAt(x: number, y: number): Zones {
  * it reveals, and a paler rim where the last thin snow lies, so every patch ends
  * in a crisp line against the white. Ice (frozen lakes) is flat open ground.
  */
-type Bare = "ice" | "scorch" | "rift" | "rock" | "needles";
+type Bare = "ice" | "scorch" | "rift" | "rock";
 const BARE: Record<Bare, { core: THREE.Color; rim: THREE.Color }> = {
   ice: { core: new THREE.Color("#9fc8e2"), rim: new THREE.Color("#d8eaf5") },
   scorch: { core: new THREE.Color("#6a6572"), rim: new THREE.Color("#b3afbb") },
   rift: { core: new THREE.Color("#4a3a5e"), rim: new THREE.Color("#a08fbf") },
   rock: { core: new THREE.Color("#6e717e"), rim: new THREE.Color("#b3b6c1") },
-  needles: { core: new THREE.Color("#5e6553"), rim: new THREE.Color("#c5cabd") },
 };
-const BARE_KINDS: Bare[] = ["ice", "scorch", "rift", "rock", "needles"];
+const BARE_KINDS: Bare[] = ["ice", "scorch", "rift", "rock"];
 /** Patch levels: at `RIM` the snow thins, at `CORE` the ground shows. */
 const RIM = 0.5, CORE = 0.6;
 
 /** How strongly each kind of bare ground is at a point (0..1); set up per seed in `generate`. */
-let bareAt: (x: number, y: number) => Record<Bare, number> = () => ({ ice: 0, scorch: 0, rift: 0, rock: 0, needles: 0 });
+let bareAt: (x: number, y: number) => Record<Bare, number> = () => ({ ice: 0, scorch: 0, rift: 0, rock: 0 });
 /** The kind of bare ground at a point, if any (for footprints: they only show in snow). */
 function bareKind(x: number, y: number): Bare | null {
   const m = bareAt(x, y);
@@ -213,10 +212,8 @@ function generate(): void {
     const rift = Math.max(z.wastes * smooth(0.6, 0.72, detail(x / 5, y / 5) + j), nearRift + j);
     // Wind scours the highland ridges down to rock.
     const rock = z.highlands * smooth(0.62, 0.72, ridges(x / 7, y / 7) + j);
-    // Under dense pines the canopy catches the snow.
-    const needles = z.forest * smooth(0.6, 0.7, grove(x / 7, y / 7) + j * 0.5);
     const clear = 1 - Math.min(1, ice * 1.6);
-    return { ice, scorch, rift: rift * clear, rock: rock * clear, needles: needles * clear * (1 - scorch) };
+    return { ice, scorch, rift: rift * clear, rock: rock * clear };
   };
   const onIce = (x: number, y: number) => bareAt(x + 0.5, y + 0.5).ice >= RIM - 0.1;
   /** Scenery goes into the chunk it stands in; each chunk is merged at the end. */
@@ -419,11 +416,11 @@ const wrap = (v: number, c: number) => ((((v - c + H) % (2 * H)) + 2 * H) % (2 *
 // ------------------------------------------------------------------ footprints
 
 /**
- * The rig leaves prints in fresh snow, left and right in turn, that slowly fill
- * back in (their colour eases back to the snow's). None on bare ground or ice, or
+ * The rig leaves prints in fresh snow, left and right in turn, that fill back in
+ * within seconds (their colour eases back to the snow's). None on bare ground or ice, or
  * when up on a rock or node. One instanced mesh, so they cost a single draw.
  */
-const PRINTS = 500, PRINT_LIFE = 25, PRINT_STEP = 0.36;
+const PRINTS = 300, PRINT_LIFE = 8, PRINT_STEP = 0.36;
 const PRINT_DENT = new THREE.Color("#aeb9d0"), SNOW_WHITE = (mat.snow as THREE.MeshStandardMaterial).color.clone();
 const prints = new THREE.InstancedMesh(new THREE.CircleGeometry(0.5, 8).rotateX(-Math.PI / 2),
   new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), PRINTS);
