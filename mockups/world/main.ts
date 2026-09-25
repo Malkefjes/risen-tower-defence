@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { crystalCluster, deadTree } from "../../src/render/alien";
-import { cliffRun } from "../../src/render/terrain";
+import { cliffLook } from "../../src/render/cliffLooks";
 import { computeField } from "../../src/sim/pathfinding";
 import { World, type MapDef } from "../../src/sim/world";
 import { bakeStatic } from "../../src/render/bake";
@@ -10,7 +10,7 @@ import { createRig, RigAnimator } from "../../src/render/rig";
 import { Avatar, defaultAvatarTuning } from "../../src/sim/avatar";
 import { nodeCellTop, nodeMax, type OreKind, type OreNode } from "../../src/sim/ore";
 import { cellKey } from "../../src/sim/types";
-import { rockTop, TREE_HURDLE } from "../../src/sim/world";
+import { TREE_HURDLE } from "../../src/sim/world";
 import "./style.css";
 
 // World playground: a piece of the planet built in zones around the landing site
@@ -177,6 +177,15 @@ function bareChunk(cx: number, cy: number): THREE.Mesh | null {
 
 // ------------------------------------------------------------------ the world
 
+/** Height of raised ground: out of jumping reach, level with the tops of the edge slabs. */
+const PLATEAU_TOP = 1.35;
+/**
+ * Inside a plateau: just its snowy top surface (the edges' slab cliffs hide what's
+ * below). One flat quad per cell, merged per chunk, so the top reads as one snowfield.
+ */
+const plateauGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2).translate(0, PLATEAU_TOP, 0);
+const plateauMat = new THREE.MeshStandardMaterial({ color: "#f1f4fa", roughness: 1 });
+
 interface Cell { kind: "tree" | "rock" | "ore" | "crystal" | "cliff"; top: number; node?: OreNode }
 const cells = new Map<string, Cell>();
 /** Ground kept clear of scenery (around the rifts). */
@@ -239,11 +248,7 @@ function generate(): void {
     cells.set(cellKey(x, y), { kind: "tree", top: TREE_HURDLE });
     put(models.create("tree", { scale: s, seed: x * 17 + y + seed }), x + 0.5, y + 0.5);
   };
-  const rock = (x: number, y: number, h: number) => {
-    cells.set(cellKey(x, y), { kind: "rock", top: rockTop(h) });
-    put(models.create("rock", { scale: h, seed: x * 31 + y + seed }), x + 0.5, y + 0.5);
-  };
-  /** Cliff cells; their models are built per chunk at the end, fused like walls. */
+  /** Raised ground (plateau) cells; their models are built per chunk at the end. */
   const cliffs = new Set<string>();
   const cliff = (x: number, y: number, h: number) => {
     cells.set(cellKey(x, y), { kind: "cliff", top: h });
@@ -269,30 +274,64 @@ function generate(): void {
     }
   }
 
-  // Cliff ridges: long winding rock walls too tall to jump, through the highlands,
-  // the outer forest and the wastes. Gaps in them are the passes (and chokepoints).
-  const ridgeLine = noise(seed * 23 + 8), passes = noise(seed * 29 + 9), heights = noise(seed * 31 + 10);
-  // Two heights, changing slowly along a ridge, so neighbouring cells line up.
-  const cliffHeight = (x: number, y: number) => (heights(x / 10, y / 10) > 0.55 ? 1.75 : 1.4);
+  // Raised ground: cliffs are the edges of higher land, not walls standing on the
+  // flat. A smooth elevation field is raised wherever it passes a threshold that
+  // depends on the zone (lowest in the windswept highlands, middle in the wastes,
+  // highest in the forest, never near the landing site or the rifts). Smoothing,
+  // dropping scraps and filling holes leaves solid plateaus to build around.
+  const elev = noise(seed * 23 + 8), elev2 = noise(seed * 29 + 9);
+  const high = new Set<string>();
   for (let y = -R; y < R; y++) for (let x = -R; x < R; x++) {
     const d = Math.hypot(x, y);
-    if (d < 20) continue;
+    if (d < 24 || reserved.has(cellKey(x, y)) || onIce(x, y)) continue;
+    if (rifts.some(([rx, ry]) => Math.hypot(x - rx, y - ry) < 9)) continue;
     const z = zonesAt(x + 0.5, y + 0.5);
-    if (z.highlands + z.forest * smooth(26, 40, d) + z.wastes * 0.7 < 0.45) continue;
-    if (Math.abs(ridgeLine(x / 20, y / 20) - 0.5) > 0.028) continue;
-    if (passes(x / 8, y / 8) > 0.66 || !free(x, y)) continue;
-    cliff(x, y, cliffHeight(x, y));
+    const e = elev(x / 22, y / 22) * 0.8 + elev2(x / 9, y / 9) * 0.2;
+    const threshold = 0.64 * z.highlands + 0.7 * z.wastes + 0.8 * (z.forest + z.clearing);
+    if (e > threshold) high.add(cellKey(x, y));
   }
-  // Ridges that only touch corner to corner get the corner filled, so every wall is
-  // one continuous mass (no see-through diagonal gaps).
-  for (const k of [...cliffs]) {
-    const [x, y] = k.split(",").map(Number) as [number, number];
-    for (const [dx, dy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]] as [number, number][]) {
-      if (!cliffs.has(cellKey(x + dx, y + dy)) || cliffs.has(cellKey(x + dx, y)) || cliffs.has(cellKey(x, y + dy))) continue;
-      if (free(x + dx, y)) cliff(x + dx, y, cliffHeight(x + dx, y));
-      else if (free(x, y + dy)) cliff(x, y + dy, cliffHeight(x, y + dy));
+  const n8 = (set: Set<string>, x: number, y: number) => {
+    let c = 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && set.has(cellKey(x + dx, y + dy))) c++;
+    return c;
+  };
+  for (let pass = 0; pass < 3; pass++) {
+    const next = new Set<string>();
+    for (let y = -R; y < R; y++) for (let x = -R; x < R; x++) {
+      const k = cellKey(x, y), c = n8(high, x, y);
+      if (high.has(k) ? c >= 4 : c >= 6) next.add(k);
     }
+    high.clear();
+    for (const k of next) if (free(...(k.split(",").map(Number) as [number, number]))) high.add(k);
   }
+  // Keep only big plateaus (small scraps read as standalone cliffs), and fill holes.
+  const components = (inSet: (x: number, y: number) => boolean): string[][] => {
+    const seen = new Set<string>(), out: string[][] = [];
+    for (let y = -R; y < R; y++) for (let x = -R; x < R; x++) {
+      const k0 = cellKey(x, y);
+      if (seen.has(k0) || !inSet(x, y)) continue;
+      const comp: string[] = [], stack: [number, number][] = [[x, y]];
+      seen.add(k0);
+      while (stack.length) {
+        const [cx, cy] = stack.pop()!;
+        comp.push(cellKey(cx, cy));
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as [number, number][]) {
+          const nx = cx + dx, ny = cy + dy, k = cellKey(nx, ny);
+          if (nx < -R || ny < -R || nx >= R || ny >= R || seen.has(k) || !inSet(nx, ny)) continue;
+          seen.add(k); stack.push([nx, ny]);
+        }
+      }
+      out.push(comp);
+    }
+    return out;
+  };
+  for (const comp of components((x, y) => high.has(cellKey(x, y)))) if (comp.length < 40) for (const k of comp) high.delete(k);
+  for (const comp of components((x, y) => !high.has(cellKey(x, y)))) {
+    if (comp.length >= 30) continue;
+    for (const k of comp) if (free(...(k.split(",").map(Number) as [number, number]))) high.add(k);
+  }
+  for (const k of high) { const [x, y] = k.split(",").map(Number) as [number, number]; cliff(x, y, PLATEAU_TOP); }
+  (window as unknown as { plateaus: string[] }).plateaus = [...high];
 
   // Ore where it belongs: stone in the forest belt and highland outcrops, metal up
   // in the highlands. The wastes hold none (yet), only crystal.
@@ -323,16 +362,13 @@ function generate(): void {
       else if (g > 0.6 && roll < 0.12) {
         cells.set(cellKey(x, y), { kind: "tree", top: TREE_HURDLE });
         put(deadTree(x * 7 + y + seed, 0.9 + rand() * 0.3), x + 0.5, y + 0.5);
-      } else if (roll < 0.002) rock(x, y, 10 + Math.floor(rand() * 4));
+      }
     } else if (z.highlands > 0.5) {
-      // Highlands: rock outcrops and boulder fields, only a few hardy pines.
-      if (r > 0.74 && roll < (r - 0.7) * 1.6) rock(x, y, 12 + Math.floor(rand() * 5));
-      else if (g > 0.72 && roll < 0.12) tree(x, y, 0.8 + rand() * 0.25);
-      else if (roll < 0.002) rock(x, y, 10 + Math.floor(rand() * 3));
+      // Highlands: open windswept ground under the plateaus, only a few hardy pines.
+      if (g > 0.72 && roll < 0.12) tree(x, y, 0.8 + rand() * 0.25);
     } else {
       // Forest belt: dense groves with open glades between them.
       if (g > 0.5 && roll < (g - 0.42) * 1.5) tree(x, y, 0.85 + rand() * 0.35);
-      else if (r > 0.86 && roll < 0.15) rock(x, y, 10 + Math.floor(rand() * 5));
       else if (roll < 0.01) tree(x, y, 0.9 + rand() * 0.25);
     }
   }
@@ -382,7 +418,19 @@ function generate(): void {
     const g = chunks.get(`${Math.floor(cx / CHUNK)},${Math.floor(cy / CHUNK)}`) ?? new THREE.Group();
     const own: [number, number][] = [];
     for (let y = cy; y < cy + CHUNK; y++) for (let x = cx; x < cx + CHUNK; x++) if (cliffs.has(cellKey(x, y))) own.push([x, y]);
-    if (own.length) g.add(cliffRun(own, (x, y) => cells.get(cellKey(x, y))?.top ?? 1.4, (x, y) => cliffs.has(cellKey(x, y)), cx * 31 + cy + seed));
+    if (own.length) {
+      // Plateau edges are slab cliffs (look B); the inside is a flat, snow-covered top.
+      const isHigh = (x: number, y: number) => cliffs.has(cellKey(x, y));
+      const edge = own.filter(([x, y]) => !isHigh(x + 1, y) || !isHigh(x - 1, y) || !isHigh(x, y + 1) || !isHigh(x, y - 1));
+      const inner = own.filter(c => !edge.includes(c));
+      if (edge.length) g.add(cliffLook("B", edge, isHigh, cx * 31 + cy + seed));
+      for (const [x, y] of inner) {
+        const top = new THREE.Mesh(plateauGeo, plateauMat);
+        top.position.set(x + 0.5, 0, y + 0.5);
+        top.receiveShadow = true;
+        g.add(top);
+      }
+    }
     bakeStatic(g);
     const bare = bareChunk(cx, cy);
     if (bare) g.add(bare);
@@ -672,6 +720,8 @@ function frame(now: number): void {
   const info = renderer.info.render;
   if (showStats) stats.textContent = `${fps.toFixed(0)} fps · ${info.calls} draws · ${(info.triangles / 1000).toFixed(0)}k tris · zoom ${zoom.toFixed(1)}`;
   (window as unknown as { perf: object }).perf = { fps, calls: info.calls, tris: info.triangles, x: avatar.x, y: avatar.y };
+  // For checking views from tests: look at a cell without walking there.
+  (window as unknown as { lookAt: (x: number, y: number) => void }).lookAt ??= (x, y) => { following = false; target.set(x, 0, y); };
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
