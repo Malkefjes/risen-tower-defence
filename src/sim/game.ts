@@ -353,10 +353,18 @@ export class Game {
   }
 
   /** Advance the simulation by one fixed tick. */
-  step(dt = TICK): void {
+  /**
+   * Advance the avatar by one tick. Separate from `step` so the player always
+   * moves in real time, whatever the game speed.
+   */
+  stepAvatar(dt = TICK): void {
     this.avatar.step(dt, this.avatarInput, this.heightAt, this.avatarTuning);
     this.avatarInput.jump = false;
     if (this.avatar.landed) this.events.push({ type: "avatar-landed" });
+  }
+
+  /** Advance the world (waves, enemies, towers) by one tick. Game speed scales how often this runs. */
+  step(dt = TICK): void {
     if (this.phase === "over") return;
     if (this.phase === "wave") {
       this.spawnTimer -= dt;

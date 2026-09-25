@@ -49,12 +49,15 @@ addEventListener("resize", () => view.resize());
 document.addEventListener("click", e => (e.target as HTMLElement).closest("button")?.blur());
 
 // Fixed-step simulation, rendered every animation frame.
-let last = performance.now(), acc = 0;
+// The avatar runs on real time; game speed only scales the world (waves, enemies, towers).
+let last = performance.now(), acc = 0, avatarAcc = 0;
 function frame(now: number): void {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
   let simDt = 0;
   if (!controller.paused) {
+    avatarAcc += dt;
+    while (avatarAcc >= TICK) { game.stepAvatar(TICK); avatarAcc -= TICK; }
     acc += dt * controller.speed;
     let steps = 0;
     while (acc >= TICK && steps++ < 12) { game.step(TICK); acc -= TICK; simDt += TICK; }
@@ -65,7 +68,7 @@ function frame(now: number): void {
   hud.update(controller);
   syncTools();
   // Draw moving things between the last two ticks, so they stay smooth at any refresh rate.
-  view.render(dt, simDt, overlay, events, Math.min(1, acc / TICK));
+  view.render(dt, simDt, overlay, events, Math.min(1, avatarAcc / TICK));
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

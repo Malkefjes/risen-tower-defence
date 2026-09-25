@@ -5,7 +5,7 @@ import { WALL_DECK, type MapDef } from "../src/sim/world";
 const open = (extra: Partial<MapDef> = {}): MapDef => ({
   name: "test", spawners: [[0, 0]], nexus: [[20, 0]], rocks: [], trees: [], start: [5, 5], ...extra,
 });
-const ticks = (g: Game, n: number) => { for (let i = 0; i < n; i++) g.step(); };
+const ticks = (g: Game, n: number) => { for (let i = 0; i < n; i++) { g.stepAvatar(); g.step(); } };
 
 describe("avatar in the game", () => {
   it("starts on the map's start cell and moves with input in any phase", () => {
