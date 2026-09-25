@@ -172,8 +172,8 @@ export function enemyLook(look: EnemyLook): Enemy {
     t.add(mesh(sting, m.bone, 0, 0, -0.18));
   }
 
-  // The leaper is half the size it was modelled at (Erik).
-  if (look === "C") root.scale.setScalar(0.5);
+  // The leaper is smaller than it was modelled at (Erik: half, then a little bigger).
+  if (look === "C") root.scale.setScalar(0.6);
   const baseY = body.position.y;
   const tipPos = new THREE.Vector3();
   /** Half the foot's thickness: the tip sits this far above the snow. */

@@ -57,7 +57,7 @@ let look: EnemyLook = "C";
 const OUT = new THREE.Vector3(Math.SQRT1_2, 0, Math.SQRT1_2); // the way the cave mouth faces
 const START = cave.object.position.clone().addScaledVector(OUT, 0.55);
 const DIE_AT = 7, SPEED = 1.5, EVERY = 1.1;
-interface Walker { e: Enemy; d: number; t: number; dying: number }
+interface Walker { e: Enemy; d: number; t: number; dying: number; /** The creature's own scale, so dying only ever shrinks it. */ size: number }
 let walkers: Walker[] = [];
 let spawnT = 0;
 const bits: { m: THREE.Mesh; v: THREE.Vector3; life: number }[] = [];
@@ -67,7 +67,7 @@ function spawn(): void {
   const e = enemyLook(look);
   e.object.rotation.y = Math.atan2(OUT.x, OUT.z);
   scene.add(e.object);
-  walkers.push({ e, d: 0, t: Math.random() * 10, dying: 0 });
+  walkers.push({ e, d: 0, t: Math.random() * 10, dying: 0, size: e.object.scale.x });
 }
 function build(): void {
   for (const w of walkers) scene.remove(w.e.object);
@@ -119,7 +119,7 @@ function frame(now: number): void {
       const k = Math.min(1, w.dying / 0.6);
       w.e.object.rotation.z = k * 1.3;
       w.e.object.position.y = -k * 0.12;
-      w.e.object.scale.setScalar(1 - k * k * 0.9);
+      w.e.object.scale.setScalar(w.size * (1 - k * k * 0.9));
       w.e.update(w.t, false);
       continue;
     }
