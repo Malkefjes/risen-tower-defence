@@ -111,7 +111,7 @@ function buildRig() {
   root.add(body);
 
   // Pelvis: part of the hips (not the torso), centred over both hip joints.
-  root.add(exactBox(HIPS_W, WAIST_H, HIPS_D, 0.02, M.steelDark, 0, HIP_Y - WAIST_H * 0.5, 0));
+  root.add(exactBox(HIPS_W, WAIST_H, HIPS_D, 0.045, M.steelDark, 0, HIP_Y - WAIST_H * 0.5, 0));
 
   // Torso: exactly as wide as the hips and legs.
   // The rounded box's bevel bulges past its width, so subtract it: the torso's visible width matches the hips.
