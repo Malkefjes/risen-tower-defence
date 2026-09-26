@@ -3,7 +3,7 @@ import { COLOSSUS_HEIGHT, colossusModel } from "../../src/render/colossus";
 import { GRUMTOOTH_HEIGHT, grumtoothModel } from "../../src/render/grumtooth";
 import { wolfModel } from "../../src/render/wolf";
 import { GameView, type Overlay } from "../../src/render/view";
-import { Game, PACK_STAGGER, TICK, type PlacedPiece } from "../../src/sim/game";
+import { Game, TICK, type PlacedPiece } from "../../src/sim/game";
 import { growAt, type Tower } from "../../src/sim/towers";
 import type { Cell } from "../../src/sim/types";
 import type { MapDef } from "../../src/sim/world";
@@ -137,7 +137,7 @@ section("Runner",
   slider("HP", 1, 60, 1, () => runner.hp, v => { runner.hp = v; tune.enemies.runner.hp = v; }),
   slider("Wolves per pack", 1, 30, 1, () => runner.pack, v => { runner.pack = v; }),
   // A pack runs nose to tail: each wolf leaves as the one ahead has cleared its length.
-  buttons(["Spawn 1", () => spawn("runner", 1, 0)], ["Spawn a pack", () => spawn("runner", runner.pack, Math.max(PACK_STAGGER, (runner.size * 1.1) / runner.speed))]),
+  buttons(["Spawn 1", () => spawn("runner", 1, 0)], ["Spawn a pack", () => spawn("runner", runner.pack, game.packSpacing("runner", runner.speed))]),
 );
 // A swarm pours out of the cave in a stream.
 section("Swarm",
@@ -145,7 +145,7 @@ section("Swarm",
   slider("Speed (cells per second)", 0.3, 5, 0.05, () => swarm.speed, v => { swarm.speed = v; tune.enemies.swarm.speed = v; }),
   slider("HP", 1, 30, 1, () => swarm.hp, v => { swarm.hp = v; tune.enemies.swarm.hp = v; }),
   slider("Per swarm", 1, 60, 1, () => swarm.pack, v => { swarm.pack = v; }),
-  buttons(["Spawn 1", () => spawn("swarm", 1, 0)], ["Spawn a swarm", () => spawn("swarm", swarm.pack, PACK_STAGGER * 0.6)]),
+  buttons(["Spawn 1", () => spawn("swarm", 1, 0)], ["Spawn a swarm", () => spawn("swarm", swarm.pack, game.packSpacing("swarm", swarm.speed))]),
 );
 const markRow = document.createElement("div");
 markRow.className = "chips";

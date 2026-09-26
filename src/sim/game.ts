@@ -5,15 +5,13 @@ import { nodeArea, nodeCellTop, nodeFootprint, nodeMax, ORE_STAGES, stagesLeft, 
 import { computeField, keysOf, type FlowField } from "./pathfinding";
 import { pieceCells, type ShapeId } from "./pieces";
 import { Rng } from "./rng";
-import { ENEMY_KINDS, throughArmour, type EnemyKind, type EnemyStats } from "./enemies";
+import { ENEMY_INFO, ENEMY_KINDS, throughArmour, type EnemyKind, type EnemyStats } from "./enemies";
 import { BOLT_SPEED, footprint, missileTime, SLUG_SPEED, TOWER_INFO, TOWER_TOP, type Tower, type TowerKind, type TowerStats } from "./towers";
 import { mergeTuning, type Tuning, type TuningPatch } from "./tuning";
 import { cellKey, parseKey, type Cell } from "./types";
 import { WALL_DECK, World, type MapDef } from "./world";
 
 export const TICK = 1 / 60;
-/** Seconds between enemies of one pack climbing out. */
-export const PACK_STAGGER = 0.25;
 /** Shots from the ship's own gun carry this as their shooter id (tower ids start at 1). */
 export const SHIP_SHOOTER = 0;
 /** The avatar collides with the world in eighths of a cell (for the rim around towers). */
@@ -1105,6 +1103,11 @@ export class Game {
     return this.enemyStats(kind).speed * (1 + (this.rng.next() * 2 - 1) * this.tuning.speedSpread);
   }
 
+  /** Seconds between a pack's enemies climbing out: the type's `gap`, but never less than one body length at its speed. */
+  packSpacing(kind: EnemyKind, speed: number): number {
+    return Math.max(this.enemyStats(kind).gap, (ENEMY_INFO[kind].length * 1.1) / Math.max(0.1, speed));
+  }
+
   /** One enemy climbs out of a cave, with its pack's speed and its own line. */
   private spawnWalker(at: Cell, practice: boolean, kind: EnemyKind = "grunt", speed = this.rollSpeed(kind)): void {
     const [sx, sy] = at, hp = this.enemyHp(kind);
@@ -1119,14 +1122,16 @@ export class Game {
   private sendPack(): void {
     const pack = this.plan.shift();
     if (!pack) return;
-    const { kind, size } = pack, e = this.enemyStats(kind);
+    const { kind, size } = pack;
+    let longest = 0;
     for (const at of this.activeSpawners()) {
-      const speed = this.rollSpeed(kind);
-      for (let i = 0; i < size; i++) this.packQueue.push({ at, delay: i * e.gap, speed, kind });
+      const speed = this.rollSpeed(kind), gap = this.packSpacing(kind, speed);
+      longest = Math.max(longest, size * gap);
+      for (let i = 0; i < size; i++) this.packQueue.push({ at, delay: i * gap, speed, kind });
     }
     // The next pack follows after `packGap`, or sooner when the raid's packs must fit in `raidSpread`.
     const t = this.tuning;
-    this.spawnTimer = Math.max(size * e.gap, Math.min(t.packGap + size * e.gap, t.raidSpread / Math.max(1, this.planSize)));
+    this.spawnTimer = Math.max(longest, Math.min(t.packGap + longest, t.raidSpread / Math.max(1, this.planSize)));
   }
 
   /**

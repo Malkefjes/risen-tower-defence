@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Game, PACK_STAGGER } from "../src/sim/game";
+import { Game } from "../src/sim/game";
 import type { MapDef } from "../src/sim/world";
 import { gruntsOnly } from "./helpers";
 
@@ -8,13 +8,14 @@ const run = (g: Game, seconds: number) => { for (let i = 0; i < Math.round(secon
 
 describe("enemy packs", () => {
   it("a cave sends a pack, one enemy after another, then waits before the next", () => {
-    const g = new Game(map(), { seed: 2, waveSize: () => 8, tuning: { packMin: 4, packMax: 4, packGap: 4, enemies: gruntsOnly } });
+    // Grunts half a second apart (longer than a body length at their speed).
+    const g = new Game(map(), { seed: 2, waveSize: () => 8, tuning: { packMin: 4, packMax: 4, packGap: 4, enemies: { ...gruntsOnly, grunt: { gap: 0.5 } } } });
     g.startWave();
-    run(g, 4 * PACK_STAGGER);
+    run(g, 4 * 0.5);
     expect(g.walkers).toHaveLength(4);
     run(g, 2);
     expect(g.walkers).toHaveLength(4);
-    run(g, 3);
+    run(g, 4);
     expect(g.walkers).toHaveLength(8);
     expect(g.waveRemaining).toBe(8);
   });
@@ -28,12 +29,12 @@ describe("enemy packs", () => {
   });
 
   it("a pack moves at one speed, packs differ a little, and each enemy has its own line", () => {
-    const g = new Game(map(), { seed: 5, waveSize: () => 60, tuning: { packMin: 5, packMax: 5, packGap: 0.5, speedSpread: 0.12, enemies: gruntsOnly } });
+    const g = new Game(map(), { seed: 5, waveSize: () => 60, tuning: { packMin: 5, packMax: 5, packGap: 0.5, speedSpread: 0.12, enemies: { ...gruntsOnly, grunt: { gap: 0.5 } } } });
     g.startWave();
     const packs: number[][] = [];
     for (let p = 0; p < 12; p++) {
       const before = new Set(g.walkers.map(w => w.id));
-      run(g, 5 * PACK_STAGGER + 0.5);
+      run(g, 5 * 0.5 + 0.5);
       packs.push(g.walkers.filter(w => !before.has(w.id)).map(w => w.speed / g.tuning.enemies.grunt.speed));
     }
     for (const pack of packs) {
@@ -71,11 +72,12 @@ describe("raids mix enemy types", () => {
     expect(cost).toBeLessThanOrEqual(30 + g.tuning.enemies.brute.cost);
   });
 
-  it("a pack is one type, as many as its pack size, spaced by its gap", () => {
+  it("a pack is one type, as many as its pack size, spaced by its gap (or a body length)", () => {
     const g = new Game(map(), { seed: 1, waveSize: () => 100, tuning: { enemies: { swarm: { share: 1 }, runner: { share: 0 }, brute: { share: 0 } } } });
     g.startWave();
     const e = g.tuning.enemies.swarm;
-    run(g, e.gap * (e.pack - 1) + 0.05);
+    g.step();
+    run(g, g.packSpacing("swarm", g.walkers[0]!.speed) * (e.pack - 1) + 0.02);
     expect(g.walkers).toHaveLength(e.pack);
     expect(g.walkers.every(w => w.kind === "swarm")).toBe(true);
     expect(new Set(g.walkers.map(w => w.speed)).size).toBe(1);
@@ -90,5 +92,20 @@ describe("raids mix enemy types", () => {
     const h = new Game(map(), { seed: 3, waveSize: () => 1, tuning: only({ brute: 1 }) });
     h.startWave();
     expect([...sent(h, 5)]).toEqual([["brute", 1]]);
+  });
+});
+
+describe("packs climb out a body length apart", () => {
+  it("no enemy of a pack starts inside the one before it, even when the type's gap is shorter", () => {
+    const g = new Game(map(), { seed: 2, waveSize: () => 3, tuning: { enemies: { swarm: { share: 1, gap: 0.01, pack: 12, from: 1, cost: 0.25 }, runner: { share: 0 }, brute: { share: 0 } } } });
+    g.startWave();
+    const seen: number[] = [];
+    for (let i = 0; i < 60 * 8; i++) {
+      g.step();
+      const ws = [...g.walkers].sort((a, b) => b.x - a.x);
+      for (let k = 1; k < ws.length; k++) seen.push(Math.hypot(ws[k - 1]!.x - ws[k]!.x, ws[k - 1]!.y - ws[k]!.y));
+    }
+    expect(g.walkers.length).toBe(12);
+    expect(Math.min(...seen)).toBeGreaterThanOrEqual(0.55 * 0.95);
   });
 });

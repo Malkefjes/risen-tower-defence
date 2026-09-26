@@ -8,11 +8,15 @@
 export type EnemyKind = "grunt" | "swarm" | "runner" | "brute";
 export const ENEMY_KINDS: readonly EnemyKind[] = ["grunt", "swarm", "runner", "brute"];
 
-export const ENEMY_INFO: Record<EnemyKind, { name: string }> = {
-  grunt: { name: "Grunt" },
-  swarm: { name: "Swarm" },
-  runner: { name: "Runner" },
-  brute: { name: "Brute" },
+/**
+ * `length`: how long one is along its path, in cells (its look, nose to tail): a pack
+ * climbs out one body length apart at least, so its enemies don't start inside each other.
+ */
+export const ENEMY_INFO: Record<EnemyKind, { name: string; length: number }> = {
+  grunt: { name: "Grunt", length: 0.5 },
+  swarm: { name: "Swarm", length: 0.55 },
+  runner: { name: "Runner", length: 1.7 },
+  brute: { name: "Brute", length: 1 },
 };
 
 export interface EnemyStats {
