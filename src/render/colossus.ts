@@ -103,7 +103,14 @@ export interface ColossusOptions {
   scale: number;
   /** Strides per second of game time at the golem's walking speed. */
   strideRate: number;
+  /**
+   * Enemy marks, read every frame so they can be switched live: a red outline round
+   * the body, and a red ring on the ground under it.
+   */
+  marks?: { outline: boolean; ring: boolean };
 }
+
+let outlineMat: THREE.MeshBasicMaterial | undefined, ringMat: THREE.MeshBasicMaterial | undefined, ringGeo: THREE.RingGeometry | undefined;
 
 /** One golem. Its material is its own, so a hit flashes only the one that was hit. */
 export function colossusModel(o: ColossusOptions): Enemy {
@@ -113,14 +120,26 @@ export function colossusModel(o: ColossusOptions): Enemy {
   const root = new THREE.Group(), tilt = new THREE.Group();
   root.add(tilt);
   root.scale.setScalar(o.scale);
+  // The outline is the part again, a little bigger, drawn from the inside in red: an inverted hull.
+  outlineMat ??= new THREE.MeshBasicMaterial({ color: "#d11f2a", side: THREE.BackSide });
+  const outlines: THREE.Mesh[] = [];
   const mk = (k: Part) => {
     const m = new THREE.Mesh(geo![k], mat);
     const [x, y, z] = PIVOTS[k];
     m.position.set(x * SCALE, (y + LIFT) * SCALE, z * SCALE);
     m.castShadow = true;
+    const hull = new THREE.Mesh(geo![k], outlineMat);
+    hull.scale.setScalar(1.07);
+    m.add(hull);
+    outlines.push(hull);
     tilt.add(m);
     return m;
   };
+  ringMat ??= new THREE.MeshBasicMaterial({ color: "#d11f2a", transparent: true, opacity: 0.75, depthWrite: false });
+  ringGeo ??= new THREE.RingGeometry(0.34, 0.42, 24).rotateX(-Math.PI / 2);
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.position.y = 0.02;
+  root.add(ring);
   mk("body");
   const armR = mk("armR"), armL = mk("armL"), legR = mk("legR"), legL = mk("legL");
   let last = 0, phase = Math.random() * 6;
@@ -131,6 +150,9 @@ export function colossusModel(o: ColossusOptions): Enemy {
       last = t;
       // Heavy steps while walking; standing, the arms swing slowly as it pounds what it's attacking.
       phase += dt * Math.PI * 2 * o.strideRate * (walking ? 1 : 0.6);
+      const marks = o.marks ?? { outline: false, ring: false };
+      for (const h of outlines) h.visible = marks.outline;
+      ring.visible = marks.ring;
       const s = Math.sin(phase), c = Math.cos(phase);
       const stride = walking ? 0.3 : 0.05, swing = walking ? 0.32 : 0.7;
       legR.rotation.x = s * stride; legL.rotation.x = -s * stride;

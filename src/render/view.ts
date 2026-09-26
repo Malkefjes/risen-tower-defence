@@ -45,6 +45,8 @@ export interface Overlay {
 export interface ViewLooks {
   enemy?: () => Enemy;
   barY?: number;
+  /** Show enemy HP bars at full health too (normally only once hurt). */
+  alwaysBars?: boolean;
   burst?: { color: string; count: number; size: number };
 }
 
@@ -680,7 +682,7 @@ export class GameView {
       this.scene.add(b);
       this.bars.set(id, b);
     }
-    b.visible = frac < 0.999;
+    b.visible = frac < 0.999 || !!this.looks.alwaysBars;
     b.position.set(x, this.looks.barY ?? 0.62, y);
     b.quaternion.copy(this.camera.quaternion);
     b.getObjectByName("fill")!.scale.x = Math.max(0.001, frac);

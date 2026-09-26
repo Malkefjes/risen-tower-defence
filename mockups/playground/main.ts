@@ -44,7 +44,7 @@ const map: MapDef = {
 // ------------------------------------------------------------------ settings
 
 const look = {
-  size: 0.9,
+  size: 1.2,
   palette: "mix" as ColossusPalette | "mix",
   hp: 12,
   speed: 1.2,
@@ -52,6 +52,8 @@ const look = {
   gap: 3,
 };
 const PALETTES = Object.keys(COLOSSUS_PALETTES) as ColossusPalette[];
+/** How enemies are marked as enemies; switched live from the panel. */
+const marks = { outline: false, ring: false };
 
 const game = new Game(map, {
   seed: 7,
@@ -80,6 +82,7 @@ const view = new GameView(document.getElementById("view")!, game, undefined, {
     scale: look.size,
     // Strides keep pace with the ground it covers; a bigger golem takes longer strides.
     strideRate: (look.speed * 0.75) / look.size,
+    marks,
   }),
   barY: COLOSSUS_HEIGHT * look.size + 0.08,
   burst: { color: "#5a5f70", count: 12, size: 2.2 },
@@ -121,6 +124,23 @@ section("Golem",
   slider("HP", 1, 80, 1, () => look.hp, v => { look.hp = v; tune.enemies.grunt.hp = v; }),
   chips,
 );
+const markRow = document.createElement("div");
+markRow.className = "chips";
+const drawMarks = () => {
+  markRow.innerHTML = [["outline", "Red outline", marks.outline], ["ring", "Red ring", marks.ring], ["bars", "HP bar always", !!view.looks.alwaysBars]]
+    .map(([k, label, on]) => `<button class="chip" data-k="${k}" aria-pressed="${on}">${label}</button>`).join("");
+};
+markRow.addEventListener("click", e => {
+  const b = (e.target as HTMLElement).closest("button");
+  if (!b) return;
+  const k = b.dataset.k;
+  if (k === "outline") marks.outline = !marks.outline;
+  else if (k === "ring") marks.ring = !marks.ring;
+  else view.looks.alwaysBars = !view.looks.alwaysBars;
+  drawMarks();
+});
+drawMarks();
+section("Marked as enemy", markRow);
 section("Packs",
   slider("Golems per pack", 1, 12, 1, () => look.pack, v => { look.pack = v; tune.packMin = tune.packMax = v; }),
   slider("Seconds between packs", 0.5, 12, 0.5, () => look.gap, v => { look.gap = v; tune.packGap = v; }),
