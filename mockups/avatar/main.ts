@@ -1,7 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { EVENING } from "../../src/render/models";
-import { colonyOrange } from "../../src/render/palette";
 import { createRig } from "../../src/render/rig";
 import { BLASTER } from "./blasterData";
 import { GLB } from "./sentinelData";
@@ -9,7 +8,7 @@ import { GLB } from "./sentinelData";
 // Erik's new avatar, the Neon Star Sentinel (a skinned model with walk and run clips),
 // running circles on the snow in the game's evening light.
 // Stand, walk, run and sprint play his clips; jump and aiming the gun are added in
-// code on top of them; the colours are the rig's palette, put on by rule.
+// code on top of them; both in one grey for now.
 
 THREE.ColorManagement.enabled = false;
 
@@ -82,68 +81,9 @@ const size = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
 const k = rigHeight / size.y;
 model.scale.setScalar(k);
 
-/** The rig's palette on the model, face by face: which bone moves a face decides what it is. */
-function colourByRule(): { coloured: THREE.Material[]; plain: THREE.Material } {
-  const geo = (mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone());
-  geo.computeVertexNormals();
-  const pos = geo.attributes.position!, nor = geo.attributes.normal!, si = geo.attributes.skinIndex!, sw = geo.attributes.skinWeight!;
-  // Where each bone sits in the bind pose, in the mesh's own space.
-  const bindPos = mesh.skeleton.boneInverses.map(inv => new THREE.Vector3().setFromMatrixPosition(inv.clone().invert()));
-  const name = (i: number) => bones[i]!.name.toLowerCase();
-  const white = new THREE.Color("#eef1f6"), steel = new THREE.Color("#3d4457"), dark = new THREE.Color("#2c3142"), orange = colonyOrange().color.clone();
-  const n = pos.count / 3, colours = new Float32Array(pos.count * 3), visor: boolean[] = [];
-  const near = (p: THREE.Vector3, part: string, d: number) => { const i = bones.indexOf(bone(part)); return i >= 0 && p.distanceTo(bindPos[i]!) < d; };
-  const c = new THREE.Vector3(), nm = new THREE.Vector3();
-  for (let f = 0; f < n; f++) {
-    // The bone with the most weight over the face's three corners.
-    const w = new Map<number, number>();
-    c.set(0, 0, 0); nm.set(0, 0, 0);
-    for (let v = f * 3; v < f * 3 + 3; v++) {
-      for (let q = 0; q < 4; q++) { const j = si.getComponent(v, q), ww = sw.getComponent(v, q); if (ww > 0) w.set(j, (w.get(j) ?? 0) + ww); }
-      c.x += pos.getX(v) / 3; c.y += pos.getY(v) / 3; c.z += pos.getZ(v) / 3;
-      nm.x += nor.getX(v); nm.y += nor.getY(v); nm.z += nor.getZ(v);
-    }
-    nm.normalize();
-    const top = [...w.entries()].sort((a, b) => b[1] - a[1])[0]![0], b = name(top);
-    let col = white, isVisor = false;
-    if (b.includes("head") || b.includes("neck")) {
-      // The visor: the forward face of the helmet, at eye height.
-      const head = bindPos[bones.indexOf(bone("Head"))]!;
-      isVisor = nm.z > 0.45 && c.y > head.y + 0.02 && c.y < head.y + 0.16 && b.includes("head");
-      col = b.includes("neck") ? dark : white;
-    } else if (b.includes("hips")) col = c.y > bindPos[bones.indexOf(bone("Hips"))]!.y + 0.03 ? orange : steel;
-    else if (b.endsWith("spine")) col = steel;
-    else if (b.includes("spine")) col = white;
-    else if (b.includes("hand")) col = dark;
-    else if (b.includes("forearm")) col = near(c, "LeftForeArm", 0.06) || near(c, "RightForeArm", 0.06) ? orange : steel;
-    else if (b.includes("shoulder") || b.endsWith("arm")) col = white;
-    else if (b.includes("upleg")) col = steel;
-    else if (b.endsWith("leg")) col = near(c, "LeftLeg", 0.07) || near(c, "RightLeg", 0.07) ? orange : white;
-    else if (b.includes("foot") || b.includes("toe")) col = dark;
-    visor.push(isVisor);
-    for (let v = f * 3; v < f * 3 + 3; v++) colours.set([col.r, col.g, col.b], v * 3);
-  }
-  geo.setAttribute("color", new THREE.BufferAttribute(colours, 3));
-  // Visor faces go in their own group, drawn with the glowing cyan.
-  const order = [...Array(n).keys()].sort((a, b) => Number(visor[a]) - Number(visor[b]));
-  const firstVisor = order.findIndex(f => visor[f]);
-  const re = new THREE.BufferGeometry();
-  for (const [key, attr] of Object.entries(geo.attributes)) {
-    const a = attr as THREE.BufferAttribute, out = new (a.array.constructor as Float32ArrayConstructor)(a.array.length);
-    order.forEach((f, i) => out.set(a.array.slice(f * 3 * a.itemSize, (f * 3 + 3) * a.itemSize), i * 3 * a.itemSize));
-    re.setAttribute(key, new THREE.BufferAttribute(out, a.itemSize, a.normalized));
-  }
-  const split = firstVisor < 0 ? n : firstVisor;
-  re.addGroup(0, split * 3, 0);
-  re.addGroup(split * 3, (n - split) * 3, 1);
-  mesh.geometry = re;
-  const body = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.6, metalness: 0.05 });
-  const glow = new THREE.MeshStandardMaterial({ color: "#7ff5e6", emissive: "#4fdcca", emissiveIntensity: 0.8, roughness: 0.4, flatShading: true });
-  const plainMat = new THREE.MeshStandardMaterial({ color: "#c9ccd6", flatShading: true, roughness: 0.7 });
-  return { coloured: [body, glow], plain: plainMat };
-}
-const mats = colourByRule();
-mesh.material = mats.coloured;
+/** One grey for the Sentinel and his gun, the light armour grey; the colour scheme comes later. */
+const GREY = new THREE.MeshStandardMaterial({ color: "#eef1f6", flatShading: true, roughness: 0.6, metalness: 0.05 });
+mesh.material = GREY;
 
 // The gun, Erik's Starforge Blaster: in the right hand, its barrel along the forearm (so it
 // points ahead when the arm is raised). Its muzzle is the model's -x end, its top +y.
@@ -161,31 +101,7 @@ let gunScale = 1;
   geo.computeVertexNormals();
   const box = new THREE.Box3().setFromBufferAttribute(geo.attributes.position as THREE.BufferAttribute);
   gunScale = GUN_LENGTH / (box.max.x - box.min.x);
-  // Colours by rule: a cyan muzzle, a white top shell, a steel body, a dark grip with an orange cap.
-  const pos = geo.attributes.position!, n = pos.count / 3, col = new Float32Array(pos.count * 3), glow: boolean[] = [];
-  const white = new THREE.Color("#eef1f6"), steel = new THREE.Color("#3d4457"), dark = new THREE.Color("#2c3142"), orange = colonyOrange().color.clone();
-  for (let f = 0; f < n; f++) {
-    let x = 0, y = 0;
-    for (let v = f * 3; v < f * 3 + 3; v++) { x += pos.getX(v) / 3; y += pos.getY(v) / 3; }
-    const muzzle = x < box.min.x + 0.2;
-    const c = y > 0.5 ? white : y > 0.2 ? steel : y < -0.55 && x > 0.3 ? orange : dark;
-    glow.push(muzzle);
-    for (let v = f * 3; v < f * 3 + 3; v++) col.set([c.r, c.g, c.b], v * 3);
-  }
-  geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
-  // Muzzle faces in their own group, drawn glowing.
-  const order = [...Array(n).keys()].sort((a, b) => Number(glow[a]) - Number(glow[b])), first = order.findIndex(f => glow[f]);
-  const re = new THREE.BufferGeometry();
-  for (const [key, attr] of Object.entries(geo.attributes)) {
-    const a = attr as THREE.BufferAttribute, out = new Float32Array(a.array.length), is = a.itemSize * 3;
-    order.forEach((f, i) => out.set((a.array as Float32Array).subarray(f * is, f * is + is), i * is));
-    re.setAttribute(key, new THREE.BufferAttribute(out, a.itemSize));
-  }
-  re.addGroup(0, (first < 0 ? n : first) * 3, 0);
-  if (first >= 0) re.addGroup(first * 3, (n - first) * 3, 1);
-  const body = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.55, metalness: 0.1 });
-  const tip = new THREE.MeshStandardMaterial({ color: "#7ff5e6", emissive: "#4fdcca", emissiveIntensity: 1, flatShading: true });
-  const m = new THREE.Mesh(re, [body, tip]);
+  const m = new THREE.Mesh(geo, GREY);
   m.castShadow = true;
   m.scale.setScalar(gunScale);
   m.position.copy(GRIP).multiplyScalar(-gunScale);
@@ -204,7 +120,7 @@ const CYCLE = { stand: 1, walk: 1.5 * 0.55, run: 2.8 * 0.55, sprint: 3.4 * 0.55 
 
 type Mode = "stand" | "walk" | "run" | "sprint";
 const SPEEDS: Record<Mode, number> = { stand: 0, walk: 1.8, run: 5, sprint: 7 };
-let mode: Mode = "run", toolUp = false, stride = 0.5, coloured = true;
+let mode: Mode = "run", toolUp = false, stride = 0.5;
 const bar = document.getElementById("bar")!;
 const button = (label: string, on: () => boolean, click: () => void) => {
   const b = document.createElement("button");
@@ -220,7 +136,6 @@ for (const m of ["stand", "walk", "run", "sprint"] as Mode[]) button(m[0]!.toUpp
 button("Jump", () => false, () => { if (grounded) { vz = 4.2; grounded = false; } });
 button("Aim", () => toolUp, () => { toolUp = !toolUp; });
 button("Close-up", () => close, () => { close = !close; resize(); });
-button("Plain grey", () => !coloured, () => { coloured = !coloured; mesh.material = coloured ? mats.coloured : mats.plain; });
 const sl = document.createElement("label");
 sl.innerHTML = `Stride <input type="range" min="0.25" max="1.5" step="0.05" value="0.5"> <span>0.50</span>`;
 sl.querySelector("input")!.addEventListener("input", e => {
