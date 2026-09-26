@@ -1,0 +1,26 @@
+:root {
+  color-scheme: dark;
+  --night: #6c6b98;
+  --panel: rgba(28, 26, 52, 0.76);
+  --line: rgba(255, 255, 255, 0.14);
+  --text: #f1eff9;
+  --muted: #cfcae6;
+  --warm: #ffb45a;
+  --font: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+html, body { height: 100%; margin: 0; }
+body { background: var(--night); color: var(--text); font-family: var(--font); font-size: 14px; overflow: hidden; }
+button { font: inherit; color: inherit; }
+#app { position: fixed; inset: 0; }
+#view { position: absolute; inset: 0; }
+#view canvas { display: block; }
+.vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 72% 74% at 50% 50%, rgba(108,107,152,0) 60%, rgba(108,107,152,.95) 100%); }
+.top { position: absolute; left: 0; right: 0; top: 0; padding: calc(env(safe-area-inset-top, 0px) + 12px) 16px 0; pointer-events: none; }
+.brand { font-weight: 700; font-size: 18px; letter-spacing: .14em; }
+.brand span { font-weight: 600; letter-spacing: .04em; color: var(--warm); margin-left: 6px; font-size: 14px; }
+.looks { position: absolute; right: 16px; top: 12px; display: flex; gap: 6px; }
+.chip { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px 12px; cursor: pointer; font-weight: 600; color: var(--muted); backdrop-filter: blur(6px); }
+.chip[aria-pressed="true"] { color: var(--text); border-color: #d9573a; box-shadow: 0 0 0 1px #d9573a; }
+.tag { position: absolute; transform: translate(-50%, 0); text-align: center; pointer-events: none; white-space: nowrap; }
+.tag b { display: block; font-size: 18px; color: #2c2946; }
+.tag span { font-size: 12px; color: #5d5a7a; }
