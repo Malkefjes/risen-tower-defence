@@ -116,10 +116,10 @@ export const defaultTuning = (): Tuning => ({
   wallHp: 600,
   platedHpMult: 3,
   wallClawers: 2,
-  raidBase: 8,
-  raidStep: 2,
+  raidBase: 11,
+  raidStep: 10,
   raidSpread: 45,
-  enemyHpGrowth: 1.15,
+  enemyHpGrowth: 1,
   speedSpread: 0.12,
   packMin: 3,
   packMax: 5,
@@ -127,15 +127,19 @@ export const defaultTuning = (): Tuning => ({
   laneSpread: 0.2,
   heavySlow: 0.4,
   sellRefund: 0.75,
+  // Set from the balance anchors (design doc): HP in Gun passes, cost by what it takes to hold.
   enemies: {
-    grunt: { hp: 6, speed: 1.475, damage: 2, pack: 0, gap: 0.25, cost: 1, share: 0, from: 1, armour: 0 },
-    // From the playground (2026-09-26); HP still to be tuned.
-    swarm: { hp: 2, speed: 1.5, damage: 1, pack: 12, gap: 0.15, cost: 0.35, share: 4, from: 1, armour: 0 },
-    runner: { hp: 4, speed: 3, damage: 1, pack: 5, gap: 0.65, cost: 1, share: 3, from: 2, armour: 0 },
-    // Armoured: the Gun's small hits do a quarter; the laser cannon's go straight through.
-    brute: { hp: 80, speed: 1, damage: 4, pack: 1, gap: 3, cost: 6, share: 1, from: 3, armour: 0.75 },
+    // One Gun pass: a 1×1 Gun's reach covers about 8 cells of a single-lane maze.
+    grunt: { hp: 16, speed: 1.475, damage: 2, pack: 0, gap: 0.25, cost: 1, share: 0, from: 1, armour: 0 },
+    // Dies to one missile; comes in swarms that bunch up in a lane.
+    swarm: { hp: 5, speed: 1.5, damage: 1, pack: 12, gap: 0.15, cost: 0.25, share: 4, from: 1, armour: 0 },
+    // Few and tough: three Gun passes at full speed, so it outruns a short killzone unless it's Heavy.
+    runner: { hp: 24, speed: 3, damage: 1, pack: 3, gap: 1.2, cost: 6, share: 3, from: 2, armour: 0 },
+    // Armoured: the Gun's rounds do half; the laser cannon's go through.
+    brute: { hp: 80, speed: 1, damage: 4, pack: 1, gap: 3, cost: 4, share: 1, from: 3, armour: 0.5 },
   },
   towers: {
+    // The workhorse: the unit everything is measured in.
     gun: [
       { cost: 200, damage: 1, range: 2.5, rate: 3, radius: 0, heavy: 0 },
       { cost: 500, damage: 1, range: 3.5, rate: 9, radius: 0, heavy: 0 },
@@ -143,21 +147,21 @@ export const defaultTuning = (): Tuning => ({
     ],
     // The missile rack: worse than the Gun per alloy on one target, far better on a pack.
     explosive: [
-      { cost: 250, damage: 3, range: 4, rate: 1 / 1.5, radius: 0.9, heavy: 0 },
-      { cost: 625, damage: 4, range: 5, rate: 1.25, radius: 1.2, heavy: 0 },
-      { cost: 1250, damage: 5, range: 6, rate: 2, radius: 1.5, heavy: 0 },
+      { cost: 250, damage: 5, range: 4, rate: 1 / 1.5, radius: 0.75, heavy: 0 },
+      { cost: 625, damage: 7, range: 5, rate: 1.2, radius: 1, heavy: 0 },
+      { cost: 1250, damage: 8.5, range: 6, rate: 2, radius: 1.25, heavy: 0 },
     ],
-    // The laser cannon: long range, slow, one huge hit that armour barely dents.
+    // The laser cannon, a sniper: the longest reach, slow, big shots that armour barely dents.
     laser: [
-      { cost: 300, damage: 12, range: 6, rate: 1 / 3, radius: 0, heavy: 0 },
-      { cost: 750, damage: 25, range: 7.5, rate: 0.4, radius: 0, heavy: 0 },
-      { cost: 1500, damage: 40, range: 9, rate: 0.5, radius: 0, heavy: 0 },
+      { cost: 300, damage: 12, range: 7, rate: 1 / 3.5, radius: 0, heavy: 0 },
+      { cost: 750, damage: 24, range: 8.5, rate: 1 / 2.8, radius: 0, heavy: 0 },
+      { cost: 1500, damage: 40, range: 10, rate: 3 / 7, radius: 0, heavy: 0 },
     ],
-    // The Radome: no damage; everything in its field is Heavy, and stays so a little after.
+    // The Radome: no damage; everything in its wide field is Heavy, and stays so a little after.
     support: [
-      { cost: 200, damage: 0, range: 2.5, rate: 0, radius: 0, heavy: 1 },
-      { cost: 500, damage: 0, range: 3.5, rate: 0, radius: 0, heavy: 2 },
-      { cost: 1000, damage: 0, range: 4.5, rate: 0, radius: 0, heavy: 3 },
+      { cost: 100, damage: 0, range: 4.5, rate: 0, radius: 0, heavy: 2 },
+      { cost: 300, damage: 0, range: 5.5, rate: 0, radius: 0, heavy: 3 },
+      { cost: 700, damage: 0, range: 6.5, rate: 0, radius: 0, heavy: 4 },
     ],
   },
   ship: { cost: 0, damage: 1, range: 5.5, rate: 1, radius: 0, heavy: 0 },

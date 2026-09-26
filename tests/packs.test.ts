@@ -82,7 +82,8 @@ describe("raids mix enemy types", () => {
   });
 
   it("a type that no longer fits what's left isn't sent; a raid too small for any sends the cheapest", () => {
-    const only = (share: Record<string, number>) => ({ enemies: { swarm: { share: share.swarm ?? 0 }, runner: { share: share.runner ?? 0 }, brute: { share: share.brute ?? 0 } } });
+    // A Runner takes 1 of the raid's size and a Brute 6, both due from raid 1.
+    const only = (share: Record<string, number>) => ({ enemies: { swarm: { share: share.swarm ?? 0 }, runner: { share: share.runner ?? 0, cost: 1, from: 1 }, brute: { share: share.brute ?? 0, cost: 6, from: 1 } } });
     const g = new Game(map(), { seed: 3, waveSize: () => 2, tuning: only({ brute: 5, runner: 1 }) });
     g.startWave();
     expect([...sent(g, 20)]).toEqual([["runner", 2]]);

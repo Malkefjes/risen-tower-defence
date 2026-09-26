@@ -183,7 +183,8 @@ describe("hp and the run", () => {
   });
 
   it("enemy HP grows each raid", () => {
-    const g = new Game(open(), { seed: 1 });
+    // Off by default (raids grow in numbers); a knob for extra tension.
+    const g = new Game(open(), { seed: 1, tuning: { enemyHpGrowth: 1.15 } });
     expect(g.enemyHp("grunt", 1)).toBe(g.tuning.enemies.grunt.hp);
     expect(g.enemyHp("grunt", 5)).toBeGreaterThan(g.enemyHp("grunt", 1));
   });

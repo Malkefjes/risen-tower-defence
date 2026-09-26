@@ -90,9 +90,9 @@ Enemies and towers are the two deepest systems; everything else supports them. E
 
 **The Brute (look and numbers locked 2026-09-26):** Erik's Stonebound Colossus, a 705-triangle rock golem, in the grey of the stone you mine (matte, no snow). Size 2 (about 1.6 cells tall), speed 1 cell per second, 80 HP, comes alone (3 s apart when several come), with a thin red outline and its HP bar always shown so it reads as an enemy. Tried in the playground (`mockups/playground`); in the game it will be drawn in bulk, five parts per type. Its armour and fast wall breaking come with it when the Brute is built.
 
-**The Runner (look and numbers locked 2026-09-26):** Erik's Shadowfang Wolf, a 201-triangle stone wolf in the same mined-stone grey as the Brute, trotting (diagonal legs together). Size 1.5 (a cell and a half nose to tail), speed 3 cells per second, 4 HP, in packs (5 to start) running nose to tail, with the red outline and a half-width HP bar.
+**The Runner (look and numbers locked 2026-09-26):** Erik's Shadowfang Wolf, a 201-triangle stone wolf in the same mined-stone grey as the Brute, trotting (diagonal legs together). Size 1.5 (a cell and a half nose to tail), speed 3 cells per second, in packs running nose to tail (numbers since the balance pass: 24 HP, packs of 3, few of them), with the red outline and a half-width HP bar.
 
-**The Swarm (in the game 2026-09-26):** Erik's Grumtooth, a 189-triangle hunched little stone brute with long arms, in the same stone, size 1.7 (about 0.85 cells tall), in swarms of 12, 1.5 cells per second, 2 HP (HP values still to be tuned). The Runner is size 1.7 in the game.
+**The Swarm (in the game 2026-09-26):** Erik's Grumtooth, a 189-triangle hunched little stone brute with long arms, in the same stone, size 1.7 (about 0.85 cells tall), in swarms of 12, 1.5 cells per second (since the balance pass: 5 HP, one missile kills one). The Runner is size 1.7 in the game.
 
 **In the game (2026-09-26):** the leaper is gone. Raids send packs of Swarms, Runners and Brutes, each type by its share of the packs and taking its cost of the raid's size (a Grunt is 1: Swarm 0.35, Runner 1, Brute 6). HP bars always show; the red outline stays in the code, off, for a later option.
 
@@ -107,7 +107,7 @@ Enemies and towers are the two deepest systems; everything else supports them. E
 
 **Armour and resistances:**
 
-- **Armour** is a flat reduction per hit: many small hits do little, big hits go through. A hit always does at least 10% of its damage. The Brute has armour 0.75 (the Gun's 1-damage rounds do a quarter).
+- **Armour** is a flat reduction per hit: many small hits do little, big hits go through. A hit always does at least 10% of its damage. The Brute has armour 0.5 (the Gun's 1-damage rounds do half; Guns alone can hold Brutes, lasers do it for well under half the alloy).
 - **Resistances** are per damage type: half damage, never immune. Only Elites, Bosses and the Titan have them (at most one or two each), they are visible on the model and shown in the raid warning, and burning strips them. They exist so late-game builds have a problem to solve.
 - **Cold does nothing to them** (they live here). The one immunity, and it teaches the world.
 
@@ -131,7 +131,21 @@ Every balance number is set against a few anchors, not guessed one by one.
 
 These are checked headless on the **standard maze** (`sim/balance.ts`: a walled single-lane serpentine of about 85 cells, towers in 2×2 slots on its columns), by the least alloy of given towers that holds a raid.
 
-**Found while calibrating (2026-09-26), open:** a slow can only add damage while towers would otherwise idle; in a busy maze Guns fire non-stop, so Heavy (the Radome) doesn't pay for itself against Runners, however big its field or long its linger. And the Brute's counter is far above 3× (armour plus the laser's reach make the Gun hopeless). Both need a design call before the numbers are set.
+**The first pass (2026-09-26).** Found while calibrating: a slow adds kills when an enemy would outrun a tower's range, but in a maze a Runner already passes one Gun zone after another, so a longer maze does much of what Heavy does. Decided: **Runners are few and tough** (24 HP, three Gun passes at full speed; packs of 3), the **Radome's field is wide and cheap** (range 4.5 at 1×1, 100 alloy), Heavy stays 40%, and the Runner's answer is the Radome **plus a long maze** (a soft counter). **The Brute's armour is 0.5**; the **laser cannon is a sniper** (range 7, 12 damage every 3.5 s at 1×1). Swarms have 5 HP and missiles 5 damage. Raids are **11 per cave in raid 1, +10 a raid**.
+
+Measured on the standard maze (least alloy that holds, ship losing at most 5%):
+
+| | Right towers need (of the tower curve) | Guns alone need |
+| --- | --- | --- |
+| Raid 1 (Swarm) | 450 of 700 (64%) | 4× as much |
+| Raid 2 (Runners join) | 1200 of 1210 (99%, the tightest) | 1.3× |
+| Raid 3 (Brutes join) | 1350 of 1720 (78%) | 1.6× |
+| Raid 4–6 | 55–69% | 1.6–1.8× |
+| Swarm alone (raid 3) | racks 500 | Guns 2800 (5.6×) |
+| Brute alone (raid 4) | lasers 2700 | Guns 6300 (2.3×) |
+| Runners alone (raid 3) | Radome + Guns 1500 | Guns 1800 (1.2×) |
+
+`tests/rules.test.ts` keeps it so: every raid holds within the curve but not with less than half of it; Swarm and Brute counters; a Radome never makes a defence dearer. The economy (does mining and smelting pay for the curve?) is checked next.
 
 ### Supply and upkeep (decided 2026-09-25)
 

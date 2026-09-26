@@ -15,6 +15,7 @@ function withTower(kind: "laser" | "gun" | "explosive"): Game {
   return g;
 }
 
+const ARMOUR = defaultTuning().enemies.brute.armour;
 const brute = (x: number, y = 1.5, hp = 80): Walker => ({
   id: 901, x, y, cx: Math.floor(x), cy: Math.floor(y), tx: Math.floor(x), ty: Math.floor(y), kind: "brute", speed: 0, hp, maxHp: hp, pending: 0, practice: false,
 });
@@ -26,18 +27,18 @@ describe("armour", () => {
     expect(throughArmour(1, 5)).toBe(ARMOUR_FLOOR);
   });
 
-  it("the Brute takes a quarter of the Gun's hits and nearly all of the laser cannon's", () => {
+  it("the Brute takes half of the Gun's hits and nearly all of the laser cannon's", () => {
     const gun = withTower("gun"), b1 = brute(11.5);
     gun.walkers.push(b1);
     for (let i = 0; i < 20; i++) gun.step();
-    const lostToGun = 80 - b1.hp, hits = Math.round(lostToGun / 0.25);
+    const lostToGun = 80 - b1.hp, hits = Math.round(lostToGun / throughArmour(1, ARMOUR));
     expect(hits).toBeGreaterThan(0);
-    expect(lostToGun).toBeCloseTo(hits * throughArmour(1, 0.75), 5);
+    expect(lostToGun).toBeCloseTo(hits * throughArmour(1, ARMOUR), 5);
 
     const laser = withTower("laser"), b2 = brute(11.5);
     laser.walkers.push(b2);
     for (let i = 0; i < 60; i++) laser.step();
-    expect(b2.hp).toBeCloseTo(80 - throughArmour(laser.tuning.towers.laser[0]!.damage, 0.75), 5);
+    expect(b2.hp).toBeCloseTo(80 - throughArmour(laser.tuning.towers.laser[0]!.damage, ARMOUR), 5);
   });
 
   it("counts on every enemy a blast hits", () => {
@@ -45,7 +46,7 @@ describe("armour", () => {
     g.tuning.towers.explosive[0]!.rate = 0.01; // one missile
     g.walkers.push(b);
     for (let i = 0; i < 60 * 3; i++) g.step();
-    expect(80 - b.hp).toBeCloseTo(throughArmour(g.tuning.towers.explosive[0]!.damage, 0.75), 5);
+    expect(80 - b.hp).toBeCloseTo(throughArmour(g.tuning.towers.explosive[0]!.damage, ARMOUR), 5);
   });
 });
 
@@ -63,7 +64,8 @@ describe("the laser cannon", () => {
     const t = defaultTuning(), armour = t.enemies.brute.armour;
     const perAlloy = (s: { damage: number; rate: number; cost: number }, a: number) => throughArmour(s.damage, a) * s.rate / s.cost;
     for (let i = 0; i < 2; i++) {
-      expect(perAlloy(t.towers.laser[i]!, armour)).toBeGreaterThan(2 * perAlloy(t.towers.gun[i]!, armour));
+      // Per shot it's better through armour; its reach (a sniper's) makes up the rest of the counter, measured in rules.test.ts.
+      expect(perAlloy(t.towers.laser[i]!, armour)).toBeGreaterThan(1.2 * perAlloy(t.towers.gun[i]!, armour));
       expect(perAlloy(t.towers.gun[i]!, 0)).toBeGreaterThan(perAlloy(t.towers.laser[i]!, 0));
     }
   });
