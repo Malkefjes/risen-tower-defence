@@ -1,0 +1,27 @@
+:root {
+  color-scheme: dark;
+  --panel: rgba(28, 26, 52, 0.8);
+  --line: rgba(255, 255, 255, 0.14);
+  --text: #f1eff9;
+  --muted: #cfcae6;
+  --warm: #ffb45a;
+  --font: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+html, body { height: 100%; margin: 0; }
+body { background: #6c6b98; color: var(--text); font-family: var(--font); font-size: 14px; overflow: hidden; }
+button { font: inherit; color: inherit; }
+#app { position: fixed; inset: 0; }
+#view { position: absolute; inset: 0; }
+#view canvas { display: block; }
+.top { position: absolute; left: 0; right: 0; top: 0; padding: calc(env(safe-area-inset-top, 0px) + 12px) 16px 0; display: flex; gap: 16px; align-items: baseline; pointer-events: none; }
+.brand { font-weight: 700; font-size: 18px; letter-spacing: .14em; }
+.brand span { font-weight: 600; letter-spacing: .04em; color: var(--warm); margin-left: 6px; font-size: 14px; }
+.stats { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.panel { position: absolute; right: 16px; top: 16px; width: 250px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 10px; font-size: 12px; backdrop-filter: blur(6px); }
+.panel h4 { margin: 0; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--warm); }
+.panel label { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; color: var(--muted); }
+.panel output { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
+.panel input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: #d9573a; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { background: rgba(255,255,255,.06); border: 1px solid var(--line); border-radius: 8px; padding: 5px 9px; cursor: pointer; font-weight: 600; font-size: 12px; color: var(--muted); }
+.chip[aria-pressed="true"] { color: var(--text); border-color: #d9573a; box-shadow: 0 0 0 1px #d9573a; }

@@ -37,6 +37,17 @@ export interface Overlay {
   toolReady: boolean;
 }
 
+/**
+ * Optional looks that differ from the game's defaults (the playground tries enemy
+ * looks with these): how an enemy is built, where its HP bar floats, and what a
+ * kill bursts into.
+ */
+export interface ViewLooks {
+  enemy?: () => Enemy;
+  barY?: number;
+  burst?: { color: string; count: number; size: number };
+}
+
 /** Height of the wall deck, where towers stand. */
 const TOP = DECK_TOP;
 
@@ -166,7 +177,7 @@ export class GameView {
   private tmp = new THREE.Object3D();
   private tmpV = new THREE.Vector3();
 
-  constructor(private container: HTMLElement, private game: Game, private gen?: GeneratedWorld) {
+  constructor(private container: HTMLElement, private game: Game, private gen?: GeneratedWorld, readonly looks: ViewLooks = {}) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
     this.renderer.shadowMap.enabled = true;
@@ -443,7 +454,7 @@ export class GameView {
       else if (ev.type === "tower-built") { const v = this.towers.get(ev.tower.id); if (v) v.drop = 0.12; }
       else if (ev.type === "shot") this.onShot(ev.shot);
       else if (ev.type === "hit") { const w = this.walkers.get(ev.walker.id); if (w) w.userData.flash = 0.09; }
-      else if (ev.type === "killed") this.onKilled(ev.walker.x, ev.walker.y);
+      else if (ev.type === "killed") this.onKilled(ev.walker.x, ev.walker.y, this.looks.burst?.count, this.burstMat);
       else if (ev.type === "reset") { this.clearFx(); this.shipLand = 0; this.wreck = 0; this.followAvatar(); }
     }
     this.mining.onEvents(events);
@@ -612,7 +623,7 @@ export class GameView {
       alive.add(w.id);
       let o = this.walkers.get(w.id);
       if (!o) {
-        const e = leaperModel();
+        const e = (this.looks.enemy ?? leaperModel)();
         o = e.object;
         o.userData.enemy = e;
         o.userData.t = Math.random() * 10;
@@ -670,7 +681,7 @@ export class GameView {
       this.bars.set(id, b);
     }
     b.visible = frac < 0.999;
-    b.position.set(x, 0.62, y);
+    b.position.set(x, this.looks.barY ?? 0.62, y);
     b.quaternion.copy(this.camera.quaternion);
     b.getObjectByName("fill")!.scale.x = Math.max(0.001, frac);
   }
@@ -866,9 +877,19 @@ export class GameView {
   }
 
   /** A killed enemy simply bursts into a small spray of red dots. */
+  /** What a kill bursts into, if the looks say something other than the leaper's red. */
+  private burstMat_: THREE.Material | null = null;
+  private get burstMat(): THREE.Material {
+    const b = this.looks.burst;
+    if (!b) return this.goreMat;
+    return this.burstMat_ ??= new THREE.MeshStandardMaterial({ color: b.color, roughness: 0.9, flatShading: true });
+  }
+
   private onKilled(x: number, y: number, n = 10, mat: THREE.Material = this.goreMat): void {
+    const size = this.looks.burst?.size ?? 1;
     for (let i = 0; i < n; i++) {
       const m = new THREE.Mesh(this.goreGeo, mat);
+      if (mat !== this.goreMat) m.scale.setScalar(size);
       m.position.set(x, 0.18, y);
       this.scene.add(m);
       const a = Math.random() * Math.PI * 2, sp = 0.4 + Math.random() * 0.8;
