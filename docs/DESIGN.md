@@ -148,7 +148,7 @@ The Titan shows the whole system: Heavy, then burning, then the laser cannon, in
 | --- | --- | --- | --- | --- |
 | **Gun** | Piercing | Rapid, cheap, medium range; the workhorse (today's Twin and Gatling) | Armour (Brutes, Bosses) | Anywhere; many small ones spread along the path |
 | **Laser cannon** | Laser | Long range, slow, one huge hit | Swarms (overkill, slow to switch) | Long straight lines of sight down the maze |
-| **Explosive** | Explosive | Bursts on impact, short to medium range, area damage. Look open: rocket pod, grenade launcher or missile rack (mockups) | Single tough targets (armour counts on each hit) | Switchbacks and corners where packs bunch |
+| **Explosive** | Explosive | Bursts on impact, short to medium range, area damage. Look: the missile rack (a tilted cradle of missiles that climb, turn and dive; 2 missiles at 1×1, 4 and a radar at 2×2, reloading visibly) | Single tough targets (armour counts on each hit) | Switchbacks and corners where packs bunch |
 | **Thermite mortar** | Incendiary | Lobs shells far with a **minimum range**; the ground burns for a few seconds (resistances off, no healing) | Anything on its own; it preps, it doesn't kill | Set back from the path, aimed where it doubles back |
 | **AA** | Piercing | Fast tracking, air only | Everything on the ground | Under the air lanes (straight lines from caves to targets) |
 | **Support** | None | Applies Heavy (slow) | Kills nothing | Early in the maze, before the killzone |
@@ -249,6 +249,6 @@ WASD run (relative to the screen) · Shift sprint · Space jump · hold left mou
 - Economy numbers: ore per trip, costs of walls, towers and buildings. Found through play, with the tuning panel.
 - How fast should the threat meter climb, and what exactly feeds it?
 - Enemy target preferences: which types go for what?
-- Tower looks and numbers: mockups for each baseline tower (the explosive one: rocket pod, grenade launcher or missile rack), then range, damage and cost per size.
+- Tower looks and numbers: mockups for each baseline tower (the explosive one is the missile rack), then range, damage and cost per size.
 - Which towers are there from the start and which are unlocked (progression).
 - Meta between planets: what exactly carries over, and how is it earned?
