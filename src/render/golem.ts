@@ -64,11 +64,33 @@ function golemTemplate(): Promise<Template> {
   return template ??= parseGlb(GLB).then(gltf => {
     let mesh: THREE.SkinnedMesh | undefined;
     gltf.scene.traverse(o => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) mesh = o as THREE.SkinnedMesh; });
+    separateArmsFromLegs(mesh!);
     const clips = Object.fromEntries(GOLEM_CLIPS.map(c => [c, loopable(gltf.animations.find(a => a.name === CLIP_NAME[c])!)])) as Record<GolemClip, THREE.AnimationClip>;
     gltf.scene.updateMatrixWorld(true);
     const height = new THREE.Box3().setFromObject(gltf.scene).getSize(new THREE.Vector3()).y;
     return { scene: gltf.scene, height, clips, geometry: mesh!.geometry };
   });
+}
+
+/**
+ * The file's skinning ties the inner hands (the thumbs) partly to the thigh and knee they
+ * hang beside, and some thigh to the hands, so a swinging arm stretched the thumb back to the
+ * leg. Every vertex held by both an arm and a leg now keeps only the side holding most of it.
+ */
+function separateArmsFromLegs(mesh: THREE.SkinnedMesh): void {
+  const names = mesh.skeleton.bones.map(b => b.name);
+  const isArm = names.map(n => /Arm|Hand|Shoulder/.test(n)), isLeg = names.map(n => /Leg|Foot|Toe/.test(n));
+  const si = mesh.geometry.attributes.skinIndex!, sw = mesh.geometry.attributes.skinWeight!;
+  for (let v = 0; v < si.count; v++) {
+    let arm = 0, leg = 0;
+    for (let q = 0; q < 4; q++) { const b = si.getComponent(v, q), w = sw.getComponent(v, q); if (isArm[b]) arm += w; else if (isLeg[b]) leg += w; }
+    if (arm <= 0 || leg <= 0) continue;
+    const drop = arm >= leg ? isLeg : isArm;
+    let total = 0;
+    for (let q = 0; q < 4; q++) if (drop[si.getComponent(v, q)]) sw.setComponent(v, q, 0); else total += sw.getComponent(v, q);
+    for (let q = 0; q < 4; q++) sw.setComponent(v, q, sw.getComponent(v, q) / total);
+  }
+  sw.needsUpdate = true;
 }
 
 const coloured = new Map<string, THREE.BufferGeometry>();
