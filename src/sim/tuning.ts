@@ -114,6 +114,9 @@ export const defaultTuning = (): Tuning => ({
   sellRefund: 0.75,
   enemies: {
     grunt: { hp: 6, speed: 1.475, damage: 2 },
+    swarm: { hp: 4, speed: 1.8, damage: 1 },
+    // Locked from the playground (2026-09-26): 80 HP, one cell per second.
+    brute: { hp: 80, speed: 1, damage: 4 },
   },
   towers: {
     gun: [

@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { SHIP_SHOOTER, type Game, type GameEvent, type PlacedPiece, type Shot } from "../sim/game";
+import { SHIP_SHOOTER, type Game, type GameEvent, type PlacedPiece, type Shot, type Walker } from "../sim/game";
 import type { GeneratedWorld } from "../sim/worldgen";
 import { caveModel } from "./cave";
 import { leaperModel, type Enemy } from "./leaper";
@@ -43,8 +43,11 @@ export interface Overlay {
  * kill bursts into.
  */
 export interface ViewLooks {
-  enemy?: () => Enemy;
-  barY?: number;
+  enemy?: (w: Walker) => Enemy;
+  /** Height of an enemy's HP bar. */
+  barY?: (w: Walker) => number;
+  /** Width of an enemy's HP bar (1 = the normal half-cell bar). */
+  barScale?: (w: Walker) => number;
   /** Show enemy HP bars at full health too (normally only once hurt). */
   alwaysBars?: boolean;
   burst?: { color: string; count: number; size: number };
@@ -625,7 +628,7 @@ export class GameView {
       alive.add(w.id);
       let o = this.walkers.get(w.id);
       if (!o) {
-        const e = (this.looks.enemy ?? leaperModel)();
+        const e = this.looks.enemy ? this.looks.enemy(w) : leaperModel();
         o = e.object;
         o.userData.enemy = e;
         o.userData.t = Math.random() * 10;
@@ -653,7 +656,7 @@ export class GameView {
       const side = (w.lane ?? 0) * this.game.tuning.laneSpread, r = o.rotation.y;
       const cx = (w.px ?? w.x) + (w.x - (w.px ?? w.x)) * alpha, cy = (w.py ?? w.y) + (w.y - (w.py ?? w.y)) * alpha;
       const x = cx + Math.cos(r) * side, y = cy - Math.sin(r) * side;
-      this.syncBar(w.id, x, y, w.hp / w.maxHp);
+      this.syncBar(w.id, x, y, w.hp / w.maxHp, this.looks.barY?.(w) ?? 0.62, this.looks.barScale?.(w) ?? 1);
       // Climbing out: below the snow at the mouth, up on it half a cell out.
       const [fx, fy] = o.userData.from as [number, number], out = Math.hypot(cx - fx, cy - fy);
       o.position.set(x, -0.25 * Math.max(0, 1 - out / 0.5), y);
@@ -669,7 +672,7 @@ export class GameView {
   }
 
   /** Small HP bar over a damaged walker, facing the camera. */
-  private syncBar(id: number, x: number, y: number, frac: number): void {
+  private syncBar(id: number, x: number, y: number, frac: number, height: number, width: number): void {
     let b = this.bars.get(id);
     if (!b) {
       b = new THREE.Group();
@@ -683,7 +686,8 @@ export class GameView {
       this.bars.set(id, b);
     }
     b.visible = frac < 0.999 || !!this.looks.alwaysBars;
-    b.position.set(x, this.looks.barY ?? 0.62, y);
+    b.position.set(x, height, y);
+    b.scale.set(width, width, 1);
     b.quaternion.copy(this.camera.quaternion);
     b.getObjectByName("fill")!.scale.x = Math.max(0.001, frac);
   }

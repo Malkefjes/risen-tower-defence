@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { COLOSSUS_HEIGHT, colossusModel } from "../../src/render/colossus";
+import { wolfModel } from "../../src/render/wolf";
 import { GameView, type Overlay } from "../../src/render/view";
 import { Game, PACK_STAGGER, TICK, type PlacedPiece } from "../../src/sim/game";
 import { growAt, type Tower } from "../../src/sim/towers";
@@ -9,7 +10,7 @@ import { WALL_DECK } from "../../src/sim/world";
 import "./style.css";
 
 // A playground on the real game: a cave, a small walled maze of plated walls, the ship
-// at the far end. Golems come out of the cave when sent from the panel. Guns are free.
+// at the far end. Brutes and wolf packs come out of the cave when sent from the panel. Guns are free.
 // Click a wall to put a Gun on it, click a Gun to grow it toward the cursor, right-click
 // a Gun to take it away. Drag to pan, scroll to zoom, WASD to walk.
 
@@ -43,26 +44,21 @@ const map: MapDef = {
 
 // ------------------------------------------------------------------ settings
 
-const look = {
-  size: 2,
-  hp: 80,
-  speed: 1,
-  pack: 1,
-  gap: 3,
-};
+/** Each enemy type's size and numbers, from the panel. The Brute's are locked. */
+const brute = { size: 2, hp: 80, speed: 1, gap: 3 };
+const swarm = { size: 1, hp: 4, speed: 1.8, pack: 8 };
 /** How enemies are marked as enemies; switched live from the panel. */
 const marks = { outline: true, ring: false };
 
 const game = new Game(map, {
   seed: 7,
-  // Nothing comes on its own: every golem is sent from the panel.
+  // Nothing comes on its own: every enemy is sent from the panel.
   waveSize: () => 0,
   tuning: {
     startHp: 1e9, ship: { damage: 0 }, enemyHpGrowth: 1, wallHp: 1e6,
     towers: { gun: [{ cost: 0 }, { cost: 0 }, { cost: 0 }] },
-    enemies: { grunt: { hp: look.hp, speed: look.speed } },
-    packMin: look.pack, packMax: look.pack, packGap: look.gap,
-    // Golems nearly fill a one-cell lane: they keep close to its centre line.
+    enemies: { brute: { hp: brute.hp, speed: brute.speed }, swarm: { hp: swarm.hp, speed: swarm.speed } },
+    // Enemies fill most of a one-cell lane: they keep close to its centre line.
     laneSpread: 0.05,
   },
 });
@@ -75,14 +71,13 @@ WALLS.forEach((cells, i) => {
 (game as unknown as { refresh(): void }).refresh();
 
 const view = new GameView(document.getElementById("view")!, game, undefined, {
-  enemy: () => colossusModel({
-    palette: "ore",
-    scale: look.size,
-    // Strides keep pace with the ground it covers; a bigger golem takes longer strides.
-    strideRate: (look.speed * 0.75) / look.size,
-    marks,
-  }),
-  barY: COLOSSUS_HEIGHT * look.size + 0.08,
+  // Strides keep pace with the ground covered; a bigger body takes longer strides.
+  enemy: w => w.kind === "swarm"
+    ? wolfModel({ scale: swarm.size, strideRate: (swarm.speed * 1.1) / swarm.size, marks })
+    : colossusModel({ scale: brute.size, strideRate: (brute.speed * 0.75) / brute.size, marks }),
+  barY: w => w.kind === "swarm" ? 0.45 * swarm.size + 0.1 : COLOSSUS_HEIGHT * brute.size + 0.08,
+  // A wolf gets a small bar, so a pack doesn't turn into a wall of red.
+  barScale: w => w.kind === "swarm" ? 0.5 : 1,
   burst: { color: "#5a5f70", count: 12, size: 2.2 },
   alwaysBars: true,
 });
@@ -107,10 +102,39 @@ function section(title: string, ...kids: HTMLElement[]): void {
   panel.append(h, ...kids);
 }
 const tune = game.tuning;
-section("Golem",
-  slider("Size (1 = 0.8 cells tall)", 0.5, 3.5, 0.05, () => look.size, v => { look.size = v; view.looks.barY = COLOSSUS_HEIGHT * v + 0.08; }),
-  slider("Speed (cells per second)", 0.3, 4, 0.05, () => look.speed, v => { look.speed = v; tune.enemies.grunt.speed = v; }),
-  slider("HP", 1, 300, 1, () => look.hp, v => { look.hp = v; tune.enemies.grunt.hp = v; }),
+/** Send `n` enemies of a kind out of the cave now, `gap` seconds apart (a pack moves at one speed, like the game's). */
+function spawn(kind: "brute" | "swarm", n: number, gap: number): void {
+  if (game.phase === "planning") game.startWave();
+  const queue = (game as unknown as { packQueue: { at: Cell; delay: number; speed: number; kind: "brute" | "swarm" }[] }).packQueue;
+  const speed = tune.enemies[kind].speed * (1 + (Math.random() * 2 - 1) * tune.speedSpread);
+  for (let i = 0; i < n; i++) queue.push({ at: map.spawners[0]!, delay: i * gap, speed, kind });
+}
+function buttons(...list: [string, () => void][]): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "chips";
+  for (const [label, go] of list) {
+    const b = document.createElement("button");
+    b.className = "chip";
+    b.textContent = label;
+    b.addEventListener("click", go);
+    row.append(b);
+  }
+  return row;
+}
+// The Brute comes alone: "Spawn 5" sends five, one after another.
+section("Brute",
+  slider("Size (1 = 0.8 cells tall)", 0.5, 3.5, 0.05, () => brute.size, v => { brute.size = v; }),
+  slider("Speed (cells per second)", 0.3, 4, 0.05, () => brute.speed, v => { brute.speed = v; tune.enemies.brute.speed = v; }),
+  slider("HP", 1, 300, 1, () => brute.hp, v => { brute.hp = v; tune.enemies.brute.hp = v; }),
+  slider("Seconds between Brutes", 0.5, 12, 0.5, () => brute.gap, v => { brute.gap = v; }),
+  buttons(["Spawn 1", () => spawn("brute", 1, 0)], ["Spawn 5", () => spawn("brute", 5, brute.gap)]),
+);
+section("Swarm",
+  slider("Size (1 = one cell long)", 0.3, 2, 0.05, () => swarm.size, v => { swarm.size = v; }),
+  slider("Speed (cells per second)", 0.3, 5, 0.05, () => swarm.speed, v => { swarm.speed = v; tune.enemies.swarm.speed = v; }),
+  slider("HP", 1, 60, 1, () => swarm.hp, v => { swarm.hp = v; tune.enemies.swarm.hp = v; }),
+  slider("Wolves per pack", 1, 30, 1, () => swarm.pack, v => { swarm.pack = v; }),
+  buttons(["Spawn 1", () => spawn("swarm", 1, 0)], ["Spawn a pack", () => spawn("swarm", swarm.pack, PACK_STAGGER)]),
 );
 const markRow = document.createElement("div");
 markRow.className = "chips";
@@ -129,32 +153,9 @@ markRow.addEventListener("click", e => {
 });
 drawMarks();
 section("Marked as enemy", markRow);
-section("Spawning",
-  slider("Seconds between golems", 0.5, 12, 0.5, () => look.gap, v => { look.gap = v; tune.packGap = v; }),
-);
 section("Gun",
   slider("Damage", 0.5, 10, 0.5, () => tune.towers.gun[0]!.damage, v => { tune.towers.gun[0]!.damage = v; tune.towers.gun[1]!.damage = v; }),
 );
-/** Send `n` packs of `size` out of the cave now, on top of any still walking (each pack at one speed, like the game's). */
-function spawn(n: number, size: number): void {
-  if (game.phase === "planning") game.startWave();
-  const queue = (game as unknown as { packQueue: { at: Cell; delay: number; speed: number; kind: "grunt" }[] }).packQueue;
-  for (let p = 0; p < n; p++) {
-    const speed = look.speed * (1 + (Math.random() * 2 - 1) * tune.speedSpread);
-    for (let i = 0; i < size; i++) queue.push({ at: map.spawners[0]!, delay: p * tune.packGap + i * PACK_STAGGER, speed, kind: "grunt" });
-  }
-}
-const spawnRow = document.createElement("div");
-spawnRow.className = "chips";
-// This golem comes alone: "Spawn 5" sends five, one after another.
-for (const [label, go] of [["Spawn 1", () => spawn(1, 1)], ["Spawn 5", () => spawn(5, 1)]] as const) {
-  const b = document.createElement("button");
-  b.className = "chip";
-  b.textContent = label;
-  b.addEventListener("click", go);
-  spawnRow.append(b);
-}
-panel.append(spawnRow);
 const clear = document.createElement("button");
 clear.className = "chip";
 clear.textContent = "Remove all Guns";
@@ -275,7 +276,7 @@ function frame(now: number): void {
   view.render(dt, simDt, overlay, game.drainEvents(), Math.min(1, avatarAcc / TICK), dt, Math.min(1, acc / TICK));
   frames++; fpsT += dt;
   if (fpsT >= 0.5) { fps = Math.round(frames / fpsT); frames = 0; fpsT = 0; }
-  stats.textContent = `${game.walkers.length} golems \u00b7 ${game.towers.length} guns \u00b7 ${fps} fps \u00b7 ${view.renderer.info.render.calls} draw calls`;
+  stats.textContent = `${game.walkers.length} enemies \u00b7 ${game.towers.length} guns \u00b7 ${fps} fps \u00b7 ${view.renderer.info.render.calls} draw calls`;
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

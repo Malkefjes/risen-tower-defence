@@ -1,13 +1,16 @@
 /**
  * Enemy types: the threats from the design doc's list, each with its own numbers in
  * `Tuning.enemies`. The leaper is the Grunt, the yardstick the others are measured
- * against. Pure data, no graphics.
+ * against. The Swarm (stone wolves) and the Brute (the stone Colossus) have their
+ * looks and base numbers; raids don't send them yet. Pure data, no graphics.
  */
-export type EnemyKind = "grunt";
-export const ENEMY_KINDS: readonly EnemyKind[] = ["grunt"];
+export type EnemyKind = "grunt" | "swarm" | "brute";
+export const ENEMY_KINDS: readonly EnemyKind[] = ["grunt", "swarm", "brute"];
 
 export const ENEMY_INFO: Record<EnemyKind, { name: string }> = {
   grunt: { name: "Grunt" },
+  swarm: { name: "Swarm" },
+  brute: { name: "Brute" },
 };
 
 export interface EnemyStats {
