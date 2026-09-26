@@ -38,6 +38,8 @@ export interface GolemLook {
   stride: number;
   /** Its ice colour (the frost on top is white for all). */
   ice: string;
+  /** Glowing cracks in this colour instead of frost and scattered lit faces (the Elite's black ice). */
+  cracks?: string;
 }
 
 /** How each enemy type looks. */
@@ -46,8 +48,8 @@ export const GOLEM_LOOKS: Record<EnemyKind, GolemLook> = {
   grunt: { model: "colossus", height: 1.35, clip: "walk", bar: 0.5, stride: 0.2, ice: "#b9dff0" },
   runner: { model: "colossus", height: 1.86, clip: "run", bar: 0.6, stride: 0.4, ice: "#7cb9d8" },
   brute: { model: "colossus", height: 2.5, clip: "walk2", bar: 1, stride: 0.5, ice: "#5689b0" },
-  // The Elite: Erik's Frost Titan, between the Grunt and the Runner in size, in violet ice so it stands out.
-  elite: { model: "titan", height: 1.6, clip: "walk", bar: 0.7, stride: 0.3, ice: "#8f86c9" },
+  // The Elite: Erik's Frost Titan, between the Grunt and the Runner in size, black ice with yellow glowing cracks (Erik).
+  elite: { model: "titan", height: 1.6, clip: "walk", bar: 0.7, stride: 0.3, ice: "#1b1d26", cracks: "#ffd23f" },
 };
 
 /** One enemy's model, driven by the view: how it moves each frame and how it flashes when hit. */
@@ -170,8 +172,8 @@ const grain = (f: number, k = 7919) => ((f * k) % 97) / 97;
  * its own small shift in shade; white frost on the faces that look up, deep ice on the rest,
  * and about one face in fourteen sent to a second group, drawn lit from inside.
  */
-function frostGeometry(model: GolemModel, src: THREE.BufferGeometry, color: string): THREE.BufferGeometry {
-  const key = `${model}|${color}`;
+function frostGeometry(model: GolemModel, src: THREE.BufferGeometry, color: string, cracked = false): THREE.BufferGeometry {
+  const key = `${model}|${color}|${cracked}`;
   let g = coloured.get(key);
   if (g) return g;
   g = src.index ? src.toNonIndexed() : src.clone();
@@ -184,12 +186,14 @@ function frostGeometry(model: GolemModel, src: THREE.BufferGeometry, color: stri
     const v = f * 3;
     a.fromBufferAttribute(p, v); b.fromBufferAttribute(p, v + 1); c.fromBufferAttribute(p, v + 2);
     const ny = b.clone().sub(a).cross(c.clone().sub(a)).normalize().y, r = grain(f);
-    glow.push(grain(f, 4099) < 0.07 && ny < 0.3);
-    if (ny > 0.35) c2.copy(frost).multiplyScalar(0.92 + r * 0.08);
+    glow.push(!cracked && grain(f, 4099) < 0.07 && ny < 0.3);
+    if (cracked) c2.copy(base).multiplyScalar((ny > 0.35 ? 1.5 : 1) * (0.8 + r * 0.4));
+    else if (ny > 0.35) c2.copy(frost).multiplyScalar(0.92 + r * 0.08);
     else c2.copy(base).multiplyScalar(0.55 + r * 0.25);
     for (let k = 0; k < 3; k++) col.set([c2.r, c2.g, c2.b], (v + k) * 3);
   }
   g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  if (cracked) crackFaces(g, glow);
   // The lit faces go last, in their own group.
   const order = [...Array(n).keys()].sort((x, y) => Number(glow[x]) - Number(glow[y])), first = order.findIndex(f => glow[f]);
   const re = new THREE.BufferGeometry();
@@ -204,9 +208,46 @@ function frostGeometry(model: GolemModel, src: THREE.BufferGeometry, color: stri
   return re;
 }
 
-/** A golem's own materials (its own, for the hit flash and the Heavy tint): the frosted ice and the lit faces, each with its resting glow. */
+/**
+ * Cracks: lines of faces wandering over the body, each step to the neighbouring face that
+ * keeps closest to its heading (with a little wobble), so they read as cracks, not spots.
+ */
+function crackFaces(g: THREE.BufferGeometry, glow: boolean[]): void {
+  const p = g.attributes.position!, n = p.count / 3, key = (v: number) => `${p.getX(v).toFixed(4)},${p.getY(v).toFixed(4)},${p.getZ(v).toFixed(4)}`;
+  const centre = [...Array(n).keys()].map(f => new THREE.Vector3().fromBufferAttribute(p, f * 3).add(new THREE.Vector3().fromBufferAttribute(p, f * 3 + 1)).add(new THREE.Vector3().fromBufferAttribute(p, f * 3 + 2)).divideScalar(3));
+  const byEdge = new Map<string, number[]>();
+  for (let f = 0; f < n; f++) for (let e = 0; e < 3; e++) {
+    const k = [key(f * 3 + e), key(f * 3 + ((e + 1) % 3))].sort().join("|");
+    byEdge.set(k, [...(byEdge.get(k) ?? []), f]);
+  }
+  const near: number[][] = Array.from({ length: n }, () => []);
+  for (const fs of byEdge.values()) for (const a of fs) for (const b of fs) if (a !== b) near[a]!.push(b);
+  const CRACKS = 16;
+  for (let i = 0; i < CRACKS; i++) {
+    let f = Math.floor(grain(i + 1, 6007) * n) % n, heading: THREE.Vector3 | null = null;
+    const length = 10 + Math.floor(grain(i + 1, 3001) * 14);
+    for (let step = 0; step < length; step++) {
+      glow[f] = true;
+      const options = near[f]!.filter(o => !glow[o]);
+      if (!options.length) break;
+      const wobble = (o: number) => (grain(o + step * 31, 2111) - 0.5) * 0.6;
+      const next: number = heading
+        ? options.reduce((a, b) => centre[b]!.clone().sub(centre[f]!).normalize().dot(heading!) + wobble(b) > centre[a]!.clone().sub(centre[f]!).normalize().dot(heading!) + wobble(a) ? b : a)
+        : options[0]!;
+      heading = centre[next]!.clone().sub(centre[f]!).normalize();
+      f = next;
+    }
+  }
+}
+
+/** A golem's own materials (its own, for the hit flash and the Heavy tint): the ice and the lit faces, each with its resting glow. */
 const GLOW = [0.05, 0.9];
-function frostMaterials(): THREE.MeshStandardMaterial[] {
+function frostMaterials(look: GolemLook): THREE.MeshStandardMaterial[] {
+  if (look.cracks) return [
+    // Black ice: glossy, no cold light of its own; the cracks glow.
+    new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.3, metalness: 0.1, emissive: look.cracks, emissiveIntensity: GLOW[0] }),
+    new THREE.MeshStandardMaterial({ color: look.cracks, flatShading: true, roughness: 0.4, metalness: 0, emissive: look.cracks, emissiveIntensity: GLOW[1] }),
+  ];
   return [
     new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.55, metalness: 0, emissive: "#9fd6ff", emissiveIntensity: GLOW[0] }),
     new THREE.MeshStandardMaterial({ color: "#bfeaff", flatShading: true, roughness: 0.3, metalness: 0, emissive: "#8fd0ff", emissiveIntensity: GLOW[1] }),
@@ -219,7 +260,7 @@ function frostMaterials(): THREE.MeshStandardMaterial[] {
  */
 export function golemEnemy(look: GolemLook, speed: number): Enemy {
   const object = new THREE.Group();
-  const mats = frostMaterials();
+  const mats = frostMaterials(look);
   let mixer: THREE.AnimationMixer | null = null, action: THREE.AnimationAction | null = null, last: number | null = null, rate = 1;
   golemTemplate(look.model).then(tpl => {
     const model = cloneSkinned(tpl.scene);
@@ -227,7 +268,7 @@ export function golemEnemy(look: GolemLook, speed: number): Enemy {
     model.traverse(o => {
       const m = o as THREE.SkinnedMesh;
       if (!m.isSkinnedMesh) return;
-      m.geometry = frostGeometry(look.model, tpl.geometry, look.ice);
+      m.geometry = frostGeometry(look.model, tpl.geometry, look.ice, !!look.cracks);
       m.material = mats;
       m.castShadow = true;
       m.frustumCulled = false;
