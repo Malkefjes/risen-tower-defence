@@ -8,13 +8,13 @@ import { MiningView } from "./mining";
 import { smelterModel, type SmelterView } from "./smelterModel";
 import { buildScenery } from "./scenery";
 import { stoneWallMaterials, stoneWallPiece } from "./stoneWall";
-import { createRig, RigAnimator, type Rig } from "./rig";
 import type { ShipRig } from "./ship";
 import { MAX_TOWER_SIZE, TOWER_INFO, TOWER_KINDS, type Tower, type TowerKind } from "../sim/towers";
 import type { Cell } from "../sim/types";
 import { MissileFx } from "./blast";
 import type { BakedPart } from "./bake";
 import { createDefaultModels, createGlows, createMaterials, DECK_TOP, EVENING, type Glows, type Materials, type ModelLibrary, type TurretRig } from "./models";
+import { Sentinel } from "./sentinel";
 
 // Author colors as plain hex, with legacy-like light intensities.
 THREE.ColorManagement.enabled = false;
@@ -117,8 +117,7 @@ export class GameView {
   following = true;
   /** Where the camera is gliding to (the ship, after H), if anywhere. */
   private camGoal: THREE.Vector3 | null = null;
-  private rig: Rig;
-  private rigAnim: RigAnimator;
+  private avatar: Sentinel;
   /** Ore nodes, hotspot glint and mining sparks. */
   readonly mining: MiningView;
   /** The cursor, in normalized device coordinates (set by the input layer). */
@@ -249,9 +248,8 @@ export class GameView {
     this.scene.add(this.supplyRing);
     this.scene.add(this.rangeRing, this.rangeDisc);
     this.ship = this.buildShipAndCaves();
-    this.rig = createRig();
-    this.rigAnim = new RigAnimator(this.rig);
-    this.scene.add(this.rig.object);
+    this.avatar = new Sentinel();
+    this.scene.add(this.avatar.object);
 
     const dashGeo = new THREE.BoxGeometry(0.16, 0.02, 0.06), dotGeo = new THREE.BoxGeometry(0.05, 0.015, 0.05);
     this.dashes = new THREE.InstancedMesh(dashGeo, this.mat.path, 1500);
@@ -415,7 +413,7 @@ export class GameView {
 
   /** Where the character is on screen (client pixels), a little above the feet: the build wheel's centre. */
   avatarScreen(): { x: number; y: number } {
-    const o = this.rig.object.position;
+    const o = this.avatar.object.position;
     return this.screenOf(o.x, o.y + 0.45, o.z);
   }
 
@@ -528,7 +526,6 @@ export class GameView {
       else if (ev.type === "reset") { this.showTrees(); this.clearFx(); this.shipLand = 0; this.wreck = 0; this.followAvatar(); }
     }
     this.mining.onEvents(events);
-    const landed = events.some(e => e.type === "avatar-landed");
     this.syncWalkers(worldDt, worldAlpha);
     this.aimTowers(simDt);
     this.updateBolts(simDt);
@@ -545,7 +542,7 @@ export class GameView {
     for (const a of this.animated) (a.userData.update as (t: number, dt: number) => void)?.(t, frameDt);
     this.stirCaves(t, frameDt);
     this.updateShipLanding(frameDt);
-    this.updateAvatar(frameDt, alpha, landed, o.toolReady);
+    this.updateAvatar(frameDt, alpha, o.toolReady);
     // Supply reach: shown while holding something to build.
     this.supplyRing.visible = o.toolReady && this.game.supplyRule && !this.game.shipDown;
     if (this.supplyRing.visible) {
@@ -556,7 +553,7 @@ export class GameView {
     this.updateFx(frameDt);
 
     // Camera: follow the avatar, or glide to a goal, or stay where the player panned.
-    const a = this.rig.object.position;
+    const a = this.avatar.object.position;
     const k = 1 - Math.exp(-frameDt * FOLLOW);
     if (this.following) { this.target.x += (a.x - this.target.x) * k; this.target.z += (a.z - this.target.z) * k; }
     else if (this.camGoal) {
@@ -581,10 +578,10 @@ export class GameView {
   /**
    * Draw the avatar between the last two sim ticks, and animate it every frame.
    * While the tool fires, the legs keep running where you steer and the torso
-   * twists toward the aim; standing still, the whole rig turns to face it.
+   * twists toward the aim; standing still, the whole avatar turns to face it.
    */
-  private updateAvatar(dt: number, alpha: number, landed: boolean, ready: boolean): void {
-    const av = this.game.avatar, T = this.game.avatarTuning;
+  private updateAvatar(dt: number, alpha: number, ready: boolean): void {
+    const av = this.game.avatar;
     const firing = this.game.mineInput.firing;
     const lerp = (a: number, b: number) => a + (b - a) * alpha;
     const rx = lerp(av.prevX, av.x), rz = lerp(av.prevY, av.y);
@@ -593,17 +590,12 @@ export class GameView {
     const aimYaw = Math.atan2(aim.x - rx, aim.z - rz);
     if (firing && av.speed < 0.3) av.facing += wrapAngle(aimYaw - av.facing) * Math.min(1, dt * 10);
     const df = wrapAngle(av.facing - av.prevFacing);
-    this.rig.object.position.set(rx, lerp(av.prevZ, av.z), rz);
-    this.rig.object.rotation.y = av.prevFacing + df * alpha;
-    this.rigAnim.update(dt, {
-      speed: av.speed, topSpeed: T.speed, grounded: av.grounded, vz: av.vz,
-      jumpSpeed: (2 * T.jumpHeight) / T.jumpRise, landed, ready: ready || firing, mining: firing,
-    });
-    const want = firing ? Math.max(-TWIST_MAX, Math.min(TWIST_MAX, wrapAngle(aimYaw - this.rig.object.rotation.y))) : 0;
+    this.avatar.object.position.set(rx, lerp(av.prevZ, av.z), rz);
+    this.avatar.object.rotation.y = av.prevFacing + df * alpha;
+    const want = firing ? Math.max(-TWIST_MAX, Math.min(TWIST_MAX, wrapAngle(aimYaw - this.avatar.object.rotation.y))) : 0;
     this.twist += (want - this.twist) * Math.min(1, dt * 14);
-    this.rig.body.rotation.y += this.twist;
-    this.rig.object.updateMatrixWorld(true);
-    this.rig.beam.localToWorld(this.tip.set(0, 0, 1));
+    this.avatar.update(dt, { speed: av.speed, grounded: av.grounded, aiming: ready || firing, twist: this.twist });
+    this.avatar.muzzle.getWorldPosition(this.tip);
     this.mining.update(dt, node, firing, this.game.mineInput.onSpot, firing ? this.tip : null);
   }
 

@@ -189,6 +189,7 @@ Measured on the standard maze (least alloy that holds, ship losing at most 5%):
 - A builder: WASD moves it, it collides with walls, rocks and buildings.
 - You can only build and repair within a radius of the avatar (later also of drones).
 - Can't be hurt in M1; can be from M2, and respawns at the ship. No weapon for now.
+- **Look (decided 2026-09-26):** Erik's **Neon Star Sentinel**, a 3,072-triangle armoured spaceman with a backpack, in the colony palette: dark steel (#2c3142) all over, a cyan visor, and orange shoulder pads, forearm guards and chest piece. He holds Erik's **Starforge Blaster** (the multitool) in his right fist: pointing at the ground when carried, raised straight ahead when mining or building. Stand, walk, run and sprint are his own clips, blended by speed at stride 0.5; jumping (knees up), aiming and the torso twist are done in code. His backpack is rigid and his wrist never bends on its own. More colouring to come; he is tried in `mockups/avatar`.
 
 ## Setting
 
@@ -273,7 +274,7 @@ These were part of the round-based Phase 1 design. They stay in the game until t
 
 ## Controls (current)
 
-WASD run (relative to the screen) · Shift sprint · Space jump · hold left mouse to fire the multitool (mines a node in reach, or cuts down the tree you point at to clear ground for building) · hold right mouse on a wall for its modification wheel (metal plating) · click a tower or the ship for its range and stats (a tower's panel has Grow and Sell) · hold Q for the wall wheel, E for the tower wheel (point at Buildings for the smelter), release to pick · click a smelter next to you for its panel · left click places what you hold · R or right-click rotate · 1–6 hotbar (1 puts away what you hold) · left-drag (away from a node), middle-drag or arrows pan · C follow the rig · H look at the ship · scroll zoom · X sells the selected tower · Z undo · P pause · F speed · V path preview · G grid · T test walkers · K tuning.
+WASD run (relative to the screen) · Shift sprint · Space jump · hold left mouse to fire the multitool (mines a node in reach, or cuts down the tree you point at to clear ground for building) · hold right mouse on a wall for its modification wheel (metal plating) · click a tower or the ship for its range and stats (a tower's panel has Grow and Sell) · hold Q for the wall wheel, E for the tower wheel (point at Buildings for the smelter), release to pick · click a smelter next to you for its panel · left click places what you hold · R or right-click rotate · 1–6 hotbar (1 puts away what you hold) · left-drag (away from a node), middle-drag or arrows pan · C follow the avatar · H look at the ship · scroll zoom · X sells the selected tower · Z undo · P pause · F speed · V path preview · G grid · T test walkers · K tuning.
 
 ## Open questions
 

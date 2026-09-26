@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { EVENING } from "./models";
 import { createOreNode, type NodeKind } from "./ore";
 import { alloyIngot } from "./smelterModel";
-import { createMultitool } from "./rig";
+import { createBlaster } from "./sentinel";
 
 /**
  * Item icons rendered from the game's own models, lit exactly like the world
@@ -102,10 +102,10 @@ export function itemIcons(size = 96): Record<IconKind, string> {
     bars.geometry.dispose();
     (bars.material as THREE.Material).dispose();
   }
-  // The multitool, side on, in the same light; it's held, not lying on the snow.
+  // The blaster (the multitool), side on, in the same light; it's held, not lying on the snow.
   scene.environment = null;
   ground.visible = false;
-  const tool = createMultitool();
+  const tool = createBlaster();
   scene.add(tool);
   tool.updateMatrixWorld(true);
   const tb = new THREE.Box3().setFromObject(tool);
@@ -121,7 +121,7 @@ export function itemIcons(size = 96): Record<IconKind, string> {
   renderer.render(scene, camera);
   out.multitool = renderer.domElement.toDataURL("image/png");
   scene.remove(tool);
-  tool.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).geometry.dispose(); });
+  // (its geometry is shared with the blaster in the avatar's hand, so it stays)
 
   ground.geometry.dispose();
   shine.dispose();
