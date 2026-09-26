@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { EVENING } from "../../src/render/models";
-import glbUrl from "./colossus.glb?url";
+import { GLB } from "./model";
 import "./style.css";
 
 // Erik's Stonebound Colossus, his own 705-triangle mesh, made game-ready: cut into
@@ -173,7 +173,9 @@ designs.forEach((d, i) => {
 });
 }
 
-new GLTFLoader().load(glbUrl, gltf => {
+// The model is baked into the page and unpacked here: published pages may not fetch files.
+const bin = Uint8Array.from(atob(GLB), ch => ch.charCodeAt(0));
+new GLTFLoader().parse(bin.buffer, "", gltf => {
   let src: THREE.BufferGeometry | null = null;
   gltf.scene.updateMatrixWorld(true);
   gltf.scene.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh && !src) src = m.geometry.clone().applyMatrix4(m.matrixWorld); });
@@ -182,7 +184,7 @@ new GLTFLoader().load(glbUrl, gltf => {
     colossus(src!, "Ice-crusted", ["#3f4454", "#3b4050"], "#86cbe6", "#2a2d38", "#bfeaff", 2),
     colossus(src!, "Your golem's colours", ["#3d352f", "#413832"], "#a08c74", "#2a2420", "#7fa8ff", 3),
   ]);
-});
+}, err => { document.querySelector(".brand span")!.textContent = `Model failed to load: ${err.message}`; });
 
 function resize(): void {
   const w = container.clientWidth, h = container.clientHeight, aspect = w / h;
