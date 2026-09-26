@@ -44,7 +44,7 @@ const map: MapDef = {
 // ------------------------------------------------------------------ settings
 
 const look = {
-  size: 1.2,
+  size: 1.5,
   palette: "mix" as ColossusPalette | "mix",
   hp: 12,
   speed: 1.2,
@@ -53,7 +53,7 @@ const look = {
 };
 const PALETTES = Object.keys(COLOSSUS_PALETTES) as ColossusPalette[];
 /** How enemies are marked as enemies; switched live from the panel. */
-const marks = { outline: false, ring: false };
+const marks = { outline: true, ring: false };
 
 const game = new Game(map, {
   seed: 7,
@@ -86,6 +86,7 @@ const view = new GameView(document.getElementById("view")!, game, undefined, {
   }),
   barY: COLOSSUS_HEIGHT * look.size + 0.08,
   burst: { color: "#5a5f70", count: 12, size: 2.2 },
+  alwaysBars: true,
 });
 // Frame the whole maze, from the cave to the ship.
 view.zoom = 8.5;
@@ -119,7 +120,7 @@ chips.addEventListener("click", e => {
 drawChips();
 const tune = game.tuning;
 section("Golem",
-  slider("Size (1 = 0.8 cells tall)", 0.5, 1.8, 0.05, () => look.size, v => { look.size = v; view.looks.barY = COLOSSUS_HEIGHT * v + 0.08; }),
+  slider("Size (1 = 0.8 cells tall)", 0.5, 2.5, 0.05, () => look.size, v => { look.size = v; view.looks.barY = COLOSSUS_HEIGHT * v + 0.08; }),
   slider("Speed (cells per second)", 0.3, 4, 0.05, () => look.speed, v => { look.speed = v; tune.enemies.grunt.speed = v; }),
   slider("HP", 1, 80, 1, () => look.hp, v => { look.hp = v; tune.enemies.grunt.hp = v; }),
   chips,
