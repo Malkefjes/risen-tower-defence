@@ -197,10 +197,10 @@ export function createDefaultModels(mat: Materials): ModelLibrary {
   /** The player's ship, the Rocket, centered on its 3×3 footprint. */
   lib.register("ship", () => shipModel());
 
-  /** Twin (1×1): hex mount, orange colony head, two barrels that fire in turn. */
-  lib.register("twin", () => twinModel(mat, false));
-  /** Gatling (2×2): the Twin grown up, a spinning four-barrel cluster. */
-  lib.register("gatling", () => twinModel(mat, true));
+  /** The Gun at 1×1 (the Twin): hex mount, orange colony head, two barrels that fire in turn. */
+  lib.register("gun1", () => twinModel(mat, false));
+  /** The Gun grown to 2×2 (the Gatling): a spinning four-barrel cluster. */
+  lib.register("gun2", () => twinModel(mat, true));
 
   return lib;
 }

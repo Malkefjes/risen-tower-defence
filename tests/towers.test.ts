@@ -23,38 +23,28 @@ function finishWave(g: Game): void {
 }
 
 const walker = (id: number, x: number, y: number, hp = 5): Walker => ({
-  id, x: x + 0.5, y: y + 0.5, cx: x, cy: y, tx: x, ty: y, speed: 0, hp, maxHp: hp, pending: 0, practice: false,
+  id, x: x + 0.5, y: y + 0.5, cx: x, cy: y, tx: x, ty: y, kind: "grunt", speed: 0, hp, maxHp: hp, pending: 0, practice: false,
 });
 
 describe("tower placement", () => {
   it("needs walls under every cell of the footprint", () => {
     const g = withWalls([[5, 5, 1]]);
-    expect(g.checkTower("twin", [5, 5]).ok).toBe(true);
-    const r = g.checkTower("twin", [6, 5]);
+    expect(g.checkTower("gun", [5, 5]).ok).toBe(true);
+    const r = g.checkTower("gun", [6, 5]);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason).toBe("no-wall");
-    const big = g.checkTower("gatling", [5, 5]);
-    expect(big.ok).toBe(false);
   });
 
-  it("a 2x2 may span walls from different pieces", () => {
-    const g = withWalls([[5, 5, 1], [6, 5, 1], [5, 6, 2], [6, 6, 2]]);
-    const r = g.buildTower("gatling", [5, 5]);
-    expect(r.ok).toBe(true);
-    expect(g.towers[0]!.cells).toHaveLength(4);
-    expect(g.towers[0]!.cx).toBe(6);
-    expect(g.towers[0]!.cy).toBe(6);
-  });
 
   it("refuses terrain, overlapping towers, and building without alloy", () => {
     const g = withWalls([[5, 5, 1], [6, 5, 1]], 300);
-    expect(g.checkTower("twin", [3, 3]).ok).toBe(false);
-    expect(g.buildTower("twin", [5, 5]).ok).toBe(true);
-    const again = g.checkTower("twin", [5, 5]);
+    expect(g.checkTower("gun", [3, 3]).ok).toBe(false);
+    expect(g.buildTower("gun", [5, 5]).ok).toBe(true);
+    const again = g.checkTower("gun", [5, 5]);
     expect(again.ok).toBe(false);
     if (!again.ok) expect(again.reason).toBe("tower-there");
-    expect(g.ore("alloy")).toBe(300 - g.towerCost("twin"));
-    const broke = g.checkTower("twin", [6, 5]);
+    expect(g.ore("alloy")).toBe(300 - g.towerCost("gun"));
+    const broke = g.checkTower("gun", [6, 5]);
     expect(broke.ok).toBe(false);
     if (!broke.ok) expect(broke.reason).toBe("alloy");
   });
@@ -64,7 +54,7 @@ describe("tower placement", () => {
     const piece = g.place("T", 0, [8, 5]).piece!;
     g.plate(piece.id);
     const [x, y] = piece.cells[0]!;
-    const t = g.buildTower("twin", [x, y]).tower!;
+    const t = g.buildTower("gun", [x, y]).tower!;
     expect(g.canPickUp(piece)).toBe(false);
     expect(g.pickUp(piece.id)).toBeNull();
     g.sellTower(t.id);
@@ -75,32 +65,32 @@ describe("tower placement", () => {
 describe("selling", () => {
   it("refunds in full in the calm it was built, a share after", () => {
     const g = withWalls([[5, 5, 1], [7, 5, 1]]);
-    const cost = g.towerCost("twin");
-    const a = g.buildTower("twin", [5, 5]).tower!;
+    const cost = g.towerCost("gun");
+    const a = g.buildTower("gun", [5, 5]).tower!;
     expect(g.sellTower(a.id)).toBe(cost);
     expect(g.ore("alloy")).toBe(1000);
 
-    const b = g.buildTower("twin", [7, 5]).tower!;
+    const b = g.buildTower("gun", [7, 5]).tower!;
     g.startWave();
-    expect(b.fresh).toBe(false);
+    expect(b.paidNow).toBe(0);
     expect(g.sellValue(b)).toBe(Math.floor(cost * g.tuning.sellRefund));
     // Selling mid-wave is allowed.
     expect(g.sellTower(b.id)).toBe(Math.floor(cost * g.tuning.sellRefund));
     expect(g.towers).toHaveLength(0);
   });
 
-  it("towers built mid-raid are not fresh", () => {
+  it("towers built mid-raid sell at the share straight away", () => {
     const g = withWalls([[5, 5, 1]]);
     g.startWave();
-    const t = g.buildTower("twin", [5, 5]).tower!;
-    expect(t.fresh).toBe(false);
+    const t = g.buildTower("gun", [5, 5]).tower!;
+    expect(g.sellValue(t)).toBe(Math.floor(g.towerCost("gun") * g.tuning.sellRefund));
   });
 });
 
 describe("combat", () => {
   it("shoots the walker with the most progress toward the ship", () => {
     const g = withWalls([[10, 2, 1]]);
-    const t = g.buildTower("twin", [10, 2]).tower!;
+    const t = g.buildTower("gun", [10, 2]).tower!;
     g.startWave();
     // Both in range; the one at x=12 is closer to the ship at (20,0).
     g.walkers.push(walker(901, 9, 1), walker(902, 12, 1));
@@ -109,15 +99,15 @@ describe("combat", () => {
 
   it("ignores walkers out of range", () => {
     const g = withWalls([[10, 5, 1]]);
-    const t = g.buildTower("twin", [10, 5]).tower!;
+    const t = g.buildTower("gun", [10, 5]).tower!;
     g.walkers.push(walker(901, 10, 0));
     expect(g.pickTarget(t)).toBeNull();
   });
 
   it("damage lands after the bolt flies, and kills remove the walker", () => {
     const g = withWalls([[10, 2, 1]]);
-    g.tuning.twin.damage = 5;
-    g.buildTower("twin", [10, 2]);
+    g.tuning.towers.gun[0]!.damage = 5;
+    g.buildTower("gun", [10, 2]);
     g.startWave();
     g.walkers.push(walker(901, 11, 1, 5));
     g.step();
@@ -130,8 +120,8 @@ describe("combat", () => {
 
   it("doesn't overkill: a doomed walker is not targeted again", () => {
     const g = withWalls([[10, 2, 1]]);
-    g.tuning.twin.damage = 5;
-    const t = g.buildTower("twin", [10, 2]).tower!;
+    g.tuning.towers.gun[0]!.damage = 5;
+    const t = g.buildTower("gun", [10, 2]).tower!;
     g.walkers.push(walker(901, 11, 1, 5));
     g.step();
     expect(g.pickTarget(t)).toBeNull();
@@ -141,7 +131,7 @@ describe("combat", () => {
 describe("hp and the run", () => {
   it("enemies stop beside the ship and claw it; practice walkers do no damage", () => {
     const noGun = { cost: 0, damage: 0, range: 5.5, rate: 1 };
-    const g = new Game(open({ ship: [[4, 0]] }), { seed: 1, waveSize: () => 3, tuning: { enemyDamage: 2, ship: noGun } });
+    const g = new Game(open({ ship: [[4, 0]] }), { seed: 1, waveSize: () => 3, tuning: { enemies: { grunt: { damage: 2 } }, ship: noGun } });
     g.setTestWalkers(true);
     for (let i = 0; i < 60 * 8; i++) g.step();
     expect(g.hp).toBe(g.tuning.startHp);
@@ -158,7 +148,7 @@ describe("hp and the run", () => {
 
   it("enemies go for the nearest target, and walk on when it's destroyed", () => {
     const noGun = { cost: 0, damage: 0, range: 5.5, rate: 1 };
-    const g = new Game(open({ ship: [[20, 0]] }), { seed: 1, waveSize: () => 1, tuning: { startStone: 1000, startMetal: 1000, smelterHp: 40, enemyDamage: 5, ship: noGun } });
+    const g = new Game(open({ ship: [[20, 0]] }), { seed: 1, waveSize: () => 1, tuning: { startStone: 1000, startMetal: 1000, smelterHp: 40, enemies: { grunt: { damage: 5 } }, ship: noGun } });
     const s = g.buildSmelter([6, -1]).smelter!;
     g.startWave();
     for (let i = 0; i < 60 * 6; i++) g.step();
@@ -194,7 +184,7 @@ describe("hp and the run", () => {
 
   it("enemy HP grows each raid", () => {
     const g = new Game(open(), { seed: 1 });
-    expect(g.enemyHp(1)).toBe(g.tuning.enemyHp);
-    expect(g.enemyHp(5)).toBeGreaterThan(g.enemyHp(1));
+    expect(g.enemyHp("grunt", 1)).toBe(g.tuning.enemies.grunt.hp);
+    expect(g.enemyHp("grunt", 5)).toBeGreaterThan(g.enemyHp("grunt", 1));
   });
 });

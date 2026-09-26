@@ -3,7 +3,7 @@ import type { FlowField } from "../sim/pathfinding";
 import { SMELTER_SIZE, type Smelter } from "../sim/smelter";
 import { WALL_DECK } from "../sim/world";
 import { SHAPE_IDS, type ShapeId } from "../sim/pieces";
-import { TOWER_INFO, TOWER_KINDS, type Tower, type TowerKind } from "../sim/towers";
+import { growAt, TOWER_KINDS, type Tower, type TowerKind } from "../sim/towers";
 import type { Cell } from "../sim/types";
 import { BuildWheel, type WheelItem } from "../ui/buildWheel";
 import { buildingsIcon, pieceIcon, platingIcon, repairIcon, smelterIcon, towerIcon, type Hud } from "../ui/hud";
@@ -30,6 +30,8 @@ export class Controller {
   shipOpen = false;
   /** Placed tower picked for inspecting and selling. */
   selectedTowerId: number | null = null;
+  /** The tower being grown: its bigger footprint follows the cursor until a click places it. */
+  growingId: number | null = null;
   /** The ship picked for inspecting (its gun's range and stats). */
   selectedShip = false;
   rot = 0;
@@ -71,6 +73,7 @@ export class Controller {
     el.addEventListener("pointerdown", e => {
       if (e.button === 2) {
         if (this.heldShape !== null) this.rotate();
+        else if (this.growingId !== null) this.growingId = null;
         else if (this.buildKind) this.clearSelection();
         else this.openMods(e.clientX, e.clientY);
         return;
@@ -78,11 +81,11 @@ export class Controller {
       if (e.button === 1) e.preventDefault();
       el.setPointerCapture(e.pointerId);
       // A left press next to a node mines (the cursor aims); anywhere else a left drag pans.
-      const mining = e.button === 0 && this.heldShape === null && this.buildKind === null && this.game.hotbar.held === "multitool" && this.game.nodeInReach() !== null;
+      const mining = e.button === 0 && !this.placing && this.game.hotbar.held === "multitool" && this.game.nodeInReach() !== null;
       this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, button: e.button, mining };
       this.pressedAt = performance.now();
       // Holding a wall or tower, the click places it. Otherwise the left button fires the tool.
-      if (e.button === 0 && this.heldShape === null && this.buildKind === null) this.toolDown = true;
+      if (e.button === 0 && !this.placing) this.toolDown = true;
     });
     el.addEventListener("pointermove", e => {
       this.view.setPointer(e.clientX, e.clientY);
@@ -106,8 +109,7 @@ export class Controller {
       this.drag = null;
       if (e.button === 0) this.toolDown = false;
       if (!d || d.id !== e.pointerId || d.moved || d.button !== 0) return;
-      const holding = this.heldShape !== null || this.buildKind !== null;
-      if (holding || performance.now() - this.pressedAt < CLICK_TIME) this.click();
+      if (this.placing || performance.now() - this.pressedAt < CLICK_TIME) this.click();
     });
     el.addEventListener("pointerleave", () => { this.lastPointer = null; this.hoverCell = null; this.hoverPoint = null; this.hoverPieceId = null; });
     el.addEventListener("wheel", e => {
@@ -125,6 +127,9 @@ export class Controller {
     });
     window.addEventListener("blur", () => { this.keys.clear(); this.toolDown = false; if (this.wheelKind) { this.wheel.hide(); this.wheelKind = null; } });
   }
+
+  /** Something follows the cursor to be placed: a wall, a tower or building, or a tower's bigger footprint. */
+  private get placing(): boolean { return this.heldShape !== null || this.buildKind !== null || this.growingId !== null; }
 
   // ---------------------------------------------------------------- build wheel
 
@@ -246,6 +251,7 @@ export class Controller {
   clearSelection(): void {
     this.heldShape = null;
     this.buildKind = null;
+    this.growingId = null;
     this.selectedTowerId = null;
     this.selectedShip = false;
   }
@@ -264,7 +270,23 @@ export class Controller {
     const refund = this.game.sellTower(id);
     if (refund === null) return;
     this.selectedTowerId = null;
+    this.growingId = null;
     this.hud.toast(`Sold for ${refund} alloy`, "info");
+  }
+
+  /** Start growing the selected tower: its next size follows the cursor. */
+  growSelected(): void {
+    const t = this.game.towers.find(x => x.id === this.selectedTowerId);
+    if (!t) return;
+    this.heldShape = null;
+    this.buildKind = null;
+    this.growingId = t.id;
+  }
+
+  /** Where the tower being grown would go: its next footprint, toward the cursor. */
+  private growTarget(): { tower: Tower; at: Cell } | null {
+    const t = this.game.towers.find(x => x.id === this.growingId), p = this.hoverPoint;
+    return t && p ? { tower: t, at: growAt(t, p.x, p.z) } : null;
   }
 
   rotate(): void {
@@ -287,12 +309,20 @@ export class Controller {
   private towerAnchor(kind: BuildKind): Cell | null {
     const p = this.hoverPoint;
     if (!p) return null;
-    const n = kind === "smelter" ? SMELTER_SIZE : TOWER_INFO[kind].size;
+    const n = kind === "smelter" ? SMELTER_SIZE : 1;
     return n === 1 ? [Math.floor(p.x), Math.floor(p.z)] : [Math.round(p.x - n / 2), Math.round(p.z - n / 2)];
   }
 
   private click(): void {
     if (!this.hoverCell) return;
+    if (this.growingId !== null) {
+      const g = this.growTarget();
+      if (!g) return;
+      const r = this.game.growTower(g.tower.id, g.at);
+      if (r.ok) this.growingId = null;
+      else this.hud.toast(TOWER_REASON_TEXT[r.reason]);
+      return;
+    }
     if (this.buildKind === "smelter") {
       const at = this.towerAnchor("smelter");
       if (!at) return;
@@ -353,7 +383,7 @@ export class Controller {
     const p = this.view.pickGround(this.lastPointer.x, this.lastPointer.y);
     this.hoverCell = p ? [Math.floor(p.x), Math.floor(p.z)] : null;
     this.hoverPoint = p ? { x: p.x, z: p.z } : null;
-    const piece = this.hoverCell && this.heldShape === null && this.buildKind === null && !this.towerUnderCursor() ? this.wallAt(this.lastPointer.x, this.lastPointer.y) : undefined;
+    const piece = this.hoverCell && !this.placing && !this.towerUnderCursor() ? this.wallAt(this.lastPointer.x, this.lastPointer.y) : undefined;
     this.hoverPieceId = piece && this.game.canPickUp(piece) ? piece.id : null;
   }
 
@@ -384,8 +414,7 @@ export class Controller {
     this.game.avatarInput.y = ml ? my / ml : 0;
     this.game.avatarInput.sprint = this.keys.has("shift");
     // The tool fires while the left button is held with nothing to place.
-    const holding = this.heldShape !== null || this.buildKind !== null;
-    const firing = this.toolDown && !holding && !this.wheelKind && this.game.hotbar.held === "multitool";
+    const firing = this.toolDown && !this.placing && !this.wheelKind && this.game.hotbar.held === "multitool";
     this.game.mineInput = { firing, onSpot: firing && this.view.cursorOnHotspot() };
     if (this.wheelKind && this.lastPointer) {
       // Build wheels sit on the character; a wall's modification wheel sits on that wall.
@@ -421,6 +450,7 @@ export class Controller {
       this.updateHover();
     }
     if (this.selectedTowerId !== null && !this.game.towers.some(t => t.id === this.selectedTowerId)) this.selectedTowerId = null;
+    if (this.growingId !== null && !this.game.towers.some(t => t.id === this.growingId)) this.growingId = null;
 
     const check = this.currentCheck(dt);
     const current = this.game.routes();
@@ -438,16 +468,22 @@ export class Controller {
       if (sc.ok) smelterField = sc.field;
       smelterGhost = { cells: sc.cells, valid: sc.ok, cx: at[0] + SMELTER_SIZE / 2, cy: at[1] + SMELTER_SIZE / 2 };
     } else if (this.buildKind && this.buildKind !== "smelter" && at) {
-      const tc = this.game.checkTower(this.buildKind, at), n = TOWER_INFO[this.buildKind].size;
-      towerGhost = { kind: this.buildKind, cells: tc.cells, valid: tc.ok, cx: at[0] + n / 2, cy: at[1] + n / 2, range: this.game.tuning[this.buildKind].range };
+      const tc = this.game.checkTower(this.buildKind, at);
+      towerGhost = { kind: this.buildKind, size: 1, cells: tc.cells, valid: tc.ok, cx: at[0] + 0.5, cy: at[1] + 0.5, range: this.game.towerStats({ kind: this.buildKind, size: 1 }).range };
+    }
+    const grow = this.growingId !== null ? this.growTarget() : null;
+    if (grow) {
+      const { tower: t, at: gat } = grow, n = t.size + 1, gc = this.game.checkGrow(t.id, gat);
+      towerGhost = { kind: t.kind, size: n, cells: gc.cells, valid: gc.ok, cx: gat[0] + n / 2, cy: gat[1] + n / 2,
+        range: n <= this.game.tuning.towers[t.kind].length ? this.game.towerStats({ kind: t.kind, size: n }).range : 0 };
     }
     const sel = this.game.towers.find(t => t.id === this.selectedTowerId);
     const ship = this.selectedShip ? this.game.shipCenter() : null;
     return {
       towerGhost,
       smelterGhost,
-      toolReady: this.heldShape !== null || this.buildKind !== null,
-      selectedTower: sel ? { cx: sel.cx, cy: sel.cy, range: this.game.tuning[sel.kind].range }
+      toolReady: this.placing,
+      selectedTower: sel && !grow ? { cx: sel.cx, cy: sel.cy, range: this.game.towerStats(sel).range }
         : ship ? { cx: ship.x, cy: ship.y, range: this.game.tuning.ship.range } : null,
       ghost: check ? { cells: check.cells, valid: check.ok } : null,
       route: check?.ok ? this.game.routes(check.field) : smelterField ? this.game.routes(smelterField) : current,

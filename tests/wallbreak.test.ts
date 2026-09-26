@@ -26,7 +26,7 @@ describe("walls are slow obstacles", () => {
   });
 
   it("a full block gets chewed through, slowly, by at most two at a time", () => {
-    const g = new Game(open(), { seed: 1, waveSize: () => 5, tuning: { ship: noGun, wallHp: 300, enemyDamage: 2, wallClawers: 2, packMin: 5, packMax: 5 } });
+    const g = new Game(open(), { seed: 1, waveSize: () => 5, tuning: { ship: noGun, wallHp: 300, enemies: { grunt: { damage: 2 } }, wallClawers: 2, packMin: 5, packMax: 5 } });
     column(g, 5, -60, 60);
     g.field = computeField(g.world);
     const route = g.routes()[0]!;
@@ -51,8 +51,9 @@ describe("walls are slow obstacles", () => {
     const g = new Game(open({ ship: [[20, 0]] }), { seed: 1, tuning: { startAlloy: 2000 } });
     metalWall(g, [[4, 4], [5, 4]], 801);
     metalWall(g, [[4, 5], [5, 5], [6, 5], [7, 5]], 802);
-    expect(g.buildTower("gatling", [4, 4]).ok).toBe(true);
-    expect(g.buildTower("twin", [7, 5]).ok).toBe(true);
+    const big = g.buildTower("gun", [4, 4]).tower!;
+    expect(g.growTower(big.id, [4, 4]).ok).toBe(true);
+    expect(g.buildTower("gun", [7, 5]).ok).toBe(true);
     (g as unknown as { breakPiece(id: number): void }).breakPiece(802);
     expect(g.towers).toHaveLength(0);
     for (const [x, y] of [[4, 5], [5, 5], [6, 5], [7, 5]]) expect(g.world.walls.has(`${x},${y}`)).toBe(false);

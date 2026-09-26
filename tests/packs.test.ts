@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ENEMY_SPEED, Game, PACK_STAGGER } from "../src/sim/game";
+import { Game, PACK_STAGGER } from "../src/sim/game";
 import type { MapDef } from "../src/sim/world";
 
 const map = (): MapDef => ({ name: "test", spawners: [[0, 0]], ship: [[40, 0]], rocks: [], trees: [] });
@@ -33,7 +33,7 @@ describe("enemy packs", () => {
     for (let p = 0; p < 12; p++) {
       const before = new Set(g.walkers.map(w => w.id));
       run(g, 5 * PACK_STAGGER + 0.5);
-      packs.push(g.walkers.filter(w => !before.has(w.id)).map(w => w.speed / ENEMY_SPEED));
+      packs.push(g.walkers.filter(w => !before.has(w.id)).map(w => w.speed / g.tuning.enemies.grunt.speed));
     }
     for (const pack of packs) {
       expect(pack).toHaveLength(5);

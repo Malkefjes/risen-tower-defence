@@ -9,7 +9,7 @@ import { buildScenery } from "./scenery";
 import { stoneWallMaterials, stoneWallPiece } from "./stoneWall";
 import { createRig, RigAnimator, type Rig } from "./rig";
 import type { ShipRig } from "./ship";
-import type { Tower, TowerKind } from "../sim/towers";
+import { MAX_TOWER_SIZE, TOWER_INFO, TOWER_KINDS, type Tower, type TowerKind } from "../sim/towers";
 import type { Cell } from "../sim/types";
 import { createDefaultModels, createGlows, createMaterials, DECK_TOP, EVENING, type Glows, type Materials, type ModelLibrary, type TurretRig } from "./models";
 
@@ -28,7 +28,7 @@ export interface Overlay {
   showPath: boolean;
   showGrid: boolean;
   /** Tower being placed: footprint, validity and reach. */
-  towerGhost: { kind: TowerKind; cells: Cell[]; valid: boolean; cx: number; cy: number; range: number } | null;
+  towerGhost: { kind: TowerKind; size: number; cells: Cell[]; valid: boolean; cx: number; cy: number; range: number } | null;
   /** Smelter being placed: footprint and whether it fits. */
   smelterGhost: { cells: Cell[]; valid: boolean; cx: number; cy: number } | null;
   /** Reach of the selected tower. */
@@ -43,7 +43,10 @@ const TOP = DECK_TOP;
 /** Wrap v into [center - half, center + half). */
 const wrap = (v: number, center: number, half: number) => ((((v - center + half) % (2 * half)) + 2 * half) % (2 * half)) + center - half;
 
-interface TowerView { obj: THREE.Object3D; rig: TurretRig; recoil: number[]; gun: number; spin: number; drop: number }
+interface TowerView { obj: THREE.Object3D; size: number; rig: TurretRig; recoil: number[]; gun: number; spin: number; drop: number }
+
+/** The model for a tower type at a size: "gun1", "gun2", ... */
+const towerModel = (kind: TowerKind, size: number) => `${kind}${size}`;
 interface Bolt { mesh: THREE.Mesh; from: THREE.Vector3; to: THREE.Vector3; walkerId: number; t: number; dur: number }
 interface Flash { sprite: THREE.Sprite; life: number; max: number; size: number }
 
@@ -112,7 +115,8 @@ export class GameView {
   private barFillGeo = new THREE.PlaneGeometry(0.5, 0.07).translate(0.25, 0, 0);
   private barBgMat = new THREE.MeshBasicMaterial({ color: "#241f3d" });
   private barFillMat = new THREE.MeshBasicMaterial({ color: "#e0262b" });
-  private towerGhosts: Record<TowerKind, THREE.Object3D>;
+  /** A ghost per tower model on offer, by model name. */
+  private towerGhosts = new Map<string, THREE.Object3D>();
   private smelterGhost: THREE.Object3D;
   private smelters = new Map<number, SmelterView>();
   /** Caves by their mouth cell, for stirring when a raid is near. */
@@ -189,14 +193,14 @@ export class GameView {
     this.buildTerrain();
     this.mining = new MiningView(this.scene, this.camera, game);
 
-    const ghost = (kind: TowerKind) => {
-      const o = this.models.create(kind);
+    const ghost = (name: string) => {
+      const o = this.models.create(name);
       o.traverse(c => { if ((c as THREE.Mesh).isMesh) { const m = c as THREE.Mesh; m.castShadow = false; m.material = this.mat.ghostOk; } });
       o.visible = false;
       this.scene.add(o);
       return o;
     };
-    this.towerGhosts = { twin: ghost("twin"), gatling: ghost("gatling") };
+    for (const kind of TOWER_KINDS) for (let n = 1; n <= TOWER_INFO[kind].maxSize; n++) this.towerGhosts.set(towerModel(kind, n), ghost(towerModel(kind, n)));
     this.smelterGhost = smelterModel().object;
     this.smelterGhost.rotation.y = SMELTER_TURN;
     this.smelterGhost.traverse(c => { if ((c as THREE.Mesh).isMesh) { const m = c as THREE.Mesh; m.castShadow = false; m.material = this.mat.ghostOk; } });
@@ -223,7 +227,7 @@ export class GameView {
     this.dashes.frustumCulled = this.dots.frustumCulled = false;
     this.scene.add(this.dashes, this.dots);
 
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < MAX_TOWER_SIZE ** 2; i++) {
       const f = new THREE.Mesh(new THREE.PlaneGeometry(0.96, 0.96), this.mat.footOk);
       f.rotation.x = -Math.PI / 2;
       this.ghostFeet.push(f);
@@ -772,13 +776,17 @@ export class GameView {
     const alive = new Set<number>();
     for (const t of this.game.towers) {
       alive.add(t.id);
-      if (this.towers.has(t.id)) continue;
-      const obj = this.models.create(t.kind);
+      const had = this.towers.get(t.id);
+      if (had && had.size === t.size) continue;
+      // A tower that grew gets its bigger model, facing where the old one did.
+      if (had) this.scene.remove(had.obj);
+      const obj = this.models.create(towerModel(t.kind, t.size));
       obj.position.set(t.cx, TOP, t.cy);
       obj.rotation.y = Math.PI * 0.75;
       this.scene.add(obj);
       const rig = obj.userData.rig as TurretRig;
-      this.towers.set(t.id, { obj, rig, recoil: rig.guns.map(() => 0), gun: 0, spin: 0, drop: 0 });
+      if (had) rig.yaw.rotation.y = had.rig.yaw.rotation.y;
+      this.towers.set(t.id, { obj, size: t.size, rig, recoil: rig.guns.map(() => 0), gun: 0, spin: 0, drop: had ? 0.12 : 0 });
     }
     for (const [id, v] of this.towers) if (!alive.has(id)) { this.scene.remove(v.obj); this.towers.delete(id); }
   }
@@ -889,15 +897,15 @@ export class GameView {
       }
     }
     const g = o.towerGhost;
-    for (const [kind, obj] of Object.entries(this.towerGhosts)) {
-      obj.visible = !!g && g.kind === kind;
+    for (const [name, obj] of this.towerGhosts) {
+      obj.visible = !!g && towerModel(g.kind, g.size) === name;
       if (!obj.visible || !g) continue;
       obj.position.set(g.cx, TOP + 0.12 + Math.sin(this.time * 4) * 0.03, g.cy);
       const m = g.valid ? this.mat.ghostOk : this.mat.ghostBad;
       obj.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).material = m; });
     }
     if (g) {
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < this.ghostFeet.length; i++) {
         const c = g.cells[i], foot = this.ghostFeet[i]!;
         foot.visible = !!c;
         if (!c) continue;
@@ -938,7 +946,7 @@ export class GameView {
       const m = g.valid ? this.wallGhostOk : this.wallGhostBad;
       this.wallGhost.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).material = m; });
     }
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < this.ghostFeet.length; i++) {
       const c = g?.cells[i], foot = this.ghostFeet[i]!;
       foot.visible = !!c;
       if (!c) continue;

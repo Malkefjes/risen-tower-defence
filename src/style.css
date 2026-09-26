@@ -138,6 +138,10 @@ button:focus-visible { outline: 2px solid var(--warm); outline-offset: 2px; }
 .sell { background: rgba(255,180,90,.14); border: 1px solid rgba(255,180,90,.5); color: var(--warm); border-radius: 9px; padding: 7px 10px; font-weight: 700; cursor: pointer; }
 .sell:hover { background: rgba(255,180,90,.24); }
 .sell img { width: 18px; height: 18px; vertical-align: -4px; margin: 0 2px 0 4px; }
+.sell:disabled { opacity: .45; cursor: default; }
+.sell.grow { background: rgba(127,245,230,.1); border-color: rgba(127,245,230,.45); color: #7ff5e6; }
+.sell.grow:hover:not(:disabled) { background: rgba(127,245,230,.2); }
+.inspect .acts { display: flex; gap: 6px; }
 
 .over { position: absolute; left: 50%; top: 58px; transform: translateX(-50%); display: flex; gap: 14px; align-items: center; background: var(--panel-solid); border: 1px solid rgba(255,107,127,.5); border-radius: 12px; padding: 8px 8px 8px 16px; font-weight: 600; box-shadow: 0 8px 24px rgba(20,16,40,.35); }
 .over[hidden] { display: none; }
@@ -152,6 +156,7 @@ button:focus-visible { outline: 2px solid var(--warm); outline-offset: 2px; }
 .tune input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--orange); }
 .tune .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .tune .note { margin: 0; color: var(--muted); font-size: 11px; }
+.tune .derived { margin: 0; color: var(--text); font-size: 11px; font-variant-numeric: tabular-nums; }
 .tune button { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; cursor: pointer; font-weight: 600; font-size: 12px; }
 .primary {
   background: var(--orange); color: #1d0f06; border: 0; border-radius: 12px; padding: 12px 18px;

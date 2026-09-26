@@ -37,7 +37,7 @@ Whether it plays more like tower defense or survival should come out of what's f
 | Controls | WASD moves the avatar. The camera follows the avatar, but you can pan away freely to watch the base while farming |
 | Wall look | Armored deck (style A from `mockups/stronghold/`) |
 | Ship look | Reactor core (nexus A) is the favorite starting point; the ship gets its own mockup |
-| Turret | Twin / Gatling stays as is |
+| Turret | Twin / Gatling looks kept: they are the Gun at 1×1 and 2×2 |
 
 ## 3. Guardrails for every milestone
 
@@ -87,6 +87,12 @@ Built in this order:
 4. **Supply, upkeep and decay** (agreed 2026-09-25, see DESIGN "Supply and upkeep"): A supply network and build rules (done), B the ship's 24-slot inventory, upkeep drain and decay (done), C the hub (mockups first).
 5. **Stray groups** between raids.
 - **Cave exits** (done): raids come from caves around the map; the nearest few are active.
+
+### Enemies and towers (the current focus, agreed 2026-09-26; see DESIGN "Threats and answers")
+The hub (4C) and stray groups are parked. A system is built when the first threat that needs it arrives.
+1. **One pair, done the new way (done 2026-09-26):** enemy types exist (the leaper is the Grunt, numbers per type); the Twin and Gatling are one Gun that grows in place (1×1 to 2×2; 3×3 once it has a model), selling returns 75% of what was spent before this calm; every balance number in `sim/tuning.ts`, with DPS and alloy per DPS in the tuning panel, the design's balance rules as tests, and `runRaid` to play a raid out headless.
+2. **The first contrast:** the Swarm and the explosive tower (mockups first); raids mix Grunts and Swarms and the warning shows the mix; swarmers need a cheap model drawn in bulk.
+3. Then play it, and pick the next pair from that (Runner and support, Brute and laser cannon, Flyer and AA).
 
 ### M2: Outposts
 - **Extractors** built on nodes: they mine on their own into a visible stockpile next to them, which you collect by walking over.

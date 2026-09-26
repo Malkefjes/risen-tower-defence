@@ -13,7 +13,7 @@ describe("stone and metal walls", () => {
     const p = place(g);
     expect(p.metal).toBe(false);
     const [x, y] = p.cells[0]!;
-    const r = g.checkTower("twin", [x, y]);
+    const r = g.checkTower("gun", [x, y]);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason).toBe("stone-wall");
   });
@@ -27,7 +27,7 @@ describe("stone and metal walls", () => {
     expect(g.ore("alloy")).toBe(500 - g.tuning.platingCost);
     expect(g.routes()).toEqual(before); // same shape, same place: the path doesn't change
     const [x, y] = p.cells[0]!;
-    expect(g.buildTower("twin", [x, y]).ok).toBe(true);
+    expect(g.buildTower("gun", [x, y]).ok).toBe(true);
     expect(g.drainEvents().some(e => e.type === "plated")).toBe(true);
   });
 
@@ -65,7 +65,7 @@ describe("the ship's gun", () => {
     const c = g.shipCenter(), r = g.tuning.ship.range;
     g.startWave();
     g.walkers = [];
-    const w = (id: number, x: number, y: number) => ({ id, x: x + 0.5, y: y + 0.5, cx: x, cy: y, tx: x, ty: y, speed: 0, hp: 5, maxHp: 5, pending: 0, practice: false });
+    const w = (id: number, x: number, y: number) => ({ id, kind: "grunt" as const, x: x + 0.5, y: y + 0.5, cx: x, cy: y, tx: x, ty: y, speed: 0, hp: 5, maxHp: 5, pending: 0, practice: false });
     g.walkers.push(w(801, Math.floor(c.x - r - 2), Math.floor(c.y)));
     g.step();
     expect(g.shots).toHaveLength(0);
@@ -78,8 +78,9 @@ describe("the ship's gun", () => {
 
   it("is weak: slow fire, a little damage", () => {
     const t = new Game(open(), { seed: 1 }).tuning;
-    expect(t.ship.rate).toBeLessThan(t.twin.rate);
-    expect(t.ship.damage).toBeLessThanOrEqual(t.twin.damage);
+    const gun = t.towers.gun[0]!;
+    expect(t.ship.rate).toBeLessThan(gun.rate);
+    expect(t.ship.damage).toBeLessThanOrEqual(gun.damage);
     expect(t.ship.range).toBeGreaterThanOrEqual(5);
   });
 });

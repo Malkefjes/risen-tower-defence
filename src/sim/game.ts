@@ -5,13 +5,13 @@ import { nodeArea, nodeCellTop, nodeFootprint, nodeMax, ORE_STAGES, stagesLeft, 
 import { computeField, keysOf, type FlowField } from "./pathfinding";
 import { pieceCells, type ShapeId } from "./pieces";
 import { Rng } from "./rng";
-import { BOLT_SPEED, defaultTuning, TOWER_INFO, towerCells, type Tower, type TowerKind, type Tuning } from "./towers";
+import type { EnemyKind, EnemyStats } from "./enemies";
+import { BOLT_SPEED, footprint, TOWER_INFO, TOWER_TOP, type Tower, type TowerKind, type TowerStats } from "./towers";
+import { mergeTuning, type Tuning, type TuningPatch } from "./tuning";
 import { cellKey, parseKey, type Cell } from "./types";
 import { WALL_DECK, World, type MapDef } from "./world";
 
 export const TICK = 1 / 60;
-/** Average enemy walking speed, cells per second (before `tuning.enemySpeed`). */
-export const ENEMY_SPEED = 1.475;
 /** Seconds between enemies of one pack climbing out. */
 export const PACK_STAGGER = 0.25;
 /** Shots from the ship's own gun carry this as their shooter id (tower ids start at 1). */
@@ -44,6 +44,7 @@ export interface PlacedPiece {
 
 export interface Walker {
   id: number;
+  kind: EnemyKind;
   /** Continuous position; a cell's center is (x + 0.5, y + 0.5). */
   x: number; y: number;
   /** Position before the last tick, so the view can draw between ticks. */
@@ -80,7 +81,7 @@ export type PlacementCheck =
   | { ok: true; cells: Cell[]; field: FlowField }
   | { ok: false; cells: Cell[]; reason: BlockReason };
 
-export type TowerBlockReason = "no-wall" | "stone-wall" | "tower-there" | "avatar" | "alloy";
+export type TowerBlockReason = "no-wall" | "stone-wall" | "tower-there" | "avatar" | "alloy" | "max-size";
 
 export type SmelterBlockReason = "occupied" | "walker" | "avatar" | "seals-path" | "traps-walker" | "stone" | "metal" | "out-of-range" | "unconnected";
 
@@ -106,6 +107,7 @@ export type GameEvent =
   | { type: "node-grew"; node: OreNode }
   | { type: "plated"; piece: PlacedPiece }
   | { type: "tower-built"; tower: Tower }
+  | { type: "tower-grown"; tower: Tower }
   | { type: "tower-sold"; tower: Tower; refund: number }
   | { type: "smelter-built"; smelter: Smelter }
   /** The raid clock reached its warning: the active caves stir. */
@@ -152,12 +154,14 @@ export const TOWER_REASON_TEXT: Record<TowerBlockReason, string> = {
   "tower-there": "There's already a tower there",
   "avatar": "You're standing there",
   "alloy": "Not enough alloy",
+  "max-size": "It can't grow any bigger",
 };
 
 export interface GameOptions {
   seed?: number;
   waveSize?: (round: number) => number;
-  tuning?: Partial<Tuning>;
+  /** Numbers that differ from the defaults, at any depth. */
+  tuning?: TuningPatch;
   /**
    * Supply rules for building: walls and buildings must be within the ship's supply
    * radius and connected to it through walls. On in the game; off by default so rule
@@ -227,7 +231,7 @@ export class Game {
   /** Enemies each active cave still has to send this wave. */
   private waveLeft = 0;
   /** Enemies of packs already under way, each waiting to climb out of its cave. */
-  private packQueue: { at: Cell; delay: number; speed: number }[] = [];
+  private packQueue: { at: Cell; delay: number; speed: number; kind: EnemyKind }[] = [];
   private spawnTimer = 0;
   private waveSize: (round: number) => number;
   /** cell key -> id of the tower standing on it */
@@ -237,7 +241,7 @@ export class Game {
     this.world = new World(map);
     this.rng = new Rng(opts.seed ?? Date.now());
     this.waveSize = opts.waveSize ?? (r => 6 + r * 2);
-    this.tuning = { ...defaultTuning(), ...opts.tuning };
+    this.tuning = mergeTuning(opts.tuning);
     this.supplyRule = opts.supply ?? false;
     this.nodes = (map.ore ?? []).map(o => ({ id: this.nextId++, kind: o.kind, x: o.x, y: o.y, amount: nodeMax(o.kind), max: nodeMax(o.kind) }));
     this.syncOre();
@@ -263,7 +267,7 @@ export class Game {
     const oreId = this.world.ore.get(k);
     if (oreId !== undefined) return nodeCellTop(this.nodes.find(n => n.id === oreId)!, x, y);
     const tower = this.towerAt(x, y);
-    if (tower) return WALL_DECK + TOWER_INFO[tower.kind].top;
+    if (tower) return WALL_DECK + TOWER_TOP[tower.size - 1]!;
     return this.world.walls.has(k) ? WALL_DECK : 0;
   };
 
@@ -545,7 +549,9 @@ export class Game {
   private syncWallWeights(): void {
     const t = this.tuning;
     this.world.defaultWallHp = t.wallHp;
-    this.world.hpToCost = (ENEMY_SPEED * t.enemySpeed) / (Math.max(1, t.wallClawers) * Math.max(0.01, t.enemyDamage));
+    // One field for everyone, weighed for the Grunt; types that chew differently will get their own.
+    const e = t.enemies.grunt;
+    this.world.hpToCost = e.speed / (Math.max(1, t.wallClawers) * Math.max(0.01, e.damage));
   }
 
   /**
@@ -839,27 +845,40 @@ export class Game {
 
   // ---------------------------------------------------------------- towers
 
-  towerCost(kind: TowerKind): number { return this.tuning[kind].cost; }
+  /** A tower's numbers at a size (its own size by default). */
+  towerStats(t: { kind: TowerKind; size: number }): TowerStats { return this.tuning.towers[t.kind][t.size - 1]!; }
 
-  /** Towers stand on walls only. A footprint may span walls from different pieces. */
-  checkTower(kind: TowerKind, at: Cell): TowerCheck {
-    const cells = towerCells(kind, at);
+  /** Alloy for a new tower (1×1). */
+  towerCost(kind: TowerKind): number { return this.towerStats({ kind, size: 1 }).cost; }
+
+  /** Alloy to grow a tower one size up: the difference in total price. */
+  growCost(t: Tower): number {
+    return Math.max(0, this.towerStats({ kind: t.kind, size: t.size + 1 }).cost - this.towerStats(t).cost);
+  }
+
+  /** Can a tower go on these cells: plated walls, no tower but `self`, no avatar, and the alloy? */
+  private checkTowerCells(cells: Cell[], cost: number, self?: Tower): TowerCheck {
     for (const [x, y] of cells) if (!this.world.walls.has(cellKey(x, y))) return { ok: false, cells, reason: "no-wall" };
     for (const [x, y] of cells) if (!this.pieceAt(x, y)?.metal) return { ok: false, cells, reason: "stone-wall" };
-    for (const [x, y] of cells) if (this.towerCellsMap.has(cellKey(x, y))) return { ok: false, cells, reason: "tower-there" };
+    for (const [x, y] of cells) { const id = this.towerCellsMap.get(cellKey(x, y)); if (id !== undefined && id !== self?.id) return { ok: false, cells, reason: "tower-there" }; }
     const under = this.avatarCells();
-    for (const [x, y] of cells) if (under.has(cellKey(x, y))) return { ok: false, cells, reason: "avatar" };
-    if (this.ore("alloy") < this.towerCost(kind)) return { ok: false, cells, reason: "alloy" };
+    for (const [x, y] of cells) if (under.has(cellKey(x, y)) && !self?.cells.some(c => c[0] === x && c[1] === y)) return { ok: false, cells, reason: "avatar" };
+    if (this.ore("alloy") < cost) return { ok: false, cells, reason: "alloy" };
     return { ok: true, cells };
+  }
+
+  /** Towers stand on plated walls only. A footprint may span walls from different pieces. */
+  checkTower(kind: TowerKind, at: Cell): TowerCheck {
+    return this.checkTowerCells(footprint(at, 1), this.towerCost(kind));
   }
 
   buildTower(kind: TowerKind, at: Cell): TowerCheck & { tower?: Tower } {
     const check = this.checkTower(kind, at);
     if (!check.ok) return check;
-    const n = TOWER_INFO[kind].size, cost = this.towerCost(kind);
+    const cost = this.towerCost(kind);
     const tower: Tower = {
-      id: this.nextId++, kind, at: [at[0], at[1]], cells: check.cells, cx: at[0] + n / 2, cy: at[1] + n / 2,
-      paid: cost, fresh: this.phase === "planning", cooldown: 0, targetId: null,
+      id: this.nextId++, kind, size: 1, at: [at[0], at[1]], cells: check.cells, cx: at[0] + 0.5, cy: at[1] + 0.5,
+      paid: cost, paidNow: this.phase === "planning" ? cost : 0, dealt: 0, cooldown: 0, targetId: null,
     };
     this.hotbar.remove("alloy", cost);
     this.towers.push(tower);
@@ -869,14 +888,47 @@ export class Game {
     return { ...check, tower };
   }
 
+  /**
+   * Can this tower grow one size up with its footprint's corner at `at`? The new
+   * footprint must hold the old one (see `growAt`), and its new cells follow the
+   * same rules as building.
+   */
+  checkGrow(id: number, at: Cell): TowerCheck {
+    const t = this.towers.find(x => x.id === id);
+    if (!t) return { ok: false, cells: [], reason: "tower-there" };
+    const n = t.size + 1, cells = footprint(at, n);
+    if (n > TOWER_INFO[t.kind].maxSize) return { ok: false, cells, reason: "max-size" };
+    const holds = t.at[0] >= at[0] && t.at[1] >= at[1] && t.at[0] + t.size <= at[0] + n && t.at[1] + t.size <= at[1] + n;
+    if (!holds) return { ok: false, cells, reason: "tower-there" };
+    return this.checkTowerCells(cells, this.growCost(t), t);
+  }
+
+  /** Grow a tower in place, one size up. It keeps its id, what was paid, and what it has dealt. */
+  growTower(id: number, at: Cell): TowerCheck & { tower?: Tower } {
+    const check = this.checkGrow(id, at);
+    if (!check.ok) return check;
+    const t = this.towers.find(x => x.id === id)!, cost = this.growCost(t);
+    this.hotbar.remove("alloy", cost);
+    t.paid += cost;
+    if (this.phase === "planning") t.paidNow += cost;
+    t.size += 1;
+    t.at = [at[0], at[1]];
+    t.cells = check.cells;
+    t.cx = at[0] + t.size / 2; t.cy = at[1] + t.size / 2;
+    for (const [x, y] of t.cells) this.towerCellsMap.set(cellKey(x, y), t.id);
+    this.events.push({ type: "tower-grown", tower: t });
+    this.noise(this.tuning.noiseBuild);
+    return { ...check, tower: t };
+  }
+
   towerAt(x: number, y: number): Tower | undefined {
     const id = this.towerCellsMap.get(cellKey(x, y));
     return id === undefined ? undefined : this.towers.find(t => t.id === id);
   }
 
-  /** Full price back in the calm it was built; a share of it after. */
+  /** What spent this calm comes back in full; the rest at the sell refund share. */
   sellValue(t: Tower): number {
-    return t.fresh ? t.paid : Math.floor(t.paid * this.tuning.sellRefund);
+    return t.paidNow + Math.floor((t.paid - t.paidNow) * this.tuning.sellRefund);
   }
 
   /** Sell a tower, any time. Bolts already fired still land. Returns the refund, or null. */
@@ -897,7 +949,7 @@ export class Game {
   startWave(): boolean {
     if (this.phase !== "planning") return false;
     for (const p of this.pieces) p.locked = true;
-    for (const t of this.towers) t.fresh = false;
+    for (const t of this.towers) t.paidNow = 0;
     this.walkers = [];
     this.shots = [];
     this.waveLeft = this.waveSize(this.round);
@@ -909,21 +961,27 @@ export class Game {
 
   get waveRemaining(): number { return this.waveLeft * this.activeSpawners().length + this.packQueue.length + this.walkers.length; }
 
-  /** HP of an enemy in the given raid. */
-  enemyHp(round = this.round): number {
-    return Math.max(1, Math.round(this.tuning.enemyHp * this.tuning.enemyHpGrowth ** (round - 1)));
+  /** An enemy type's numbers. */
+  enemyStats(kind: EnemyKind): EnemyStats { return this.tuning.enemies[kind]; }
+
+  /** HP of an enemy of a type in the given raid. */
+  enemyHp(kind: EnemyKind = "grunt", round = this.round): number {
+    return Math.max(1, Math.round(this.enemyStats(kind).hp * this.tuning.enemyHpGrowth ** (round - 1)));
   }
 
-  /** A walking speed within ±speedSpread of the average: one per pack, so a pack moves as one. */
-  private rollSpeed(): number {
-    return ENEMY_SPEED * (1 + (this.rng.next() * 2 - 1) * this.tuning.speedSpread) * this.tuning.enemySpeed;
+  /** What the next pack is. Every pack is Grunts until raids mix types. */
+  private packKind(): EnemyKind { return "grunt"; }
+
+  /** A walking speed within ±speedSpread of the type's: one per pack, so a pack moves as one. */
+  private rollSpeed(kind: EnemyKind): number {
+    return this.enemyStats(kind).speed * (1 + (this.rng.next() * 2 - 1) * this.tuning.speedSpread);
   }
 
   /** One enemy climbs out of a cave, with its pack's speed and its own line. */
-  private spawnWalker(at: Cell, practice: boolean, speed = this.rollSpeed()): void {
-    const [sx, sy] = at, hp = this.enemyHp();
+  private spawnWalker(at: Cell, practice: boolean, kind: EnemyKind = "grunt", speed = this.rollSpeed(kind)): void {
+    const [sx, sy] = at, hp = this.enemyHp(kind);
     this.walkers.push({
-      id: this.nextId++, x: sx + 0.5, y: sy + 0.5, cx: sx, cy: sy, tx: sx, ty: sy,
+      id: this.nextId++, kind, x: sx + 0.5, y: sy + 0.5, cx: sx, cy: sy, tx: sx, ty: sy,
       speed,
       hp, maxHp: hp, pending: 0, practice, lane: this.rng.next() * 2 - 1,
     });
@@ -934,8 +992,8 @@ export class Game {
     const t = this.tuning, lo = Math.max(1, Math.round(Math.min(t.packMin, t.packMax))), hi = Math.max(lo, Math.round(t.packMax));
     const size = Math.min(this.waveLeft, lo + this.rng.int(hi - lo + 1));
     for (const at of this.activeSpawners()) {
-      const speed = this.rollSpeed();
-      for (let i = 0; i < size; i++) this.packQueue.push({ at, delay: i * PACK_STAGGER, speed });
+      const kind = this.packKind(), speed = this.rollSpeed(kind);
+      for (let i = 0; i < size; i++) this.packQueue.push({ at, delay: i * PACK_STAGGER, speed, kind });
     }
     this.waveLeft -= size;
     this.spawnTimer = t.packGap + size * PACK_STAGGER;
@@ -962,7 +1020,7 @@ export class Game {
     if (this.phase === "wave") {
       this.spawnTimer -= dt;
       if (this.waveLeft > 0 && this.spawnTimer <= 0) this.sendPack();
-      for (const q of this.packQueue) if ((q.delay -= dt) <= 0) this.spawnWalker(q.at, false, q.speed);
+      for (const q of this.packQueue) if ((q.delay -= dt) <= 0) this.spawnWalker(q.at, false, q.kind, q.speed);
       this.packQueue = this.packQueue.filter(q => q.delay > 0);
     } else if (this.phase === "planning") {
       // The raid clock: it runs down on its own, faster while a smelter works.
@@ -1003,12 +1061,13 @@ export class Game {
       if (!this.world.targets.size) { gone.push(w); continue; }
       if (w.attacking) {
         const k = w.attacking;
-        if (this.world.targets.has(k)) { this.damageTarget(k, this.tuning.enemyDamage * dt); continue; }
+        const dps = this.enemyStats(w.kind).damage;
+        if (this.world.targets.has(k)) { this.damageTarget(k, dps * dt); continue; }
         // Chewing a wall: keep at it while it's still the quickest way on.
         const n = this.world.walls.has(k) ? this.field.next(w.cx, w.cy) : null;
         if (n && cellKey(n[0], n[1]) === k) {
           const pid = this.world.walls.get(k)!, c = clawing.get(pid) ?? 0;
-          if (c < this.tuning.wallClawers) { clawing.set(pid, c + 1); if (!w.practice) this.damageTarget(k, this.tuning.enemyDamage * dt); }
+          if (c < this.tuning.wallClawers) { clawing.set(pid, c + 1); if (!w.practice) this.damageTarget(k, dps * dt); }
           continue;
         }
         w.attacking = null; // gone, or no longer in the way: walk on from here
@@ -1042,7 +1101,7 @@ export class Game {
   }
 
   /** The walker a tower would shoot now: in range, not already doomed, most progress. */
-  pickTarget(t: Tower): Walker | null { return this.pickTargetFrom(t.cx, t.cy, this.tuning[t.kind].range); }
+  pickTarget(t: Tower): Walker | null { return this.pickTargetFrom(t.cx, t.cy, this.towerStats(t).range); }
 
   /** The ship's centre, where its gun's range is measured from. */
   shipCenter(): { x: number; y: number } {
@@ -1083,7 +1142,7 @@ export class Game {
       const target = this.pickTarget(t);
       t.targetId = target?.id ?? null;
       if (!target || t.cooldown > 0) continue;
-      const s = this.tuning[t.kind];
+      const s = this.towerStats(t);
       t.cooldown = 1 / s.rate;
       const dist = Math.hypot(target.x - t.cx, target.y - t.cy);
       const shot: Shot = { id: this.nextId++, towerId: t.id, targetId: target.id, damage: s.damage, t: 0, dur: dist / BOLT_SPEED };
@@ -1102,6 +1161,8 @@ export class Game {
       const w = this.walkers.find(x => x.id === s.targetId);
       if (!w) continue;
       w.pending -= s.damage;
+      const tower = s.towerId === SHIP_SHOOTER ? undefined : this.towers.find(t => t.id === s.towerId);
+      if (tower && !w.practice) tower.dealt += Math.min(s.damage, w.hp);
       w.hp -= s.damage;
       if (w.hp > 0) { this.events.push({ type: "hit", walker: w }); continue; }
       this.walkers.splice(this.walkers.indexOf(w), 1);

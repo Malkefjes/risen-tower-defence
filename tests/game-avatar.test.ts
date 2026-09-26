@@ -23,7 +23,7 @@ describe("avatar in the game", () => {
   it("the ship is solid; rocks, walls and towers have tops; trees are hurdles", () => {
     const g = new Game(open({ rocks: [{ x: 7, y: 5, h: 10 }], trees: [{ x: 8, y: 5, s: 1 }] }), { seed: 1, tuning: { startAlloy: 500 } });
     metalWall(g, [[3, 3]]);
-    g.buildTower("twin", [3, 3]);
+    g.buildTower("gun", [3, 3]);
     metalWall(g, [[4, 3]]);
     expect(g.heightAt(20, 0)).toBe(Infinity);
     expect(g.heightAt(7, 5)).toBeCloseTo(rockTop(10));
@@ -47,7 +47,7 @@ describe("avatar in the game", () => {
     const g = new Game(open(), { seed: 1, tuning: { startAlloy: 500 } });
     metalWall(g, [[5, 5]]);
     g.avatar.place(5.5, 5.5, WALL_DECK);
-    const r = g.checkTower("twin", [5, 5]);
+    const r = g.checkTower("gun", [5, 5]);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason).toBe("avatar");
   });
@@ -68,7 +68,7 @@ describe("avatar in the game", () => {
   it("can climb from a wall deck onto a tower, but not from the snow", () => {
     const g = new Game(open({ start: [2, 0] }), { seed: 1, tuning: { startAlloy: 500 } });
     metalWall(g, [4, 5, 6, 7, 8].map(x => [x, 0] as [number, number]));
-    g.buildTower("twin", [7, 0]);
+    g.buildTower("gun", [7, 0]);
     // From the snow straight at the tower's wall: lands on the deck in front of it.
     g.avatarInput = { x: 1, y: 0, jump: true };
     ticks(g, 40);
@@ -88,7 +88,7 @@ describe("avatar in the game", () => {
   it("a tower leaves a rim of wall around it: jump onto the rim from the snow, then onto the tower", () => {
     const g = new Game(open({ start: [3, 5] }), { seed: 1, tuning: { startAlloy: 500 } });
     metalWall(g, [[6, 5]]);
-    g.buildTower("twin", [6, 5]);
+    g.buildTower("gun", [6, 5]);
     // The tower is out of reach from the snow...
     expect(WALL_DECK + 0.45).toBeGreaterThan(g.avatarTuning.jumpHeight + g.avatarTuning.stepUp);
     // ...but a jump lands on the rim in front of it.
@@ -104,7 +104,7 @@ describe("avatar in the game", () => {
   it("walking beside a wall with a tower on it is unchanged: the wall still blocks at ground level", () => {
     const g = new Game(open({ start: [3, 4] }), { seed: 1, tuning: { startAlloy: 500 } });
     metalWall(g, [[6, 5]]);
-    g.buildTower("twin", [6, 5]);
+    g.buildTower("gun", [6, 5]);
     // Run past along the row above it, then into it from the side.
     g.avatarInput = { x: 1, y: 0, jump: false };
     for (let i = 0; i < 90; i++) g.stepAvatar();
@@ -112,7 +112,7 @@ describe("avatar in the game", () => {
     expect(g.avatar.z).toBe(0);
     const h = new Game(open({ start: [3, 5] }), { seed: 1, tuning: { startAlloy: 500 } });
     metalWall(h, [[6, 5]]);
-    h.buildTower("twin", [6, 5]);
+    h.buildTower("gun", [6, 5]);
     h.avatarInput = { x: 1, y: 0, jump: false };
     for (let i = 0; i < 90; i++) h.stepAvatar();
     expect(h.avatar.x + h.avatarTuning.radius).toBeLessThanOrEqual(6);

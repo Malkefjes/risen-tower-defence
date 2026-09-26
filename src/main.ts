@@ -16,6 +16,7 @@ const view = new GameView(document.getElementById("view")!, game, world);
 let controller!: Controller;
 const hud = new Hud(game, {
   sell: () => controller.sellSelected(),
+  grow: () => controller.growSelected(),
   restart: () => { controller.clearSelection(); game.reset(); },
 });
 const tuning = new TuningPanel(game.tuning);

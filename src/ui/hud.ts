@@ -38,21 +38,22 @@ export function repairIcon(): string {
   return `<svg viewBox="0 0 44 44" aria-hidden="true"><rect x="6" y="24" width="24" height="13" rx="2" fill="#8d8a99" stroke="#b3b0bf"/><path d="M11 28 l5 3 M20 27 l-3 5" stroke="#5a5766" stroke-width="1.5"/><rect x="21" y="5" width="7" height="26" rx="2" transform="rotate(35 24 18)" fill="#3d4457"/><rect x="24" y="4" width="16" height="8" rx="2" transform="rotate(35 32 8)" fill="#d9573a" stroke="#f08a66"/></svg>`;
 }
 
-/** Small SVG of a tower seen from above, for the tower wheel. */
-export function towerIcon(kind: TowerKind): string {
+/** Small SVG of a tower seen from above, for the tower wheel: the Gun's twin barrels at 1×1, its barrel cluster when bigger. */
+export function towerIcon(_kind: TowerKind, size = 1): string {
   const hex = (r: number) => Array.from({ length: 6 }, (_, i) => {
     const a = (Math.PI / 3) * i + Math.PI / 6;
     return `${22 + Math.cos(a) * r},${24 + Math.sin(a) * r}`;
   }).join(" ");
-  const barrels = kind === "twin"
+  const barrels = size === 1
     ? `<rect x="17" y="4" width="3.5" height="16" rx="1.5" fill="#2c3142"/><rect x="23.5" y="4" width="3.5" height="16" rx="1.5" fill="#2c3142"/>`
     : `<rect x="15" y="1" width="14" height="18" rx="3" fill="#2c3142"/><circle cx="19" cy="5" r="1.6" fill="#798399"/><circle cx="25" cy="5" r="1.6" fill="#798399"/><circle cx="19" cy="10" r="1.6" fill="#798399"/><circle cx="25" cy="10" r="1.6" fill="#798399"/>`;
-  const r = kind === "twin" ? 10 : 13;
+  const r = size === 1 ? 10 : 13;
   return `<svg viewBox="0 0 44 44" aria-hidden="true"><polygon points="${hex(r + 3)}" fill="#3d4457"/>${barrels}<polygon points="${hex(r)}" fill="#d9573a" stroke="#f08a66" stroke-width="1"/><polygon points="${hex(r * 0.55)}" fill="#b4bccd"/></svg>`;
 }
 
 export interface HudHandlers {
   sell(): void;
+  grow(): void;
   restart(): void;
 }
 
@@ -255,7 +256,10 @@ export class Hud {
     if (hpNow < this.lastHp && !g.shipDown) { const el = $("hp"); el.classList.remove("hurt"); void el.offsetWidth; el.classList.add("hurt"); }
     this.lastHp = hpNow;
     const sig = JSON.stringify([g.phase, g.round, sel.selectedTowerId, sel.selectedShip, g.waveRemaining, hpNow, g.shipDown, g.upkeepPaid,
-      g.tuning.twin, g.tuning.gatling, g.tuning.ship, g.tuning.sellRefund, tower?.fresh]);
+      g.tuning.towers, g.tuning.ship, g.tuning.sellRefund, tower?.size, tower?.paid, tower?.paidNow,
+      tower && tower.size < TOWER_INFO[tower.kind].maxSize && g.ore("alloy") >= g.growCost(tower)]);
+    // Damage dealt ticks up during a raid: update just that number, so the buttons stay put.
+    if (tower) { const dealt = document.getElementById("dealt"); if (dealt) dealt.textContent = String(Math.round(tower.dealt)); }
     if (sig === this.lastSig) return;
     this.lastSig = sig;
 
@@ -282,12 +286,15 @@ export class Hud {
         <dl><dt>Damage</dt><dd>${s.damage}</dd><dt>Shots/s</dt><dd>${s.rate}</dd><dt>Range</dt><dd>${s.range}</dd></dl>`;
     }
     if (tower) {
-      const info = TOWER_INFO[tower.kind], s = g.tuning[tower.kind], value = g.sellValue(tower);
+      const info = TOWER_INFO[tower.kind], s = g.towerStats(tower), value = g.sellValue(tower), n = tower.size + 1;
+      const grow = n <= info.maxSize
+        ? `<button class="sell grow" id="growBtn"${g.ore("alloy") < g.growCost(tower) ? " disabled" : ""}>Grow ${n}×${n} <img alt="" src="${this.icons.alloy}">${g.growCost(tower)}</button>` : "";
       inspect.innerHTML = `
-        <h3>${info.name} <span>${info.size}×${info.size}</span></h3>
-        <dl><dt>Damage</dt><dd>${s.damage}</dd><dt>Shots/s</dt><dd>${s.rate}</dd><dt>Range</dt><dd>${s.range}</dd></dl>
-        <button class="sell" id="sellBtn">Sell for <img alt="" src="${this.icons.alloy}">${value}</button>`;
+        <h3>${info.name} <span>${tower.size}×${tower.size}</span></h3>
+        <dl><dt>Damage</dt><dd>${s.damage}</dd><dt>Shots/s</dt><dd>${s.rate}</dd><dt>Range</dt><dd>${s.range}</dd><dt>Dealt</dt><dd id="dealt">${Math.round(tower.dealt)}</dd></dl>
+        <div class="acts">${grow}<button class="sell" id="sellBtn">Sell <img alt="" src="${this.icons.alloy}">${value}</button></div>`;
       $("sellBtn").addEventListener("click", () => this.h.sell());
+      document.getElementById("growBtn")?.addEventListener("click", () => this.h.grow());
     }
 
   }

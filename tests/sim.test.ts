@@ -130,7 +130,7 @@ describe("placement", () => {
   it("refuses placing on an enemy; walling one in is allowed (it chews out)", () => {
     const g = planningGame(open({ spawners: [[0, 0]], ship: [[20, 0]] }));
     g.startWave();
-    g.walkers.push({ id: 999, x: 5.5, y: 0.5, cx: 5, cy: 0, tx: 5, ty: 0, speed: 1, hp: 1, maxHp: 1, pending: 0, practice: false });
+    g.walkers.push({ id: 999, kind: "grunt" as const, x: 5.5, y: 0.5, cx: 5, cy: 0, tx: 5, ty: 0, speed: 1, hp: 1, maxHp: 1, pending: 0, practice: false });
     const onWalker = g.checkPlacement("O", 0, [5, 0]);
     expect(onWalker.ok).toBe(false);
     if (!onWalker.ok) expect(onWalker.reason).toBe("walker");
