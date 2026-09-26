@@ -127,8 +127,8 @@ The Titan shows the whole system: Heavy and Cracked, then burning, then the lase
 ### Towers
 
 - Towers stand only on walls. A footprint may span walls from different pieces; a wall carrying a tower can't be removed until the tower is sold.
-- Footprints (1×1, 2×2, later more). Bigger is stronger per material, but eats walls that could have extended the maze.
-- First tower: the **Twin** (1×1), which grows into the **Gatling** (2×2). Both are single-target guns, so they will be redesigned around the threat list (see "Threats and answers"): one baseline tower per purpose (gun, laser cannon, explosive, thermite mortar, AA, support), deepened by mods.
+- **Size is investment (decided 2026-09-26):** every tower type is first built as a 1×1 and can be grown in place to 2×2 and then 3×3; there are no extra tower types to fill the bigger sizes. A bigger tower has more mod slots, more range and damage in proportion to its price (damage per alloy stays about equal), so it is the centrepiece of a build, not a better deal. Growing picks one of four directions: the 2×2 contains the old cell, the 3×3 contains the 2×2, and every new cell must be plated wall with no other tower on it, so a planned centrepiece needs plated room left around it. Selling returns 75% of everything put in (base, growth, mods). A grown tower breaks with any wall under it, mods and all (harsh for now; can change).
+- First tower: the **Twin** (1×1), which grows into the **Gatling** (2×2). Both are single-target guns: they become the gun at 1×1 and 2×2. Six baseline towers, one per purpose (gun, laser cannon, explosive, thermite mortar, AA, support), each grown and modded (see "Threats and answers").
 - Default targeting: the enemy with the most progress. Targeting options later.
 - Selling: full refund shortly after placing, 75% after (a tuning knob).
 
@@ -194,8 +194,8 @@ Not locked yet: zoom range, final model shapes.
 | Waves | Each nearby cave sends packs of 3–5 a few seconds apart; a pack moves at one speed, packs vary a little in speed; enemies walk slightly off the tile centre (looks only) |
 | Basic enemy | The leaper: dark red, Tyranid-like, climbs out of a cave, bursts on death |
 | Movement | 8 directions, no corner cutting |
-| Tower sizes | Multiple footprints on wall blocks; a footprint may span several wall pieces |
-| First tower | Twin (1×1), grows into the Gatling (2×2) |
+| Tower sizes | Every tower starts 1×1 and grows in place to 2×2 and 3×3: more mod slots, range and damage for its price; a footprint may span several wall pieces; it breaks, mods and all, with any wall under it |
+| First tower | Twin (1×1), grows into the Gatling (2×2): the gun at two sizes |
 | Threats | Grunt, Swarm, Runner, Flyer, Support, Elite, Brute, Boss, Titan; each breaks one thing a defence relies on |
 | Towers | One baseline tower per purpose, deepened by mods; late-game builds can cover a tower's weaknesses, at a clearly higher cost than the tower that answers them |
 | Damage | Piercing, laser (cannon), explosive, incendiary (thermite mortar); flat armour per hit; resistances per type, half damage, only on Elite, Boss, Titan, stripped by burning |
