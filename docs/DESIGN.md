@@ -5,7 +5,7 @@ Live version (editable by Erik): https://claude.ai/code/artifact/8a4e11d2-eea6-4
 If the two disagree, ask Erik which is current, then update both.
 The build order lives in `docs/PLAN.md` (milestones M0 to M5, idea bank).
 
-Last synced: 2026-09-25. The live copy still describes the old round-based design until it's updated.
+Last synced: 2026-09-26.
 
 ## Vision
 
@@ -42,7 +42,7 @@ One planet is one long run over several sessions, saved in the browser.
 
 ### Resources
 
-- Mined from 3×3 nodes (one size, like Rust): **stone** (600 per node, 200 per stage) builds walls, **metal** (300 per node, 100 per stage) builds towers. A node breaks in three stages and each stage drops its ore at once into the hotbar.
+- Mined from 3×3 nodes (one size, like Rust): **stone** (600 per node, 200 per stage) builds walls, **raw metal** (300 per node, 100 per stage) is smelted into alloy for towers and plating. A node breaks in three stages and each stage drops its ore at once into the hotbar.
 - **Two walls (decided 2026-09-25):** every piece is placed as a **stone wall** (stone only; towers can't stand on it). **Metal plating** upgrades a placed piece, whole piece at once, into the **Armored deck** (the orange wall), which is the only wall towers stand on. The upgrade keeps the shape and position, so the path doesn't change. Plating is applied from a **modification wheel**: hold right mouse on a wall (later: more wall mods there). Stone walls still have a walkable deck. Stone wall look: C from the wall playground (terraced grey courses, snowy top). Later: refined alloy and **power**. The chain stays short on purpose, with no conveyor belts.
 - Mining: hold the left mouse button next to a node; it breaks off in three stages. A shiny hotspot on the node mines about 20% faster while the cursor is on it, and hops around like Rust's.
 - **Physical up to the ship:** ore is mined at nodes and physically brought home (carried, then hauled). Once at the ship, the refinery turns it into alloy without routing.
@@ -175,14 +175,14 @@ Not locked yet: zoom range, final model shapes.
 | Roles | Erik: vision and design. Claude: code |
 | Run structure | One planet = one long saved run; ends with a launch you choose and a final siege |
 | Carries over | The ship (upgrades, modules, look), blueprints and tech |
-| Core | The ship replaces the nexus; losing it ends the run |
+| Core | The ship replaces the nexus; losing it wrecks it and the run goes on (rebuild around a hub, later) |
 | Player | Avatar builder; hand mining, then extractors, rover, drones |
 | Building range | Only near the avatar (later drones) |
 | Resources | Stone, raw metal, alloy, power; physical up to the ship |
-| Smelter | 2×2 building on open ground (E → Buildings → Smelter), 500 stone + 300 raw metal; holds 2 stacks of raw metal in and 2 of alloy out, smelts 1:1 at 5/s like a Rust furnace; blocks enemies like a wall; Remove (in its panel) gives back its full price and its contents; enemies will attack it (next step) |
+| Smelter | 2×2 building on open ground (E → Buildings → Smelter), 500 stone + 300 raw metal; holds 2 stacks of raw metal in and 2 of alloy out, smelts 1:1 at 5/s like a Rust furnace; blocks enemies like a wall; Remove (in its panel) gives back its full price and its contents; enemies attack it |
 | Alloy | Pays for towers and metal plating. Raw metal is only good for the smelter. Runs start with 400 stone, 0 raw metal, 150 alloy |
 | Threat | Grows with extraction and base size; raids are telegraphed |
-| Attack targets | Every building; walls are walked around (wall breakers excepted) |
+| Attack targets | The nearest target (the ship, the smelter, later more); walls are slow obstacles that get chewed through when that is quicker |
 | Wall supply | Buy any shape with stone from the Q wheel (no supply drops) |
 | Wall removal | Full refund for ~5 s after placing, then recycle for 50% |
 | Power | Through walls, from generators and the ship |
