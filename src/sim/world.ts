@@ -119,6 +119,26 @@ export class World {
   }
   isTree(x: number, y: number): boolean { return this.trees.has(cellKey(x, y)); }
 
+  /** Trees cut down this run (cell keys), so a new run can bring them back. */
+  readonly felled = new Set<string>();
+
+  /** A tree is cut down: its cell is open ground from now on. */
+  fellTree(x: number, y: number): boolean {
+    const k = cellKey(x, y);
+    if (!this.trees.has(k)) return false;
+    this.trees.delete(k); this.terrain.delete(k); this.terrainTop.delete(k);
+    this.felled.add(k);
+    this.terrainCache = null;
+    return true;
+  }
+
+  /** Every cut tree stands again (a new run). */
+  regrowTrees(): void {
+    for (const k of this.felled) { this.trees.add(k); this.terrain.add(k); this.terrainTop.set(k, TREE_HURDLE); }
+    this.felled.clear();
+    this.terrainCache = null;
+  }
+
   /** Blocks movement (terrain, walls, ore, buildings, the ship or its wreck, or extra hypothetical cells). */
   isBlocked(x: number, y: number, extra?: ReadonlySet<string>): boolean {
     const k = cellKey(x, y);
@@ -130,7 +150,7 @@ export class World {
     return this.isBlocked(x, y) || this.isShip(x, y) || this.isSpawner(x, y);
   }
 
-  /** Static terrain as a number grid, cached per bounds (terrain never changes). */
+  /** Static terrain as a number grid, cached per bounds (cleared when a tree is cut). */
   private terrainCache: { key: string; grid: Uint8Array } | null = null;
 
   /**

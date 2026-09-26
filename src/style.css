@@ -73,6 +73,7 @@ button:focus-visible { outline: 2px solid var(--warm); outline-offset: 2px; }
 /* The raid clock (bottom right): calm, then the fixed warning, then the raid itself. */
 .startraid { margin-right: 8px; padding: 10px 16px; border-radius: 12px; background: rgba(217,87,58,.85); border: 1px solid #f08a66; color: #fff; font-weight: 700; font-size: 15px; cursor: pointer; }
 .startraid:hover { background: #d9573a; }
+.tool#bRestart.armed { color: #fff; border-color: #e0262b; background: rgba(224,38,43,.7); }
 .tool#bGod[aria-pressed="true"] { color: #fff; border-color: #f08a66; background: rgba(217,87,58,.75); }
 .raidclock .mix { display: block; margin-top: 2px; font-size: 12px; font-weight: 600; color: #ffc9c4; }
 .raidclock { padding: 10px 16px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); font-weight: 600; font-size: 15px; color: var(--muted); backdrop-filter: blur(6px); font-variant-numeric: tabular-nums; }

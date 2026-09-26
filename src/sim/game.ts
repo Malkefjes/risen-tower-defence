@@ -120,6 +120,8 @@ export type GameEvent =
   | { type: "raid-warning" }
   | { type: "smelter-removed"; smelter: Smelter }
   | { type: "shot"; shot: Shot }
+  /** A tree was cut down: its cell is open ground. */
+  | { type: "tree-felled"; x: number; y: number }
   /** A missile burst at (x, y), hitting everything within `radius`. */
   | { type: "blast"; x: number; y: number; radius: number; towerId: number }
   | { type: "hit"; walker: Walker }
@@ -234,7 +236,10 @@ export class Game {
    * Mining input, set by the input layer: the tool is firing, and whether the
    * cursor is on the node's hotspot (a view matter, so the view decides).
    */
-  mineInput = { firing: false, onSpot: false };
+  /** The tool's trigger, the cursor on a node's hotspot, and the cell under the cursor (for picking a tree). */
+  mineInput: { firing: boolean; onSpot: boolean; aim?: Cell } = { firing: false, onSpot: false };
+  /** The tree being cut down and how far along (0 to 1), or null. */
+  chop: { x: number; y: number; progress: number } | null = null;
   /** What mining is doing this tick: the node being mined, and whether the hotbar is too full to take its next chunk. */
   mining: { node: OreNode | null; full: boolean } = { node: null, full: false };
 
@@ -356,6 +361,8 @@ export class Game {
 
   /** Start a new run on the same map. Tuning is kept. */
   reset(): void {
+    this.world.regrowTrees();
+    this.chop = null;
     this.world.walls.clear();
     this.world.buildings.clear();
     this.world.targets.clear();
@@ -413,9 +420,11 @@ export class Game {
    * if the next chunk won't fit in the hotbar, mining does nothing.
    */
   private stepMining(dt: number): void {
-    const n = this.mineInput.firing && this.hotbar.held === "multitool" ? this.nodeInReach() : null;
+    const tool = this.mineInput.firing && this.hotbar.held === "multitool";
+    const n = tool ? this.nodeInReach() : null;
     this.mining = { node: n, full: false };
-    if (!n) return;
+    if (!n) { this.stepChop(tool, dt); return; }
+    this.chop = null;
     const stage = stagesLeft(n);
     const floor = (n.max * (stage - 1)) / ORE_STAGES;
     const chunk = Math.round((n.max * stage) / ORE_STAGES) - Math.round(floor);
@@ -429,6 +438,38 @@ export class Game {
     this.refresh();
     this.events.push({ type: "node-broke", node: n, stagesLeft: stagesLeft(n), added });
     this.noise(n.kind === "metal" ? this.tuning.noiseMetal : this.tuning.noiseStone);
+  }
+
+  /**
+   * The tree to cut: in reach of the avatar (the gap from its position to the cell,
+   * within `reach`) and under the cursor or next to it, the nearest to the cursor.
+   */
+  treeInReach(aim?: Cell): Cell | null {
+    const { x, y } = this.avatar, reach = this.tuning.reach, r = Math.ceil(reach) + 1;
+    let best: Cell | null = null, bestD = Infinity;
+    for (let cy = Math.floor(y) - r; cy <= Math.floor(y) + r; cy++) for (let cx = Math.floor(x) - r; cx <= Math.floor(x) + r; cx++) {
+      if (!this.world.isTree(cx, cy)) continue;
+      const gap = Math.hypot(Math.max(cx - x, 0, x - (cx + 1)), Math.max(cy - y, 0, y - (cy + 1)));
+      if (gap > reach) continue;
+      // With a cursor, only the tree it points at (or right next to it).
+      const d = aim ? Math.hypot(cx - aim[0], cy - aim[1]) : gap;
+      if (aim && d > 1.5) continue;
+      if (d < bestD) { bestD = d; best = [cx, cy]; }
+    }
+    return best;
+  }
+
+  /** Cut at the tree in reach while the tool fires; it falls after `chopTime`. Moving to another tree starts over. */
+  private stepChop(tool: boolean, dt: number): void {
+    const t = tool ? this.treeInReach(this.mineInput.aim) : null;
+    if (!t) { this.chop = null; return; }
+    if (!this.chop || this.chop.x !== t[0] || this.chop.y !== t[1]) this.chop = { x: t[0], y: t[1], progress: 0 };
+    this.chop.progress += dt / Math.max(0.05, this.tuning.chopTime);
+    if (this.chop.progress < 1) return;
+    this.chop = null;
+    this.world.fellTree(t[0], t[1]);
+    this.refresh();
+    this.events.push({ type: "tree-felled", x: t[0], y: t[1] });
   }
 
   /**

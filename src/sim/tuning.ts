@@ -31,6 +31,8 @@ export interface Tuning {
   noiseWall: number;
   noiseBuild: number;
   smeltNoise: number;
+  /** Seconds of the multitool to cut down a tree. */
+  chopTime: number;
   /** Seconds to mine a whole node (three stages). */
   mineTime: number;
   /** Mining reach: the gap between you and a node, as it looks on screen, in cells. */
@@ -104,6 +106,7 @@ export const defaultTuning = (): Tuning => ({
   noiseBuild: 5,
   smeltNoise: 0.5,
   mineTime: 25 / 3,
+  chopTime: 1.5,
   reach: 1.5,
   sprint: 1.4,
   activeCaves: 3,

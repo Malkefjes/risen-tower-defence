@@ -4,7 +4,7 @@ import { PLATEAU_TOP } from "../sim/world";
 import { cellKey } from "../sim/types";
 import { BARE_CORE, BARE_KINDS, BARE_RIM, type Bare, type GeneratedWorld } from "../sim/worldgen";
 import { crystalCluster, deadTree } from "./alien";
-import { bakeStatic } from "./bake";
+import { bakeStatic, type BakedPart } from "./bake";
 import { cliffModel } from "./cliff";
 import type { ModelLibrary } from "./models";
 
@@ -80,7 +80,8 @@ function bareChunk(bareAt: GeneratedWorld["bareAt"], cx: number, cy: number): TH
  * Build the scenery for a map. `gen` adds what only a generated world has (bare
  * patches and drifts). Returns one group per chunk, already merged.
  */
-export function buildScenery(map: MapDef, models: ModelLibrary, gen?: GeneratedWorld, seed = 1): THREE.Group[] {
+/** `parts`: filled with where each tree ended up in the baked chunks (by cell key), so a cut tree can be hidden. */
+export function buildScenery(map: MapDef, models: ModelLibrary, gen?: GeneratedWorld, seed = 1, parts?: Map<string, BakedPart>): THREE.Group[] {
   plateauGeo ??= new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2).translate(0, PLATEAU_TOP, 0);
   const chunks = new Map<string, { g: THREE.Group; cx: number; cy: number }>();
   const chunkOf = (x: number, y: number) => {
@@ -92,9 +93,10 @@ export function buildScenery(map: MapDef, models: ModelLibrary, gen?: GeneratedW
   const put = (o: THREE.Object3D, x: number, y: number) => { o.position.set(x, 0, y); chunkOf(x, y).g.add(o); };
 
   for (const r of map.rocks) put(models.create("rock", { scale: r.h, seed: r.x * 31 + r.y }), r.x + 0.5, r.y + 0.5);
-  for (const t of map.trees) put(models.create("tree", { scale: t.s, seed: t.x * 17 + t.y + seed }), t.x + 0.5, t.y + 0.5);
-  for (const t of map.deadTrees ?? []) put(deadTree(t.x * 7 + t.y + seed, t.s), t.x + 0.5, t.y + 0.5);
-  for (const t of map.crystals ?? []) put(crystalCluster(t.x * 13 + t.y + seed, t.s), t.x + 0.5, t.y + 0.5);
+  const tree = (o: THREE.Object3D, x: number, y: number) => { o.userData.bakeKey = `${x},${y}`; put(o, x + 0.5, y + 0.5); };
+  for (const t of map.trees) tree(models.create("tree", { scale: t.s, seed: t.x * 17 + t.y + seed }), t.x, t.y);
+  for (const t of map.deadTrees ?? []) tree(deadTree(t.x * 7 + t.y + seed, t.s), t.x, t.y);
+  for (const t of map.crystals ?? []) tree(crystalCluster(t.x * 13 + t.y + seed, t.s), t.x, t.y);
   for (const d of gen?.drifts ?? []) put(models.create("snowMound", { scale: d.s }), d.x, d.y);
 
   // Raised ground, per chunk: slab cliffs at the edges, a flat snow top inside.
@@ -121,7 +123,7 @@ export function buildScenery(map: MapDef, models: ModelLibrary, gen?: GeneratedW
   if (gen) for (let cy = -gen.radius; cy < gen.radius; cy += CHUNK) for (let cx = -gen.radius; cx < gen.radius; cx += CHUNK) chunkOf(cx, cy);
   const out: THREE.Group[] = [];
   for (const c of chunks.values()) {
-    bakeStatic(c.g);
+    bakeStatic(c.g, parts);
     if (gen) { const bare = bareChunk(gen.bareAt, c.cx, c.cy); if (bare) c.g.add(bare); }
     out.push(c.g);
   }

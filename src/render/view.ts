@@ -13,6 +13,7 @@ import type { ShipRig } from "./ship";
 import { MAX_TOWER_SIZE, TOWER_INFO, TOWER_KINDS, type Tower, type TowerKind } from "../sim/towers";
 import type { Cell } from "../sim/types";
 import { MissileFx } from "./blast";
+import type { BakedPart } from "./bake";
 import { createDefaultModels, createGlows, createMaterials, DECK_TOP, EVENING, type Glows, type Materials, type ModelLibrary, type TurretRig } from "./models";
 
 // Author colors as plain hex, with legacy-like light intensities.
@@ -307,7 +308,49 @@ export class GameView {
     ground.receiveShadow = true;
     this.scene.add(ground);
     // Everything that never moves, per chunk and merged (few draws, off-screen chunks skipped).
-    for (const g of buildScenery(this.game.world.map, this.models, this.gen, this.gen?.seed ?? 1)) this.scene.add(g);
+    for (const g of buildScenery(this.game.world.map, this.models, this.gen, this.gen?.seed ?? 1, this.treeParts)) this.scene.add(g);
+    // Trees already cut (a view built mid-run) are hidden straight away.
+    for (const k of this.game.world.felled) this.hideTree(k);
+  }
+
+  /** Where each tree is in the baked scenery, and the vertices of the ones cut down (to bring back on a new run). */
+  private treeParts = new Map<string, BakedPart>();
+  private cutTrees = new Map<string, Float32Array[]>();
+
+  /** A cut tree disappears: its vertices in the baked chunk collapse to one point (no rebake, no extra draw). */
+  private hideTree(key: string): void {
+    const part = this.treeParts.get(key);
+    if (!part || this.cutTrees.has(key)) return;
+    const saved: Float32Array[] = [];
+    for (const { mesh, start, count } of part) {
+      const pos = mesh.geometry.attributes.position as THREE.BufferAttribute, arr = pos.array as Float32Array;
+      saved.push(arr.slice(start * 3, (start + count) * 3));
+      for (let i = start; i < start + count; i++) { arr[i * 3] = arr[start * 3]!; arr[i * 3 + 1] = -1; arr[i * 3 + 2] = arr[start * 3 + 2]!; }
+      pos.needsUpdate = true;
+    }
+    this.cutTrees.set(key, saved);
+  }
+
+  /** A new run: every cut tree stands again. */
+  private showTrees(): void {
+    for (const [key, saved] of this.cutTrees) {
+      this.treeParts.get(key)!.forEach(({ mesh, start }, i) => {
+        const pos = mesh.geometry.attributes.position as THREE.BufferAttribute;
+        (pos.array as Float32Array).set(saved[i]!, start * 3);
+        pos.needsUpdate = true;
+      });
+    }
+    this.cutTrees.clear();
+  }
+
+  /** Chips fly off the tree being cut; when it falls, a burst of needles and snow. */
+  private chipT = 0;
+  private updateChop(dt: number): void {
+    const c = this.game.chop;
+    if (!c) return;
+    if ((this.chipT -= dt) > 0) return;
+    this.chipT = 0.18;
+    this.onKilled(c.x + 0.5, c.y + 0.5, 2, this.mat.trunk, 0.8);
   }
 
   private shipCenter(): THREE.Vector3 {
@@ -474,9 +517,15 @@ export class GameView {
       else if (ev.type === "tower-built") { const v = this.towers.get(ev.tower.id); if (v) v.drop = 0.12; }
       else if (ev.type === "shot") this.onShot(ev.shot);
       else if (ev.type === "blast") this.missileFx.blast(ev.x, ev.y, ev.radius);
+      else if (ev.type === "tree-felled") {
+        this.hideTree(`${ev.x},${ev.y}`);
+        this.onKilled(ev.x + 0.5, ev.y + 0.5, 14, this.mat.pine, 1.4);
+        this.onKilled(ev.x + 0.5, ev.y + 0.5, 6, this.mat.trunk, 1.1);
+        this.puff(ev.x + 0.5, ev.y + 0.5);
+      }
       else if (ev.type === "hit") { const w = this.walkers.get(ev.walker.id); if (w) w.userData.flash = 0.09; }
       else if (ev.type === "killed") { const b = this.looks.burst ?? STONE_BURST; this.onKilled(ev.walker.x, ev.walker.y, b.count, this.burstMat, b.size); }
-      else if (ev.type === "reset") { this.clearFx(); this.shipLand = 0; this.wreck = 0; this.followAvatar(); }
+      else if (ev.type === "reset") { this.showTrees(); this.clearFx(); this.shipLand = 0; this.wreck = 0; this.followAvatar(); }
     }
     this.mining.onEvents(events);
     const landed = events.some(e => e.type === "avatar-landed");
@@ -484,6 +533,7 @@ export class GameView {
     this.aimTowers(simDt);
     this.updateBolts(simDt);
     this.missileFx.update(simDt);
+    this.updateChop(frameDt);
     this.updateGhost(o);
     this.updateTowerGhost(o);
     this.updatePath(o);

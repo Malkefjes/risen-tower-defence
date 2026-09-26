@@ -40,6 +40,12 @@ btn("bGod").addEventListener("click", () => {
   try { localStorage.setItem(GOD_KEY, game.god ? "1" : "0"); } catch { /* storage off */ }
 });
 btn("bStartRaid").addEventListener("click", () => { game.startWave(); });
+// Restart: a second click within 3 s starts a new run (no popup; the button itself asks).
+let restartArmed = 0;
+btn("bRestart").addEventListener("click", () => {
+  if (performance.now() < restartArmed) { restartArmed = 0; controller.clearSelection(); game.reset(); return; }
+  restartArmed = performance.now() + 3000;
+});
 addEventListener("keydown", e => { if (e.key.toLowerCase() === "k" && !(e.target instanceof HTMLInputElement)) tuning.toggle(); });
 function syncTools(): void {
   btn("bPath").setAttribute("aria-pressed", String(controller.showPath));
@@ -54,6 +60,9 @@ function syncTools(): void {
   document.getElementById("paused")!.hidden = !controller.paused;
   btn("bTune").setAttribute("aria-pressed", String(tuning.open));
   btn("bGod").setAttribute("aria-pressed", String(game.god));
+  const armed = performance.now() < restartArmed;
+  btn("bRestart").textContent = armed ? "Sure?" : "Restart";
+  btn("bRestart").classList.toggle("armed", armed);
   btn("bStartRaid").hidden = !game.god || game.phase !== "planning";
 }
 

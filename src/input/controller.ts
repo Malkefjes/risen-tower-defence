@@ -415,7 +415,8 @@ export class Controller {
     this.game.avatarInput.sprint = this.keys.has("shift");
     // The tool fires while the left button is held with nothing to place.
     const firing = this.toolDown && !this.placing && !this.wheelKind && this.game.hotbar.held === "multitool";
-    this.game.mineInput = { firing, onSpot: firing && this.view.cursorOnHotspot() };
+    const ground = firing && this.lastPointer ? this.view.pickGround(this.lastPointer.x, this.lastPointer.y) : null;
+    this.game.mineInput = { firing, onSpot: firing && this.view.cursorOnHotspot(), aim: ground ? [Math.floor(ground.x), Math.floor(ground.z)] : undefined };
     if (this.wheelKind && this.lastPointer) {
       // Build wheels sit on the character; a wall's modification wheel sits on that wall.
       const t = this.modTarget;
