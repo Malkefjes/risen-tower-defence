@@ -65,7 +65,7 @@ function golemTemplate(): Promise<Template> {
     let mesh: THREE.SkinnedMesh | undefined;
     gltf.scene.traverse(o => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) mesh = o as THREE.SkinnedMesh; });
     separateArmsFromLegs(mesh!);
-    const clips = Object.fromEntries(GOLEM_CLIPS.map(c => [c, loopable(gltf.animations.find(a => a.name === CLIP_NAME[c])!)])) as Record<GolemClip, THREE.AnimationClip>;
+    const clips = Object.fromEntries(GOLEM_CLIPS.map(c => [c, loopable(inPlace(gltf.animations.find(a => a.name === CLIP_NAME[c])!))])) as Record<GolemClip, THREE.AnimationClip>;
     gltf.scene.updateMatrixWorld(true);
     const height = new THREE.Box3().setFromObject(gltf.scene).getSize(new THREE.Vector3()).y;
     return { scene: gltf.scene, height, clips, geometry: mesh!.geometry };
@@ -130,6 +130,25 @@ function separateArmsFromLegs(mesh: THREE.SkinnedMesh): void {
     if (total > 0) for (let q = 0; q < 4; q++) sw.setComponent(v, q, sw.getComponent(v, q) / total);
   }
   sw.needsUpdate = true;
+}
+
+/**
+ * The Brute's walk (walking_2) carries its hips forward about a body width over a loop and
+ * then snaps back, so it was pushed backwards once a stride (the game moves it along its
+ * path already). The hips' steady drift is taken out, their bob and sway kept: on the spot,
+ * like the other clips.
+ */
+function inPlace(clip: THREE.AnimationClip): THREE.AnimationClip {
+  for (const t of clip.tracks) {
+    if (!/Hips\.position$/.test(t.name)) continue;
+    const n = t.times.length, span = t.times[n - 1]! - t.times[0]!;
+    if (n < 2 || span <= 0) continue;
+    for (const axis of [0, 2]) {
+      const drift = (t.values[(n - 1) * 3 + axis]! - t.values[axis]!) / span;
+      for (let i = 0; i < n; i++) t.values[i * 3 + axis]! -= drift * (t.times[i]! - t.times[0]!);
+    }
+  }
+  return clip;
 }
 
 const coloured = new Map<string, THREE.BufferGeometry>();
