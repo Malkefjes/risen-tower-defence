@@ -2,11 +2,11 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { EVENING } from "../../src/render/models";
 import { colonyOrange } from "../../src/render/palette";
-import { createRig, RigAnimator } from "../../src/render/rig";
+import { createRig } from "../../src/render/rig";
 import { GLB } from "./sentinelData";
 
 // Erik's new avatar, the Neon Star Sentinel (a skinned model with walk and run clips),
-// next to today's rig, both running circles on the snow in the game's evening light.
+// running circles on the snow in the game's evening light.
 // Stand, walk, run and sprint play his clips; jump and the raised tool are added in
 // code on top of them; the colours are the rig's palette, put on by rule.
 
@@ -44,25 +44,22 @@ grid.position.set(0.5, 0.004, 0.5);
 scene.add(grid);
 
 const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
-const SIDE = new THREE.Vector3(1, 0, -1).normalize();
 let zoom = 1, close = false;
 const look = new THREE.Vector3(0, 0.4, 0);
 function resize(): void {
   const w = container.clientWidth, h = container.clientHeight, aspect = w / h;
   renderer.setSize(w, h);
-  const half = Math.max(2.8, 6.2 / aspect) / (close ? zoom * 2.2 : zoom);
+  const half = Math.max(3, 3.4 / aspect) / (close ? zoom * 2.2 : zoom);
   camera.left = -half * aspect; camera.right = half * aspect; camera.top = half; camera.bottom = -half;
   camera.updateProjectionMatrix();
 }
 addEventListener("resize", resize);
 resize();
 
-// ------------------------------------------------------------------ today's rig
+// ------------------------------------------------------------------ scale
 
+// Only measured, for the size: the Sentinel is shown alone.
 const rig = createRig();
-rig.object.traverse(o => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
-scene.add(rig.object);
-const rigAnim = new RigAnimator(rig);
 const rigHeight = new THREE.Box3().setFromObject(rig.object).getSize(new THREE.Vector3()).y;
 
 // ------------------------------------------------------------------ the Sentinel
@@ -170,7 +167,7 @@ const CYCLE = { stand: 1, walk: 1.5 * 0.55, run: 2.8 * 0.55, sprint: 3.4 * 0.55 
 
 type Mode = "stand" | "walk" | "run" | "sprint";
 const SPEEDS: Record<Mode, number> = { stand: 0, walk: 1.8, run: 5, sprint: 7 };
-let mode: Mode = "run", toolUp = false, stride = 1, coloured = true;
+let mode: Mode = "run", toolUp = false, stride = 0.5, coloured = true;
 const bar = document.getElementById("bar")!;
 const button = (label: string, on: () => boolean, click: () => void) => {
   const b = document.createElement("button");
@@ -188,18 +185,20 @@ button("Tool", () => toolUp, () => { toolUp = !toolUp; });
 button("Close-up", () => close, () => { close = !close; resize(); });
 button("Plain grey", () => !coloured, () => { coloured = !coloured; mesh.material = coloured ? mats.coloured : mats.plain; });
 const sl = document.createElement("label");
-sl.innerHTML = `Stride <input type="range" min="0.5" max="2" step="0.05" value="1">`;
-sl.querySelector("input")!.addEventListener("input", e => { stride = Number((e.target as HTMLInputElement).value); });
+sl.innerHTML = `Stride <input type="range" min="0.25" max="1.5" step="0.05" value="0.5"> <span>0.50</span>`;
+sl.querySelector("input")!.addEventListener("input", e => {
+  stride = Number((e.target as HTMLInputElement).value);
+  sl.querySelector("span")!.textContent = stride.toFixed(2);
+});
 bar.appendChild(sl);
 
 // ------------------------------------------------------------------ animation
 
-let last = performance.now(), angle = 0, speed = SPEEDS.run, y = 0, vz = 0, grounded = true, landed = false;
-const R = 1.8, CENTRES = [SIDE.clone().multiplyScalar(-2.6), SIDE.clone().multiplyScalar(2.6)];
+let last = performance.now(), angle = 0, speed = SPEEDS.run, y = 0, vz = 0, grounded = true;
+const R = 2.2, CENTRE = new THREE.Vector3();
 const weights = { stand: 0, walk: 0, run: 1, sprint: 0 };
 const q = new THREE.Quaternion(), v = new THREE.Vector3(), fwd = new THREE.Vector3();
 const restFore = bone("RightForeArm").quaternion.clone();
-const tagRig = document.getElementById("tagRig")!, tagNew = document.getElementById("tagNew")!;
 
 function frame(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000);
@@ -207,17 +206,14 @@ function frame(now: number): void {
   speed += (SPEEDS[mode] - speed) * Math.min(1, dt * 6);
   angle += (speed / R) * dt;
   // A jump: the same arc for both.
-  landed = false;
-  if (!grounded) { vz -= 14 * dt; y += vz * dt; if (y <= 0) { y = 0; vz = 0; grounded = true; landed = true; } }
+  if (!grounded) { vz -= 14 * dt; y += vz * dt; if (y <= 0) { y = 0; vz = 0; grounded = true; } }
 
-  const place = (o: THREE.Object3D, i: number) => {
-    const c = CENTRES[i]!;
+  const place = (o: THREE.Object3D) => {
+    const c = CENTRE;
     o.position.set(c.x + Math.cos(angle) * R, y, c.z + Math.sin(angle) * R);
     o.rotation.y = Math.atan2(-Math.sin(angle), Math.cos(angle));
   };
-  place(rig.object, 0);
-  place(sentinel, 1);
-  rigAnim.update(dt, { speed, topSpeed: 5, grounded, vz, jumpSpeed: 4.2, landed, ready: toolUp, mining: toolUp });
+  place(sentinel);
 
   // The Sentinel: blend its clips by mode, each at the speed that keeps the feet planted.
   for (const m of Object.keys(weights) as Mode[]) {
@@ -244,12 +240,6 @@ function frame(now: number): void {
     arm.quaternion.copy(parentQ.invert().multiply(delta.multiply(worldQ)));
   }
 
-  for (const [el, i] of [[tagRig, 0], [tagNew, 1]] as const) {
-    v.copy(CENTRES[i]!).setY(0).addScaledVector(new THREE.Vector3(1, 0, 1).normalize(), R + 0.9).project(camera);
-    el.style.display = close ? "none" : "";
-    el.style.left = `${(v.x * 0.5 + 0.5) * container.clientWidth}px`;
-    el.style.top = `${(-v.y * 0.5 + 0.5) * container.clientHeight}px`;
-  }
   look.lerp(close ? sentinel.position.clone().setY(0.5) : new THREE.Vector3(0, 0.4, 0), Math.min(1, dt * 10));
   camera.position.copy(CAM_DIR).multiplyScalar(40).add(look);
   camera.lookAt(look);
