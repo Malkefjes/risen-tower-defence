@@ -15,7 +15,7 @@ type Part = "body" | "armR" | "armL" | "legR" | "legL";
 
 /** Colourings: sides (two close shades), faces pointing up, faces pointing down. */
 export const COLOSSUS_PALETTES = {
-  snow: { side: ["#5a5f70", "#555a6b"], top: "#f2f4fa", under: "#3a3d4a" },
+  snow: { side: ["#6b6862", "#5f5c57"], top: "#eef0f4", under: "#403d3a" },
   ice: { side: ["#3f4454", "#3b4050"], top: "#86cbe6", under: "#2a2d38" },
   earth: { side: ["#3d352f", "#413832"], top: "#a08c74", under: "#2a2420" },
 } as const;
@@ -69,8 +69,8 @@ function segDist(p: THREE.Vector3, a: V3, b: V3): number {
 /** Cut the mesh into parts around their pivots and colour it; each part's geometry is built around its pivot. */
 function build(palette: ColossusPalette): Record<Part, THREE.BufferGeometry> {
   const src = readGlb(GLB).toNonIndexed(), p = src.attributes.position!, pal = COLOSSUS_PALETTES[palette];
-  // The low evening sun barely lights faces that point up, so their colour is pushed past 1 to read as snow or ice.
-  const sides = pal.side.map(h => new THREE.Color(h)), top = new THREE.Color(pal.top).multiplyScalar(1.6), under = new THREE.Color(pal.under);
+  // The low evening sun barely lights faces that point up, so their colour is lifted a little to read as snow or ice.
+  const sides = pal.side.map(h => new THREE.Color(h)), top = new THREE.Color(pal.top).multiplyScalar(1.3), under = new THREE.Color(pal.under);
   const out = {} as Record<Part, { pos: number[]; col: number[] }>;
   for (const k of Object.keys(PIVOTS) as Part[]) out[k] = { pos: [], col: [] };
   const tri = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()], n = new THREE.Vector3(), c = new THREE.Vector3();
@@ -80,7 +80,9 @@ function build(palette: ColossusPalette): Record<Part, THREE.BufferGeometry> {
     n.copy(tri[1]!).sub(tri[0]!).cross(tri[2]!.clone().sub(tri[0]!)).normalize();
     let best = BONES[0]!, bestD = Infinity;
     for (const bone of BONES) { const d = segDist(c, bone.a, bone.b) - bone.bonus; if (d < bestD) { bestD = d; best = bone; } }
-    const col = n.y > 0.38 ? top : n.y < -0.35 ? under : sides[(t / 3) % 5 === 0 ? 1 : 0]!;
+    // Every face gets its own small shift in shade, like the grain of rough stone.
+    const base = n.y > 0.38 ? top : n.y < -0.35 ? under : sides[(t / 3) % 5 === 0 ? 1 : 0]!;
+    const col = base.clone().multiplyScalar(0.9 + (((t / 3) * 7919) % 97) / 97 * 0.2);
     const piv = PIVOTS[best.part], o = out[best.part];
     for (const v of tri) { o.pos.push((v.x - piv[0]) * SCALE, (v.y - piv[1]) * SCALE, (v.z - piv[2]) * SCALE); o.col.push(col.r, col.g, col.b); }
   }
@@ -116,7 +118,8 @@ let outlineMat: THREE.MeshBasicMaterial | undefined, ringMat: THREE.MeshBasicMat
 export function colossusModel(o: ColossusOptions): Enemy {
   let geo = cache.get(o.palette);
   if (!geo) cache.set(o.palette, geo = build(o.palette));
-  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.85, metalness: 0.05, emissive: "#ffffff", emissiveIntensity: 0 });
+  // Matte stone: fully rough, no metal, so faces never catch a shine.
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 1, metalness: 0, emissive: "#ffffff", emissiveIntensity: 0 });
   const root = new THREE.Group(), tilt = new THREE.Group();
   root.add(tilt);
   root.scale.setScalar(o.scale);
