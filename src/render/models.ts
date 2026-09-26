@@ -4,6 +4,7 @@ import type { Cell } from "../sim/types";
 import { WALL_DECK } from "../sim/world";
 import { cellBounds, pieceOutline, SIDES, type OutlineCell, type Side } from "./pieceShape";
 import { colonyOrange, COLONY_ORANGE } from "./palette";
+import { missileRackModel } from "./missileRack";
 import { shipModel } from "./ship";
 
 /**
@@ -201,6 +202,9 @@ export function createDefaultModels(mat: Materials): ModelLibrary {
   lib.register("gun1", () => twinModel(mat, false));
   /** The Gun grown to 2×2 (the Gatling): a spinning four-barrel cluster. */
   lib.register("gun2", () => twinModel(mat, true));
+  /** The explosive tower, the missile rack: three missiles at 1×1, six at 2×2. */
+  lib.register("explosive1", () => missileRackModel(mat, false));
+  lib.register("explosive2", () => missileRackModel(mat, true));
 
   return lib;
 }
@@ -267,6 +271,10 @@ export interface TurretRig {
   spinner?: THREE.Object3D;
   /** Recoil distance. */
   kick: number;
+  /** Missiles on a rack: each gun is a missile, gone for `reload` seconds after it fires. */
+  reload?: number;
+  /** Which way missiles leave, in `yaw` space. */
+  launch?: THREE.Vector3;
 }
 
 function twinModel(mat: Materials, big: boolean): THREE.Object3D {

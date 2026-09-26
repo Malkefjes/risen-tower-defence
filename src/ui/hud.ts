@@ -38,12 +38,24 @@ export function repairIcon(): string {
   return `<svg viewBox="0 0 44 44" aria-hidden="true"><rect x="6" y="24" width="24" height="13" rx="2" fill="#8d8a99" stroke="#b3b0bf"/><path d="M11 28 l5 3 M20 27 l-3 5" stroke="#5a5766" stroke-width="1.5"/><rect x="21" y="5" width="7" height="26" rx="2" transform="rotate(35 24 18)" fill="#3d4457"/><rect x="24" y="4" width="16" height="8" rx="2" transform="rotate(35 32 8)" fill="#d9573a" stroke="#f08a66"/></svg>`;
 }
 
-/** Small SVG of a tower seen from above, for the tower wheel: the Gun's twin barrels at 1×1, its barrel cluster when bigger. */
-export function towerIcon(_kind: TowerKind, size = 1): string {
+/**
+ * Small SVG of a tower seen from above, for the tower wheel: the Gun's twin barrels at
+ * 1×1, its barrel cluster when bigger; the missile rack's white missiles between orange cheeks.
+ */
+export function towerIcon(kind: TowerKind, size = 1): string {
   const hex = (r: number) => Array.from({ length: 6 }, (_, i) => {
     const a = (Math.PI / 3) * i + Math.PI / 6;
     return `${22 + Math.cos(a) * r},${24 + Math.sin(a) * r}`;
   }).join(" ");
+  if (kind === "explosive") {
+    const n = size === 1 ? 3 : 6, cols = size === 1 ? 3 : 3, w = 6.5;
+    let missiles = "";
+    for (let i = 0; i < n; i++) {
+      const x = 22 + ((i % cols) - (cols - 1) / 2) * w, y = size === 1 ? 10 : 6 + Math.floor(i / cols) * 7;
+      missiles += `<rect x="${x - 2}" y="${y + 4}" width="4" height="15" rx="1.5" fill="#e6e9f0"/><path d="M${x - 2} ${y + 5} L${x} ${y} L${x + 2} ${y + 5} Z" fill="#d9573a"/>`;
+    }
+    return `<svg viewBox="0 0 44 44" aria-hidden="true"><polygon points="${hex(16)}" fill="#3d4457"/><rect x="10" y="8" width="24" height="22" rx="2" fill="#2c3142"/><rect x="7" y="10" width="4" height="18" rx="1.5" fill="#d9573a"/><rect x="33" y="10" width="4" height="18" rx="1.5" fill="#d9573a"/>${missiles}</svg>`;
+  }
   const barrels = size === 1
     ? `<rect x="17" y="4" width="3.5" height="16" rx="1.5" fill="#2c3142"/><rect x="23.5" y="4" width="3.5" height="16" rx="1.5" fill="#2c3142"/>`
     : `<rect x="15" y="1" width="14" height="18" rx="3" fill="#2c3142"/><circle cx="19" cy="5" r="1.6" fill="#798399"/><circle cx="25" cy="5" r="1.6" fill="#798399"/><circle cx="19" cy="10" r="1.6" fill="#798399"/><circle cx="25" cy="10" r="1.6" fill="#798399"/>`;

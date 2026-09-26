@@ -5,15 +5,20 @@ import type { Cell } from "./types";
  * in place to 2×2 and 3×3: bigger is more investment (range, damage for its price,
  * later mod slots), not a different tower. Numbers per size live in `Tuning.towers`.
  */
-export type TowerKind = "gun";
-export const TOWER_KINDS: readonly TowerKind[] = ["gun"];
+export type TowerKind = "gun" | "explosive";
+export const TOWER_KINDS: readonly TowerKind[] = ["gun", "explosive"];
 
 /** The largest footprint any tower can grow to. */
 export const MAX_TOWER_SIZE = 3;
 
-/** `maxSize`: the sizes on offer now (a size is offered once it has a model). */
-export const TOWER_INFO: Record<TowerKind, { name: string; maxSize: number }> = {
-  gun: { name: "Gun", maxSize: 2 },
+/**
+ * `maxSize`: the sizes on offer now (a size is offered once it has a model).
+ * `shot`: bolts fly straight at `BOLT_SPEED`; missiles climb, turn and dive
+ * (`missileTime`), following their target, and burst over `radius`.
+ */
+export const TOWER_INFO: Record<TowerKind, { name: string; maxSize: number; shot: "bolt" | "missile" }> = {
+  gun: { name: "Gun", maxSize: 2, shot: "bolt" },
+  explosive: { name: "Missile rack", maxSize: 2, shot: "missile" },
 };
 
 /** How high a tower stands above its wall deck per size, in cells (the avatar can stand on it). */
@@ -27,6 +32,8 @@ export interface TowerStats {
   range: number;
   /** Shots per second. */
   rate: number;
+  /** Blast radius in cells: every enemy this close to where the shot lands is hit (0 = only its target). */
+  radius: number;
 }
 
 export interface Tower {
@@ -65,3 +72,6 @@ export function growAt(t: Pick<Tower, "at" | "cx" | "cy">, x: number, y: number)
 
 /** Bolt speed in cells per second; hits land after the bolt's travel time. */
 export const BOLT_SPEED = 14;
+
+/** A missile's flight in seconds over `dist` cells: the climb and dive take most of it, so it is slow even close by. */
+export const missileTime = (dist: number): number => 1.05 + dist * 0.09;

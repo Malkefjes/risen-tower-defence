@@ -6,7 +6,7 @@ import { computeField, keysOf, type FlowField } from "./pathfinding";
 import { pieceCells, type ShapeId } from "./pieces";
 import { Rng } from "./rng";
 import { ENEMY_KINDS, type EnemyKind, type EnemyStats } from "./enemies";
-import { BOLT_SPEED, footprint, TOWER_INFO, TOWER_TOP, type Tower, type TowerKind, type TowerStats } from "./towers";
+import { BOLT_SPEED, footprint, missileTime, TOWER_INFO, TOWER_TOP, type Tower, type TowerKind, type TowerStats } from "./towers";
 import { mergeTuning, type Tuning, type TuningPatch } from "./tuning";
 import { cellKey, parseKey, type Cell } from "./types";
 import { WALL_DECK, World, type MapDef } from "./world";
@@ -65,7 +65,7 @@ export interface Walker {
   attacking?: string | null;
 }
 
-/** A bolt in flight. Damage lands when `t` reaches `dur`. */
+/** A bolt or missile in flight. Damage lands when `t` reaches `dur`. */
 export interface Shot {
   id: number;
   towerId: number;
@@ -73,6 +73,10 @@ export interface Shot {
   damage: number;
   t: number;
   dur: number;
+  /** Blast radius: every enemy this close to where it lands is hit (0 = only the target). */
+  radius: number;
+  /** Where it lands: the target's position, followed while the target lives. */
+  x: number; y: number;
 }
 
 export type BlockReason = "occupied" | "walker" | "avatar" | "stone" | "out-of-range" | "unconnected";
@@ -114,6 +118,8 @@ export type GameEvent =
   | { type: "raid-warning" }
   | { type: "smelter-removed"; smelter: Smelter }
   | { type: "shot"; shot: Shot }
+  /** A missile burst at (x, y), hitting everything within `radius`. */
+  | { type: "blast"; x: number; y: number; radius: number; towerId: number }
   | { type: "hit"; walker: Walker }
   | { type: "killed"; walker: Walker }
   /** The ship's HP hit 0: it's a wreck now, and the run goes on. */
@@ -1146,7 +1152,7 @@ export class Game {
     gun.targetId = st?.id ?? null;
     if (st && gun.cooldown <= 0) {
       gun.cooldown = 1 / s.rate;
-      const shot: Shot = { id: this.nextId++, towerId: SHIP_SHOOTER, targetId: st.id, damage: s.damage, t: 0, dur: Math.hypot(st.x - c.x, st.y - c.y) / BOLT_SPEED };
+      const shot: Shot = { id: this.nextId++, towerId: SHIP_SHOOTER, targetId: st.id, damage: s.damage, t: 0, dur: Math.hypot(st.x - c.x, st.y - c.y) / BOLT_SPEED, radius: 0, x: st.x, y: st.y };
       st.pending += shot.damage;
       this.shots.push(shot);
       this.events.push({ type: "shot", shot });
@@ -1159,7 +1165,8 @@ export class Game {
       const s = this.towerStats(t);
       t.cooldown = 1 / s.rate;
       const dist = Math.hypot(target.x - t.cx, target.y - t.cy);
-      const shot: Shot = { id: this.nextId++, towerId: t.id, targetId: target.id, damage: s.damage, t: 0, dur: dist / BOLT_SPEED };
+      const dur = TOWER_INFO[t.kind].shot === "missile" ? missileTime(dist) : dist / BOLT_SPEED;
+      const shot: Shot = { id: this.nextId++, towerId: t.id, targetId: target.id, damage: s.damage, t: 0, dur, radius: s.radius, x: target.x, y: target.y };
       target.pending += shot.damage;
       this.shots.push(shot);
       this.events.push({ type: "shot", shot });
@@ -1168,20 +1175,34 @@ export class Game {
 
   private updateShots(dt: number): void {
     const landed: Shot[] = [];
-    for (const s of this.shots) { s.t += dt; if (s.t >= s.dur) landed.push(s); }
+    for (const s of this.shots) {
+      s.t += dt;
+      // Shots follow their target; one whose target is gone lands where it last was.
+      const w = this.walkers.find(x => x.id === s.targetId);
+      if (w) { s.x = w.x; s.y = w.y; }
+      if (s.t >= s.dur) landed.push(s);
+    }
     if (!landed.length) return;
     this.shots = this.shots.filter(s => !landed.includes(s));
     for (const s of landed) {
-      const w = this.walkers.find(x => x.id === s.targetId);
-      if (!w) continue;
-      w.pending -= s.damage;
+      const target = this.walkers.find(x => x.id === s.targetId);
+      if (target) target.pending -= s.damage;
       const tower = s.towerId === SHIP_SHOOTER ? undefined : this.towers.find(t => t.id === s.towerId);
-      if (tower && !w.practice) tower.dealt += Math.min(s.damage, w.hp);
-      w.hp -= s.damage;
-      if (w.hp > 0) { this.events.push({ type: "hit", walker: w }); continue; }
-      this.walkers.splice(this.walkers.indexOf(w), 1);
-      this.events.push({ type: "killed", walker: w });
+      if (s.radius > 0) this.events.push({ type: "blast", x: s.x, y: s.y, radius: s.radius, towerId: s.towerId });
+      // A blast hits everything in its radius (its target too, wherever it has got to).
+      const hit = s.radius > 0
+        ? this.walkers.filter(w => w === target || Math.hypot(w.x - s.x, w.y - s.y) <= s.radius)
+        : target ? [target] : [];
+      for (const w of hit) this.damage(w, s.damage, tower);
     }
+  }
+
+  private damage(w: Walker, amount: number, tower: Tower | undefined): void {
+    if (tower && !w.practice) tower.dealt += Math.min(amount, w.hp);
+    w.hp -= amount;
+    if (w.hp > 0) { this.events.push({ type: "hit", walker: w }); return; }
+    this.walkers.splice(this.walkers.indexOf(w), 1);
+    this.events.push({ type: "killed", walker: w });
   }
 
   setTestWalkers(on: boolean): void {

@@ -121,12 +121,18 @@ export const defaultTuning = (): Tuning => ({
   },
   towers: {
     gun: [
-      { cost: 200, damage: 1, range: 2.5, rate: 3 },
-      { cost: 500, damage: 1, range: 3.5, rate: 9 },
-      { cost: 1000, damage: 1, range: 4.5, rate: 18 },
+      { cost: 200, damage: 1, range: 2.5, rate: 3, radius: 0 },
+      { cost: 500, damage: 1, range: 3.5, rate: 9, radius: 0 },
+      { cost: 1000, damage: 1, range: 4.5, rate: 18, radius: 0 },
+    ],
+    // The missile rack: worse than the Gun per alloy on one target, far better on a pack.
+    explosive: [
+      { cost: 250, damage: 3, range: 4, rate: 1 / 1.5, radius: 0.9 },
+      { cost: 625, damage: 4, range: 5, rate: 1.25, radius: 1.2 },
+      { cost: 1250, damage: 5, range: 6, rate: 2, radius: 1.5 },
     ],
   },
-  ship: { cost: 0, damage: 1, range: 5.5, rate: 1 },
+  ship: { cost: 0, damage: 1, range: 5.5, rate: 1, radius: 0 },
 });
 
 /** Some of the numbers, at any depth (for tests and saved tuning). */

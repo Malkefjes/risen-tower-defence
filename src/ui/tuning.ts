@@ -15,9 +15,10 @@ const top = (key: TopKey, label: string, min: number, max: number, step: number,
 const stat = <S>(pick: (t: Tuning) => S, key: keyof S & string, label: string, min: number, max: number, step: number): Knob =>
   ({ label, get: t => pick(t)[key] as number, set: (t, v) => { (pick(t)[key] as number) = v; }, min, max, step });
 
-const gunKnobs = (pick: (t: Tuning) => TowerStats, costMax: number): Knob[] => [
+const gunKnobs = (pick: (t: Tuning) => TowerStats, costMax: number, blast: boolean): Knob[] => [
   stat(pick, "cost", "Alloy (total at this size)", 0, costMax, 10), stat(pick, "damage", "Damage", 0.5, 20, 0.5),
-  stat(pick, "rate", "Shots per second", 0.25, 30, 0.25), stat(pick, "range", "Range", 1, 12, 0.25),
+  stat(pick, "rate", "Shots per second", 0.1, 30, 0.05), stat(pick, "range", "Range", 1, 12, 0.25),
+  ...(blast ? [stat(pick, "radius", "Blast radius (cells)", 0.25, 3, 0.05)] : []),
 ];
 const gunNumbers = (s: TowerStats) => `DPS ${+dps(s).toFixed(2)} · ${Math.round(alloyPerDps(s))} alloy per DPS`;
 
@@ -42,7 +43,7 @@ const enemySections = (): Section[] => ENEMY_KINDS.map(kind => {
 const towerSections = (): Section[] => TOWER_KINDS.flatMap(kind =>
   Array.from({ length: TOWER_INFO[kind].maxSize }, (_, i): Section => {
     const pick = (t: Tuning): TowerStats => t.towers[kind][i]!;
-    return { title: `${TOWER_INFO[kind].name} ${i + 1}×${i + 1}`, knobs: gunKnobs(pick, 1000 * (i + 1) ** 2), derived: t => gunNumbers(pick(t)) };
+    return { title: `${TOWER_INFO[kind].name} ${i + 1}×${i + 1}`, knobs: gunKnobs(pick, 1000 * (i + 1) ** 2, TOWER_INFO[kind].shot === "missile"), derived: t => gunNumbers(pick(t)) };
   }));
 
 const SECTIONS: Section[] = [

@@ -12,6 +12,7 @@ import { createRig, RigAnimator, type Rig } from "./rig";
 import type { ShipRig } from "./ship";
 import { MAX_TOWER_SIZE, TOWER_INFO, TOWER_KINDS, type Tower, type TowerKind } from "../sim/towers";
 import type { Cell } from "../sim/types";
+import { MissileFx } from "./blast";
 import { createDefaultModels, createGlows, createMaterials, DECK_TOP, EVENING, type Glows, type Materials, type ModelLibrary, type TurretRig } from "./models";
 
 // Author colors as plain hex, with legacy-like light intensities.
@@ -65,7 +66,8 @@ const TOP = DECK_TOP;
 /** Wrap v into [center - half, center + half). */
 const wrap = (v: number, center: number, half: number) => ((((v - center + half) % (2 * half)) + 2 * half) % (2 * half)) + center - half;
 
-interface TowerView { obj: THREE.Object3D; size: number; rig: TurretRig; recoil: number[]; gun: number; spin: number; drop: number }
+/** `reload`: per missile on a rack, seconds until it is back (below 0: how long since). */
+interface TowerView { obj: THREE.Object3D; size: number; rig: TurretRig; recoil: number[]; reload: number[]; gun: number; spin: number; drop: number }
 
 /** The model for a tower type at a size: "gun1", "gun2", ... */
 const towerModel = (kind: TowerKind, size: number) => `${kind}${size}`;
@@ -129,6 +131,7 @@ export class GameView {
   private flashes: Flash[] = [];
   private bars = new Map<number, THREE.Group>();
   private glows: Glows;
+  private missileFx: MissileFx;
   private boltGeo = new THREE.SphereGeometry(0.045, 8, 6);
   private boltMat = new THREE.MeshBasicMaterial({ color: "#ffd08a" });
   /** The ship's gun fires cyan bolts from its reactor core. */
@@ -199,6 +202,7 @@ export class GameView {
     const glows = createGlows();
     this.glows = glows;
     this.models = createDefaultModels(this.mat);
+    this.missileFx = new MissileFx(this.scene, this.mat, glows.muzzle);
 
     const P = EVENING;
     this.scene.background = new THREE.Color(P.background);
@@ -463,6 +467,7 @@ export class GameView {
       else if (ev.type === "tower-destroyed") this.onKilled(ev.tower.cx, ev.tower.cy, 22, this.debrisMat);
       else if (ev.type === "tower-built") { const v = this.towers.get(ev.tower.id); if (v) v.drop = 0.12; }
       else if (ev.type === "shot") this.onShot(ev.shot);
+      else if (ev.type === "blast") this.missileFx.blast(ev.x, ev.y, ev.radius);
       else if (ev.type === "hit") { const w = this.walkers.get(ev.walker.id); if (w) w.userData.flash = 0.09; }
       else if (ev.type === "killed") { const b = this.looks.burst ?? STONE_BURST; this.onKilled(ev.walker.x, ev.walker.y, b.count, this.burstMat, b.size); }
       else if (ev.type === "reset") { this.clearFx(); this.shipLand = 0; this.wreck = 0; this.followAvatar(); }
@@ -472,6 +477,7 @@ export class GameView {
     this.syncWalkers(worldDt, worldAlpha);
     this.aimTowers(simDt);
     this.updateBolts(simDt);
+    this.missileFx.update(simDt);
     this.updateGhost(o);
     this.updateTowerGhost(o);
     this.updatePath(o);
@@ -808,7 +814,7 @@ export class GameView {
       this.scene.add(obj);
       const rig = obj.userData.rig as TurretRig;
       if (had) rig.yaw.rotation.y = had.rig.yaw.rotation.y;
-      this.towers.set(t.id, { obj, size: t.size, rig, recoil: rig.guns.map(() => 0), gun: 0, spin: 0, drop: had ? 0.12 : 0 });
+      this.towers.set(t.id, { obj, size: t.size, rig, recoil: rig.guns.map(() => 0), reload: rig.guns.map(() => -1), gun: 0, spin: 0, drop: had ? 0.12 : 0 });
     }
     for (const [id, v] of this.towers) if (!alive.has(id)) { this.scene.remove(v.obj); this.towers.delete(id); }
   }
@@ -827,6 +833,14 @@ export class GameView {
         v.rig.yaw.rotation.y += d * Math.min(1, dt * 12);
       }
       v.rig.guns.forEach((g, i) => {
+        if (v.rig.reload) {
+          // A fired missile is gone until it reloads, then slides back onto the rack.
+          const left = v.reload[i]! - dt;
+          v.reload[i] = Math.max(-1, left);
+          g.obj.visible = left <= 0;
+          g.obj.position.z = g.rest - 0.35 * Math.max(0, 1 + left / 0.3) ** 2;
+          return;
+        }
         v.recoil[i] = Math.max(0, v.recoil[i]! - dt * 7);
         g.obj.position.z = g.rest - v.rig.kick * v.recoil[i]! ** 2;
       });
@@ -850,6 +864,7 @@ export class GameView {
     }
     const v = this.towers.get(s.towerId);
     if (!v) return;
+    if (v.rig.reload) { this.launchMissile(s, v); return; }
     const i = v.gun++ % v.rig.guns.length;
     const g = v.rig.guns[i]!;
     v.recoil[i] = 1;
@@ -862,6 +877,24 @@ export class GameView {
     this.scene.add(mesh);
     const to = target ? target.position.clone().setY(0.25) : from.clone();
     this.bolts.push({ mesh, from, to, walkerId: s.targetId, t: 0, dur: Math.max(0.02, s.dur) });
+  }
+
+  /** A missile leaves the rack: the next one still loaded, in turn (or the one nearest to being back). */
+  private launchMissile(s: Shot, v: TowerView): void {
+    const n = v.rig.guns.length;
+    let i = -1;
+    for (let k = 0; k < n && i < 0; k++) if (v.reload[(v.gun + k) % n]! <= 0) i = (v.gun + k) % n;
+    if (i < 0) i = v.reload.indexOf(Math.min(...v.reload));
+    v.gun = i + 1;
+    v.reload[i] = v.rig.reload!;
+    const g = v.rig.guns[i]!;
+    g.obj.visible = false;
+    v.obj.updateMatrixWorld(true);
+    const from = v.rig.yaw.localToWorld(g.muzzle.clone());
+    const q = new THREE.Quaternion();
+    v.rig.yaw.getWorldQuaternion(q);
+    const fwd = v.rig.launch!.clone().applyQuaternion(q);
+    this.missileFx.launch(from, fwd, s.dur, v.size, () => this.walkers.get(s.targetId)?.position ?? null);
   }
 
   private updateBolts(dt: number): void {
@@ -910,6 +943,7 @@ export class GameView {
     for (const b of this.bolts) this.scene.remove(b.mesh);
     for (const f of this.flashes) this.scene.remove(f.sprite);
     this.bolts = []; this.flashes = [];
+    this.missileFx.clear();
   }
 
   private updateTowerGhost(o: Overlay): void {
