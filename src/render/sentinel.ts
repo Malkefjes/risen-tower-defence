@@ -191,7 +191,7 @@ export class Sentinel {
 
     const mixer = new THREE.AnimationMixer(model);
     const actions = Object.fromEntries(CLIPS.map(c => {
-      const a = mixer.clipAction(gltf.animations.find(an => an.name === CLIP_NAME[c])!);
+      const a = mixer.clipAction(loopable(gltf.animations.find(an => an.name === CLIP_NAME[c])!));
       a.play();
       a.setEffectiveWeight(c === "stand" ? 1 : 0);
       return [c, a];
@@ -250,6 +250,16 @@ export class Sentinel {
     }
     this.object.updateMatrixWorld(true);
   }
+}
+
+/**
+ * The file's clips start their keys at 0.067 s, not 0, so each loop held its first pose for
+ * that long (a brief freeze every stride). Shifted to start at 0: a seamless loop.
+ */
+function loopable(clip: THREE.AnimationClip): THREE.AnimationClip {
+  const start = Math.min(...clip.tracks.map(t => t.times[0] ?? 0));
+  if (start > 0) for (const t of clip.tracks) t.shift(-start);
+  return clip.resetDuration();
 }
 
 /** Turn a bone by a rotation given in world space. */
