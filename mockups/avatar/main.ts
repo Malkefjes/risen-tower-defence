@@ -85,9 +85,9 @@ model.scale.setScalar(k);
 
 /** One colour for the Sentinel and his gun, the dark steel of his hands and feet; the colour scheme comes later. */
 const GREY = new THREE.MeshStandardMaterial({ color: "#2c3142", flatShading: true, roughness: 0.6, metalness: 0.05 });
-// The visor: the three flat faces across the front of his helmet (two triangles each, found
+// The visor: the three flat faces across the front of his helmet, below the ridge (found
 // by their shape in the file), drawn last with the colony's cyan power colour.
-const VISOR = [1340, 1351, 1387, 1401, 1720, 1726];
+const VISOR = [1115, 1233, 1642, 1651, 1689, 1779, 1809];
 const VISOR_MAT = new THREE.MeshStandardMaterial({ color: "#7ff5e6", emissive: "#4fdcca", emissiveIntensity: 0.8, roughness: 0.4, flatShading: true });
 {
   const index = mesh.geometry.index!, tris = index.count / 3, isVisor = new Set(VISOR);
