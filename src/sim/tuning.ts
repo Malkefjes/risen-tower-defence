@@ -84,7 +84,7 @@ export const defaultTuning = (): Tuning => ({
   smelterStone: 500,
   smelterMetal: 300,
   smeltRate: 5,
-  raidGrace: 240,
+  raidGrace: 600,
   raidInterval: 180,
   raidWarning: 60,
   noiseStone: 4,

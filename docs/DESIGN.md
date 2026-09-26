@@ -52,7 +52,7 @@ One planet is one long run over several sessions, saved in the browser.
 
 Principle: **waiting must cost something.** You don't choose when you're attacked, but you always see it coming, because mazing needs a readable threat and time to prepare.
 
-- **Raid clock, no button:** the HUD always shows the time to the next raid. First raid after a grace period (start: 4:00 after landing), then a set time after the last raid is cleared (start: 3:00). All numbers are tuning sliders; Erik tunes by playing.
+- **Raid clock, no button:** the HUD always shows the time to the next raid. First raid after a grace period (start: 10:00 after landing), then a set time after the last raid is cleared (start: 3:00). All numbers are tuning sliders; Erik tunes by playing.
 - **Activity pulls it closer:** mining, smelting and building make noise the planet hears (start: each mined stage takes 4 s off, metal 6 s; each wall piece 2 s; each tower or building 5 s; the clock runs 50% faster while a smelter works). You can't call a raid yourself, only push it by what you do.
 - **Warning:** the last 60 s are fixed (activity can't pull a raid into its own warning); the active caves stir and the HUD shows where it will come from.
 - **Raids grow** with how many you've survived (size and enemy HP).
