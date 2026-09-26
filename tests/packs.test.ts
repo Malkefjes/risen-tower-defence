@@ -24,17 +24,17 @@ describe("enemy packs", () => {
     const g = new Game(map(), { seed: 2, waveSize: () => 5, tuning: { packMin: 4, packMax: 4, packGap: 1, enemies: gruntsOnly } });
     g.startWave();
     expect(g.waveRemaining).toBe(5);
-    run(g, 3);
+    run(g, 4);
     expect(g.walkers).toHaveLength(5);
   });
 
   it("a pack moves at one speed, packs differ a little, and each enemy has its own line", () => {
-    const g = new Game(map(), { seed: 5, waveSize: () => 60, tuning: { packMin: 5, packMax: 5, packGap: 0.5, speedSpread: 0.12, enemies: { ...gruntsOnly, grunt: { ...gruntsOnly.grunt, gap: 0.5 } } } });
+    const g = new Game(map(), { seed: 5, waveSize: () => 60, tuning: { startHp: 1e9, packMin: 5, packMax: 5, packGap: 0.5, speedSpread: 0.12, enemies: { ...gruntsOnly, grunt: { ...gruntsOnly.grunt, gap: 0.6 } } } });
     g.startWave();
     const packs: number[][] = [];
     for (let p = 0; p < 12; p++) {
       const before = new Set(g.walkers.map(w => w.id));
-      run(g, 5 * 0.5 + 0.5);
+      run(g, 5 * 0.6 + 0.5);
       packs.push(g.walkers.filter(w => !before.has(w.id)).map(w => w.speed / g.tuning.enemies.grunt.speed));
     }
     for (const pack of packs) {

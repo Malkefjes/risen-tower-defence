@@ -34,9 +34,10 @@ export interface GolemLook {
 
 /** How each enemy type looks. */
 export const GOLEM_LOOKS: Record<EnemyKind, GolemLook> = {
-  grunt: { height: 0.75, color: "#6b7080", clip: "walk", bar: 0.4, stride: 0.5 },
-  runner: { height: 0.95, color: "#3e4657", clip: "run", bar: 0.5, stride: 0.5 },
-  brute: { height: 1.7, color: "#4a4f5c", clip: "walk2", bar: 1, stride: 0.5 },
+  // Erik (2026-09-26): a Grunt as tall as the player, a Runner 1.4 times, the Brute bigger still.
+  grunt: { height: 1.35, color: "#6b7080", clip: "walk", bar: 0.5, stride: 0.2 },
+  runner: { height: 1.86, color: "#3e4657", clip: "run", bar: 0.6, stride: 0.4 },
+  brute: { height: 2.5, color: "#4a4f5c", clip: "walk2", bar: 1, stride: 0.5 },
 };
 
 /** One enemy's model, driven by the view: how it moves each frame and how it flashes when hit. */

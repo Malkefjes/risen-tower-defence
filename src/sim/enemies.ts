@@ -13,9 +13,10 @@ export const ENEMY_KINDS: readonly EnemyKind[] = ["grunt", "runner", "brute"];
  * climbs out one body length apart at least, so its enemies don't start inside each other.
  */
 export const ENEMY_INFO: Record<EnemyKind, { name: string; length: number }> = {
-  grunt: { name: "Grunt", length: 0.5 },
-  runner: { name: "Runner", length: 1.7 },
-  brute: { name: "Brute", length: 1 },
+  // The golem is about half as deep as it is tall (render/golem.ts has the heights).
+  grunt: { name: "Grunt", length: 0.7 },
+  runner: { name: "Runner", length: 0.95 },
+  brute: { name: "Brute", length: 1.3 },
 };
 
 export interface EnemyStats {
