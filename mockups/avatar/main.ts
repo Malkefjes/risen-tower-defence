@@ -194,10 +194,22 @@ renderer.domElement.addEventListener("pointerup", () => { dragX = null; });
 // Test hooks (headless checks): face a heading, zoom on a point.
 (window as unknown as { mockCam: (h: number, z: number, at: number[]) => void }).mockCam = (h, z, at) => { heading = h; zoom = z; lookAt.fromArray(at); resize(); };
 const weights = { stand: 0, walk: 0, run: 1, sprint: 0 };
-const q = new THREE.Quaternion(), v = new THREE.Vector3(), fwd = new THREE.Vector3();
-const restFore = bone("RightForeArm").quaternion.clone();
+const q = new THREE.Quaternion();
+const fore = bone("RightForeArm"), hand = bone("RightHand");
+const restFore = bone("RightForeArm").quaternion.clone(), restHand = bone("RightHand").quaternion.clone();
+// Aiming holds the whole arm in one fixed pose relative to his body, whatever the clip does:
+// the rest-pose arm turned once so it points ahead and a little down (no twist from the clip).
+sentinel.updateMatrixWorld(true);
+const aimArmQ = (() => {
+  const arm = bone("RightArm"), fore = bone("RightForeArm");
+  const restQ = sentinel.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(arm.getWorldQuaternion(new THREE.Quaternion()));
+  const restDir = fore.getWorldPosition(new THREE.Vector3()).sub(arm.getWorldPosition(new THREE.Vector3())).normalize()
+    .applyQuaternion(sentinel.getWorldQuaternion(new THREE.Quaternion()).invert());
+  const aimDir = new THREE.Vector3(0, -0.25, 1).normalize();
+  return new THREE.Quaternion().setFromUnitVectors(restDir, aimDir).multiply(restQ);
+})();
 
-const touched = new Map(["Spine2", "LeftUpLeg", "RightUpLeg", "RightArm", "RightForeArm"].map(n => [bone(n), bone(n).quaternion.clone()] as const));
+const touched = new Map(["Spine2", "LeftUpLeg", "RightUpLeg", "RightArm", "RightForeArm", "RightHand"].map(n => [bone(n), bone(n).quaternion.clone()] as const));
 
 function frame(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000);
@@ -232,14 +244,11 @@ function frame(now: number): void {
   placeGun(toolUp ? gunTune.aimed : gunTune.carry);
   if (toolUp) {
     sentinel.updateMatrixWorld(true);
-    const arm = bone("RightArm"), fore = bone("RightForeArm");
+    const arm = bone("RightArm");
     fore.quaternion.copy(restFore);
-    arm.updateMatrixWorld(true);
-    const from = fore.getWorldPosition(new THREE.Vector3()).sub(arm.getWorldPosition(v)).normalize();
-    fwd.set(0, 0, 1).applyQuaternion(sentinel.quaternion).add(new THREE.Vector3(0, -0.25, 0)).normalize();
-    const delta = q.setFromUnitVectors(from, fwd);
-    const parentQ = arm.parent!.getWorldQuaternion(new THREE.Quaternion()), worldQ = arm.getWorldQuaternion(new THREE.Quaternion());
-    arm.quaternion.copy(parentQ.invert().multiply(delta.multiply(worldQ)));
+    hand.quaternion.copy(restHand);
+    const want = sentinel.getWorldQuaternion(new THREE.Quaternion()).multiply(aimArmQ);
+    arm.quaternion.copy(arm.parent!.getWorldQuaternion(q).invert().multiply(want));
   }
 
   renderer.render(scene, camera);
