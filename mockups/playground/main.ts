@@ -44,11 +44,11 @@ const map: MapDef = {
 // ------------------------------------------------------------------ settings
 
 const look = {
-  size: 1.5,
-  palette: "mix" as ColossusPalette | "mix",
+  size: 2,
+  palette: "snow" as ColossusPalette | "mix",
   hp: 12,
   speed: 1.2,
-  pack: 4,
+  pack: 1,
   gap: 3,
 };
 const PALETTES = Object.keys(COLOSSUS_PALETTES) as ColossusPalette[];
@@ -120,7 +120,7 @@ chips.addEventListener("click", e => {
 drawChips();
 const tune = game.tuning;
 section("Golem",
-  slider("Size (1 = 0.8 cells tall)", 0.5, 2.5, 0.05, () => look.size, v => { look.size = v; view.looks.barY = COLOSSUS_HEIGHT * v + 0.08; }),
+  slider("Size (1 = 0.8 cells tall)", 0.5, 3.5, 0.05, () => look.size, v => { look.size = v; view.looks.barY = COLOSSUS_HEIGHT * v + 0.08; }),
   slider("Speed (cells per second)", 0.3, 4, 0.05, () => look.speed, v => { look.speed = v; tune.enemies.grunt.speed = v; }),
   slider("HP", 1, 80, 1, () => look.hp, v => { look.hp = v; tune.enemies.grunt.hp = v; }),
   chips,
@@ -142,9 +142,8 @@ markRow.addEventListener("click", e => {
 });
 drawMarks();
 section("Marked as enemy", markRow);
-section("Packs",
-  slider("Golems per pack", 1, 12, 1, () => look.pack, v => { look.pack = v; tune.packMin = tune.packMax = v; }),
-  slider("Seconds between packs", 0.5, 12, 0.5, () => look.gap, v => { look.gap = v; tune.packGap = v; }),
+section("Spawning",
+  slider("Seconds between golems", 0.5, 12, 0.5, () => look.gap, v => { look.gap = v; tune.packGap = v; }),
 );
 section("Gun",
   slider("Damage", 0.5, 10, 0.5, () => tune.towers.gun[0]!.damage, v => { tune.towers.gun[0]!.damage = v; tune.towers.gun[1]!.damage = v; }),
@@ -160,7 +159,8 @@ function spawn(n: number, size: number): void {
 }
 const spawnRow = document.createElement("div");
 spawnRow.className = "chips";
-for (const [label, go] of [["Spawn 1", () => spawn(1, 1)], ["Spawn a pack", () => spawn(1, look.pack)], ["Spawn 5 packs", () => spawn(5, look.pack)]] as const) {
+// This golem comes alone: "Spawn 5" sends five, one after another.
+for (const [label, go] of [["Spawn 1", () => spawn(1, 1)], ["Spawn 5", () => spawn(5, 1)]] as const) {
   const b = document.createElement("button");
   b.className = "chip";
   b.textContent = label;
