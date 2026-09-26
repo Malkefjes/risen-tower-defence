@@ -938,8 +938,8 @@ export class GameView {
     if (!mats) {
       mats = [];
       o.traverse(c => {
-        const m = (c as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
-        if (m?.isMeshStandardMaterial && !mats!.includes(m)) mats!.push(m);
+        const ms = (c as THREE.Mesh).material as THREE.MeshStandardMaterial | THREE.MeshStandardMaterial[] | undefined;
+        for (const m of Array.isArray(ms) ? ms : ms ? [ms] : []) if (m.isMeshStandardMaterial && !mats!.includes(m)) mats!.push(m);
       });
       o.userData.mats = mats;
     }

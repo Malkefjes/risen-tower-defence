@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { GOLEM_CLIPS, GOLEM_LOOKS, golemEnemy, type Enemy, type GolemClip, type GolemLook } from "../../src/render/golem";
+import { GOLEM_CLIPS, GOLEM_LOOKS, golemEnemy, setGolemSkin, type Enemy, type GolemClip, type GolemLook, type GolemSkin } from "../../src/render/golem";
 import { EVENING } from "../../src/render/models";
 import type { EnemyKind } from "../../src/sim/enemies";
 import { defaultTuning } from "../../src/sim/tuning";
@@ -74,7 +74,7 @@ function rebuild(): void {
   enemy = golemEnemy(look, Math.max(speed, 0.001));
   holder.add(enemy.object);
   resize();
-  state.textContent = `${TYPES.find(t => t[0] === kind)![1]} · ${look.height.toFixed(2)} cells tall · ${speed} cells/s · stride ${look.stride.toFixed(2)} · ${look.color}`;
+  state.textContent = `${TYPES.find(t => t[0] === kind)![1]} · ${look.height.toFixed(2)} cells tall · ${speed} cells/s · stride ${look.stride.toFixed(2)}`;
 }
 
 // ------------------------------------------------------------------ controls
@@ -103,6 +103,12 @@ syncs.push(syncStride);
 syncStride();
 strideInput.addEventListener("input", () => { strides[kind] = Number(strideInput.value); strideOut.textContent = strides[kind].toFixed(2); rebuild(); });
 clipBar.appendChild(strideLabel);
+// What they're made of: the game's stone, or one of the three ice looks being tried.
+const SKIN_LABEL: [GolemSkin, string][] = [["stone", "Stone"], ["glacier", "A · Glacier"], ["clear", "B · Clear ice"], ["frost", "C · Frost"]];
+let skin: GolemSkin = "glacier";
+setGolemSkin(skin);
+const skinBar = document.getElementById("skins")!;
+for (const [s, label] of SKIN_LABEL) button(skinBar, label, () => skin === s, () => { skin = s; setGolemSkin(s); rebuild(); });
 
 // ------------------------------------------------------------------ animation
 
