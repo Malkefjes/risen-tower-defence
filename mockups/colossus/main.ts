@@ -7,7 +7,7 @@ import "./style.css";
 // Erik's Stonebound Colossus, his own 705-triangle mesh, made game-ready: cut into
 // five parts that can move (body, two arms, two legs) around shoulder and hip pivots,
 // and coloured by rule (rock on the sides, a second colour on faces that point up,
-// darker underneath), plus glowing eyes. One material per golem, colours in the vertices.
+// darker underneath). One material per golem, colours in the vertices.
 
 THREE.ColorManagement.enabled = false;
 
@@ -51,7 +51,7 @@ function segDist(p: THREE.Vector3, a: V3, b: V3): number {
  * Cut the mesh into parts and colour it. `side`, `top`, `under`: rock on the sides,
  * the colour of faces that point up, and faces that point down.
  */
-function colossus(src: THREE.BufferGeometry, name: string, side: [string, string], top: string, under: string, eye: string, seed: number): MechDesign {
+function colossus(src: THREE.BufferGeometry, name: string, side: [string, string], top: string, under: string, seed: number): MechDesign {
   const g = src.index ? src.toNonIndexed() : src.clone();
   const p = g.attributes.position!, rnd = rand(seed);
   const pivots: Record<string, V3> = {
@@ -63,7 +63,6 @@ function colossus(src: THREE.BufferGeometry, name: string, side: [string, string
   // The low evening sun barely lights faces that point up, so their colour is pushed
   // past 1 to read as bright snow or ice (vertex colours may go above white).
   const sides = side.map(h => new THREE.Color(h)), topC = new THREE.Color(top).multiplyScalar(1.6), underC = new THREE.Color(under);
-  let headZ = -1;
   for (let t = 0; t < p.count; t += 3) {
     for (let k = 0; k < 3; k++) tri[k]!.fromBufferAttribute(p, t + k);
     c.copy(tri[0]!).add(tri[1]!).add(tri[2]!).divideScalar(3);
@@ -74,7 +73,6 @@ function colossus(src: THREE.BufferGeometry, name: string, side: [string, string
     const col = n.y > 0.38 ? topC : n.y < -0.35 ? underC : sides[rnd() < 0.8 ? 0 : 1]!;
     const piv = pivots[best.part]!, o = out[best.part]!;
     for (const v of tri) { o.pos.push((v.x - piv[0]) * SCALE, (v.y - piv[1]) * SCALE, (v.z - piv[2]) * SCALE); o.col.push(col.r, col.g, col.b); }
-    if (best.part === "body" && Math.abs(c.x) < 0.12 && c.y > 0.4 && c.y < 0.7) headZ = Math.max(headZ, c.z);
   }
   const geo = (k: string) => {
     const b = new THREE.BufferGeometry();
@@ -85,19 +83,11 @@ function colossus(src: THREE.BufferGeometry, name: string, side: [string, string
     if (k === "body") b.translate(0, LIFT * SCALE, 0);
     return b;
   };
-  // Two glowing eyes on the front of the head.
-  const eyeY = (0.56 + LIFT) * SCALE, eyeZ = (headZ + 0.03) * SCALE;
-  const eyes = new THREE.BufferGeometry();
-  const e1 = new THREE.BoxGeometry(0.04, 0.018, 0.012).toNonIndexed().rotateZ(0.3).translate(0.04, eyeY, eyeZ);
-  const e2 = new THREE.BoxGeometry(0.04, 0.018, 0.012).toNonIndexed().rotateZ(-0.3).translate(-0.04, eyeY, eyeZ);
-  eyes.setAttribute("position", new THREE.Float32BufferAttribute([...e1.attributes.position!.array, ...e2.attributes.position!.array], 3));
-  const white = new Array(eyes.attributes.position!.count * 3).fill(1);
-  eyes.setAttribute("color", new THREE.Float32BufferAttribute(white, 3));
   const at = (v: V3): V3 => [v[0] * SCALE, (v[1] + LIFT) * SCALE, v[2] * SCALE];
   return {
     name, body: geo("body"), armR: geo("armR"), armL: geo("armL"), legR: geo("legR"), legL: geo("legL"),
     // The mockup places arms and legs at +x and mirrored -x; these pivots are symmetric.
-    shoulder: at([SHOULDER, SHOULDER_Y, 0]), hip: at([HIP, HIP_Y, 0]), eyes, eyeColor: eye,
+    shoulder: at([SHOULDER, SHOULDER_Y, 0]), hip: at([HIP, HIP_Y, 0]),
     gait: { speed: 5, stride: 0.3, swing: 0.32, bob: 0.03, roll: 0.06, lean: 0.06 },
   };
 }
@@ -180,9 +170,9 @@ new GLTFLoader().parse(bin.buffer, "", gltf => {
   gltf.scene.updateMatrixWorld(true);
   gltf.scene.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh && !src) src = m.geometry.clone().applyMatrix4(m.matrixWorld); });
   show([
-    colossus(src!, "Snow-capped", ["#5a5f70", "#555a6b"], "#f2f4fa", "#3a3d4a", "#8fd8ff", 1),
-    colossus(src!, "Ice-crusted", ["#3f4454", "#3b4050"], "#86cbe6", "#2a2d38", "#bfeaff", 2),
-    colossus(src!, "Your golem's colours", ["#3d352f", "#413832"], "#a08c74", "#2a2420", "#7fa8ff", 3),
+    colossus(src!, "Snow-capped", ["#5a5f70", "#555a6b"], "#f2f4fa", "#3a3d4a", 1),
+    colossus(src!, "Ice-crusted", ["#3f4454", "#3b4050"], "#86cbe6", "#2a2d38", 2),
+    colossus(src!, "Your golem's colours", ["#3d352f", "#413832"], "#a08c74", "#2a2420", 3),
   ]);
 }, err => { document.querySelector(".brand span")!.textContent = `Model failed to load: ${err.message}`; });
 
