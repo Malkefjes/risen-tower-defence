@@ -13,7 +13,6 @@ import type { ShipRig } from "./ship";
 import { MAX_TOWER_SIZE, TOWER_INFO, TOWER_KINDS, type Tower, type TowerKind } from "../sim/towers";
 import type { Cell } from "../sim/types";
 import { MissileFx } from "./blast";
-import { ColonyLights } from "./colonyLights";
 import type { BakedPart } from "./bake";
 import { createDefaultModels, createGlows, createMaterials, DECK_TOP, EVENING, type Glows, type Materials, type ModelLibrary, type TurretRig } from "./models";
 
@@ -140,8 +139,6 @@ export class GameView {
   private bars = new Map<number, THREE.Group>();
   private glows: Glows;
   private missileFx: MissileFx;
-  /** The colony's lights (off until a look is picked). */
-  readonly lights: ColonyLights;
   private boltGeo = new THREE.SphereGeometry(0.045, 8, 6);
   private boltMat = new THREE.MeshBasicMaterial({ color: "#ffd08a" });
   /** The ship's gun fires cyan bolts from its reactor core. */
@@ -213,7 +210,6 @@ export class GameView {
     this.glows = glows;
     this.models = createDefaultModels(this.mat);
     this.missileFx = new MissileFx(this.scene, this.mat, glows.muzzle);
-    this.lights = new ColonyLights(this.scene, this.mat, glows);
 
     const P = EVENING;
     this.scene.background = new THREE.Color(P.background);
@@ -537,7 +533,6 @@ export class GameView {
     this.aimTowers(simDt);
     this.updateBolts(simDt);
     this.missileFx.update(simDt);
-    this.lights.update(this.game, frameDt);
     this.updateChop(frameDt);
     this.updateGhost(o);
     this.updateTowerGhost(o);
