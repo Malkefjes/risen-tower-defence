@@ -101,7 +101,6 @@ export class Hud {
   private lastSig = "";
   private barSig = "";
   private smelterSig = "";
-  private lastHp = Infinity;
   private toastTimer = 0;
   private icons = itemIcons();
   /** "+N" over the node a stage just broke off (adds up if stages break close together). */
@@ -285,11 +284,8 @@ export class Hud {
   update(sel: HudSelection): void {
     const g = this.game;
     const tower = g.towers.find(t => t.id === sel.selectedTowerId);
-    // The ship's HP flashes when enemies claw it.
-    const hpNow = Math.ceil(g.hp);
-    if (hpNow < this.lastHp && !g.shipDown) { const el = $("hp"); el.classList.remove("hurt"); void el.offsetWidth; el.classList.add("hurt"); }
-    this.lastHp = hpNow;
-    const sig = JSON.stringify([g.phase, g.round, sel.selectedTowerId, sel.selectedShip, g.waveRemaining, hpNow, g.shipDown, g.upkeepPaid,
+    // The top bar stays bare (Erik): the ship shows its own HP bar when hurt, the raid clock the rest.
+    const sig = JSON.stringify([g.phase, g.round, sel.selectedTowerId, sel.selectedShip, g.waveRemaining, g.shipDown, g.upkeepPaid,
       g.tuning.towers, g.tuning.ship, g.tuning.sellRefund, g.tuning.heavySlow, tower?.size, tower?.paid, tower?.paidNow,
       tower && tower.size < TOWER_INFO[tower.kind].maxSize && g.ore("alloy") >= g.growCost(tower)]);
     // Damage dealt ticks up during a raid: update just that number, so the buttons stay put.
@@ -297,11 +293,6 @@ export class Hud {
     if (sig === this.lastSig) return;
     this.lastSig = sig;
 
-    $("round").textContent = `Raid ${g.round}`;
-    const pill = $("phase");
-    pill.textContent = g.phase === "planning" ? "Calm" : g.phase === "wave" ? "Raid" : "Run over";
-    pill.className = `pill ${g.phase}`;
-    $("hp").innerHTML = g.shipDown ? "Ship <b>destroyed</b>" : `Ship <b>${hpNow}</b>`;
     $("upkeep").hidden = g.upkeepPaid || g.shipDown;
 
     // Run over: a notice, not a popup. The map stays visible behind it.

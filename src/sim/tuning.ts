@@ -55,6 +55,8 @@ export interface Tuning {
   shipStartStone: number;
   /** Seconds for something unsupplied or unpaid to decay from full HP to broken. */
   decayTime: number;
+  /** Seconds for paid upkeep to mend a supplied wall from broken to full (in calm only). */
+  repairTime: number;
   /** HP of a stone wall piece (it breaks as a whole); plating multiplies it. At most `wallClawers` enemies claw one piece at a time. */
   wallHp: number;
   platedHpMult: number;
@@ -122,7 +124,8 @@ export const defaultTuning = (): Tuning => ({
   supplyRadius: 40,
   upkeepRate: 0.03,
   shipStartStone: 200,
-  decayTime: 300,
+  decayTime: 900,
+  repairTime: 240,
   wallHp: 600,
   platedHpMult: 3,
   wallClawers: 2,

@@ -19,7 +19,6 @@ export const CHUNK = 16;
 const BARE_COLORS: Record<Bare, { core: THREE.Color; rim: THREE.Color }> = {
   ice: { core: new THREE.Color("#9fc8e2"), rim: new THREE.Color("#d8eaf5") },
   scorch: { core: new THREE.Color("#6a6572"), rim: new THREE.Color("#b3afbb") },
-  rift: { core: new THREE.Color("#4a3a5e"), rim: new THREE.Color("#a08fbf") },
   rock: { core: new THREE.Color("#6e717e"), rim: new THREE.Color("#b3b6c1") },
 };
 

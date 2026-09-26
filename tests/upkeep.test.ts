@@ -44,7 +44,7 @@ describe("upkeep and decay", () => {
     expect(g.upkeepPaid).toBe(true);
   });
 
-  it("unpaid upkeep decays what the ship supplies; paying stops it", () => {
+  it("unpaid upkeep decays what the ship supplies; paid upkeep mends it back, slowly, in calm", () => {
     const g = game();
     const p = g.place("I", 0, [3, 0]).piece!;
     run(g, 30); // 3 stone/min owed, nothing in the ship
@@ -55,8 +55,23 @@ describe("upkeep and decay", () => {
     run(g, 21);
     expect(g.upkeepPaid).toBe(true);
     const later = g.pieceHp(p).hp;
-    run(g, 10);
-    expect(g.pieceHp(p).hp).toBe(later);
+    run(g, 5);
+    expect(g.pieceHp(p).hp).toBeGreaterThan(later);
+    run(g, g.tuning.repairTime);
+    expect(g.pieceHp(p).hp).toBe(g.pieceHp(p).max);
+  });
+
+  it("nothing is repaired during a raid: upkeep doesn't mend, and a repair by hand waits for calm", () => {
+    const g = game();
+    const p = g.place("I", 0, [3, 0]).piece!;
+    g.shipStore.add("stone", 500);
+    g.hotbar.add("stone", 500);
+    g.world.pieceHp.set(p.id, g.pieceHp(p).max / 2);
+    g.startWave();
+    run(g, 5);
+    expect(g.pieceHp(p).hp).toBeLessThanOrEqual(g.pieceHp(p).max / 2);
+    expect(g.canRepair(p)).toBe(false);
+    expect(g.repair(p.id)).toBe(false);
   });
 
   it("walls cut off from supply decay to broken; supplied ones don't", () => {

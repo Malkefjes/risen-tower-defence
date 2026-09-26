@@ -2,10 +2,10 @@
  * The generated world: the game's map. Pure logic:
  * a seed goes in, a `MapDef` plus the few extra fields the renderer needs come out.
  *
- * Zones around the landing site: a clearing, a pine forest belt, rocky highlands
- * (a bit more metal) and violet-stained wastes to the north-west. Raised ground
- * (plateaus with cliff edges) is most common in the highlands. Snow is pure white;
- * bare patches (ice, the landing scorch, wastes earth, wind-scoured rock) show where
+ * Zones around the landing site: a clearing, a pine forest belt, and windswept rocky
+ * highlands all around beyond it (a bit more metal, few trees). Raised ground (plateaus
+ * with cliff edges) grows more common the further out you go. Snow is pure white;
+ * bare patches (ice, the landing scorch, wind-scoured rock) show where
  * it's gone. Enemy spawners are cave exits scattered across the map (never on raised
  * ground), rarer than ore, each facing the ship and always able to reach it.
  */
@@ -29,9 +29,9 @@ export function noise(seed: number): (x: number, y: number) => number {
 }
 export const smooth = (a: number, b: number, x: number): number => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
-export interface Zones { clearing: number; forest: number; highlands: number; wastes: number }
-export type Bare = "ice" | "scorch" | "rift" | "rock";
-export const BARE_KINDS: readonly Bare[] = ["ice", "scorch", "rift", "rock"];
+export interface Zones { clearing: number; forest: number; highlands: number }
+export type Bare = "ice" | "scorch" | "rock";
+export const BARE_KINDS: readonly Bare[] = ["ice", "scorch", "rock"];
 /** Patch levels: at `BARE_RIM` the snow thins, at `BARE_CORE` the ground shows. */
 export const BARE_RIM = 0.5, BARE_CORE = 0.6;
 
@@ -56,7 +56,6 @@ export interface WorldGenOptions {
   caves?: number;
 }
 
-const WASTES_DIR = Math.atan2(-1, -1); // north-west on the grid (x east, y south)
 /** Caves keep at least this far from the ship (cells). */
 /** Chance a node is metal, by zone: about three stone nodes per metal node overall. */
 export const METAL_FOREST = 0.17, METAL_HIGHLANDS = 0.27;
@@ -71,30 +70,23 @@ export function generateWorld(seed: number, opts: WorldGenOptions = {}): Generat
     const wob = (edgeNoise(x / 18, y / 18) - 0.5) * 16;
     const d = Math.hypot(x, y) + wob;
     const clearing = 1 - smooth(9, 13, d);
-    const far = smooth(42, 52, d);
-    let da = Math.abs(Math.atan2(y, x) - WASTES_DIR);
-    if (da > Math.PI) da = 2 * Math.PI - da;
-    const toward = 1 - smooth(0.7, 1.05, da + (edgeNoise(x / 25 + 9, y / 25) - 0.5) * 0.5);
-    const wastes = far * toward * smooth(58, 70, d);
-    const highlands = Math.max(0, far - wastes);
-    const forest = Math.max(0, 1 - clearing - highlands - wastes);
-    return { clearing, forest, highlands, wastes };
+    const highlands = smooth(42, 52, d);
+    const forest = Math.max(0, 1 - clearing - highlands);
+    return { clearing, forest, highlands };
   };
 
-  const rand = rng(seed), grove = noise(seed * 3 + 1), rocky = noise(seed * 7 + 2), detail = noise(seed * 11 + 4);
+  const rand = rng(seed), grove = noise(seed * 3 + 1), rocky = noise(seed * 7 + 2);
   const lakes = noise(seed * 13 + 5), ridges = noise(seed * 17 + 6), jitter = noise(seed * 19 + 7);
   const bareAt = (x: number, y: number): Record<Bare, number> => {
     const z = zonesAt(x, y), j = (jitter(x / 2.5, y / 2.5) - 0.5) * 0.25, d = Math.hypot(x, y);
     // Frozen lakes: in the forest belt and clearing, well away from the landing site.
-    const ice = smooth(0.66, 0.74, lakes(x / 16, y / 16) + j * 0.3) * (1 - z.highlands - z.wastes) * smooth(16, 22, d);
+    const ice = smooth(0.66, 0.74, lakes(x / 16, y / 16) + j * 0.3) * (1 - z.highlands) * smooth(16, 22, d);
     // The ship's engines melted and scorched a ring where it came down.
     const scorch = 1 - smooth(2.6, 4.2, d + j * 3);
-    // Wastes: patches of stained, heated earth.
-    const rift = z.wastes * smooth(0.6, 0.72, detail(x / 5, y / 5) + j);
     // Wind scours the highland ridges down to rock.
     const rock = z.highlands * smooth(0.62, 0.72, ridges(x / 7, y / 7) + j);
     const clear = 1 - Math.min(1, ice * 1.6);
-    return { ice, scorch, rift: rift * clear, rock: rock * clear };
+    return { ice, scorch, rock: rock * clear };
   };
   const bareKind = (x: number, y: number): Bare | null => {
     const m = bareAt(x, y);
@@ -123,7 +115,9 @@ export function generateWorld(seed: number, opts: WorldGenOptions = {}): Generat
     if (Math.hypot(x, y) < 24 || onIce(x, y)) continue;
     const z = zonesAt(x + 0.5, y + 0.5);
     const e = elev(x / 22, y / 22) * 0.8 + elev2(x / 9, y / 9) * 0.2;
-    const threshold = 0.64 * z.highlands + 0.7 * z.wastes + 0.8 * (z.forest + z.clearing);
+    // Cliffs grow more common the further out: the bar drops with distance from the landing site.
+    const out = smooth(30, 105, Math.hypot(x, y));
+    const threshold = 0.64 * z.highlands + 0.8 * (z.forest + z.clearing) - 0.14 * out;
     if (e > threshold) high.add(cellKey(x, y));
   }
   const n8 = (set: Set<string>, x: number, y: number) => {
@@ -189,13 +183,12 @@ export function generateWorld(seed: number, opts: WorldGenOptions = {}): Generat
   }
 
   // --- Ore where it belongs: in the forest belt and highland outcrops, mostly stone.
-  // The wastes hold none (yet).
   const ore: OreNodeDef[] = [];
   const oreTarget = opts.ore ?? 130;
   for (let tries = 0; tries < 8000 && ore.length < oreTarget; tries++) {
     const x = Math.floor((rand() * 2 - 1) * (R - 4)), y = Math.floor((rand() * 2 - 1) * (R - 4));
     const z = zonesAt(x + 1.5, y + 1.5);
-    if (z.clearing > 0.05 || z.wastes > 0.3 || !free(x + 1, y + 1, 2)) continue;
+    if (z.clearing > 0.05 || !free(x + 1, y + 1, 2)) continue;
     if (ore.some(n => Math.hypot(n.x - x, n.y - y) < 6)) continue;
     let kind: OreKind;
     // A few stone nodes per metal node: metal turns up in the forest belt too, so a
@@ -208,7 +201,7 @@ export function generateWorld(seed: number, opts: WorldGenOptions = {}): Generat
   }
 
   // --- Trees, dead pines and crystal by zone.
-  const trees: TreeDef[] = [], dead: TreeDef[] = [], crystals: TreeDef[] = [];
+  const trees: TreeDef[] = [], dead: TreeDef[] = [];
   // Trees never stand in touching cells (Erik): each has a free tile all round it.
   const isTree = (x: number, y: number) => { const k = cells.get(cellKey(x, y)); return k === "tree" || k === "dead"; };
   const treeNear = (x: number, y: number) => {
@@ -220,11 +213,11 @@ export function generateWorld(seed: number, opts: WorldGenOptions = {}): Generat
     const z = zonesAt(x + 0.5, y + 0.5);
     if (z.clearing > 0.5) continue;
     const g = grove(x / 7, y / 7), r = rocky(x / 5, y / 5), roll = rand();
-    if (z.wastes > 0.5) {
-      if (r > 0.62 && roll < (r - 0.55) * 0.9 * z.wastes) { crystals.push({ x, y, s: 0.7 + rand() * 0.6 }); cells.set(cellKey(x, y), "crystal"); }
-      else if (g > 0.6 && roll < 0.12 && !treeNear(x, y)) { dead.push({ x, y, s: 0.9 + rand() * 0.3 }); cells.set(cellKey(x, y), "dead"); }
-    } else if (z.highlands > 0.5) {
-      if (g > 0.72 && roll < 0.12 && !treeNear(x, y)) { trees.push({ x, y, s: 0.8 + rand() * 0.25 }); cells.set(cellKey(x, y), "tree"); }
+    if (z.highlands > 0.5) {
+      // Windswept: a few hardy pines, and dead ones further out.
+      const bleak = smooth(60, 95, Math.hypot(x, y));
+      if (g > 0.72 && roll < 0.12 * (1 - bleak) && !treeNear(x, y)) { trees.push({ x, y, s: 0.8 + rand() * 0.25 }); cells.set(cellKey(x, y), "tree"); }
+      else if (g > 0.66 && r > 0.5 && roll < 0.06 * bleak && !treeNear(x, y)) { dead.push({ x, y, s: 0.9 + rand() * 0.3 }); cells.set(cellKey(x, y), "dead"); }
     } else {
       if (((g > 0.5 && roll < (g - 0.42) * 1.5) || roll < 0.01) && !treeNear(x, y)) { trees.push({ x, y, s: 0.85 + rand() * 0.35 }); cells.set(cellKey(x, y), "tree"); }
     }
@@ -287,7 +280,6 @@ export function generateWorld(seed: number, opts: WorldGenOptions = {}): Generat
     rocks: [],
     trees: keep(trees, "tree"),
     deadTrees: keep(dead, "dead"),
-    crystals: keep(crystals, "crystal"),
     plateaus: [...cells].filter(([, k]) => k === "plateau").map(([k]) => parse(k)),
     ore,
   };

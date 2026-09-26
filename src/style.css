@@ -32,8 +32,6 @@ button { font: inherit; color: inherit; }
 .brand { font-weight: 700; font-size: 18px; letter-spacing: .14em; }
 .status { display: flex; gap: 8px; align-items: center; font-weight: 600; }
 .pill { padding: 3px 10px; border-radius: 99px; background: var(--panel); border: 1px solid var(--line); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
-.pill.planning { color: var(--cyan); border-color: rgba(79,220,202,.5); }
-.pill.wave { color: var(--orange); border-color: rgba(255,122,47,.55); }
 .pill.draft { color: var(--warm); border-color: rgba(255,180,90,.5); }
 .tools { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
 .tool { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer; font-weight: 600; font-size: 12px; color: var(--muted); backdrop-filter: blur(6px); }
@@ -127,11 +125,6 @@ button:focus-visible { outline: 2px solid var(--warm); outline-offset: 2px; }
 .wheel .it.off { opacity: .35; filter: grayscale(1); }
 @media (max-width: 420px) { .slot { width: 44px; height: 44px; } .slot img { width: 32px; height: 32px; } }
 
-.stat { padding: 3px 10px; border-radius: 99px; background: var(--panel); border: 1px solid var(--line); font-size: 13px; font-variant-numeric: tabular-nums; display: inline-flex; gap: 5px; align-items: center; }
-.stat b { font-weight: 700; }
-.stat.hp b { color: #ff9aa8; }
-.stat.hurt { animation: hurt .45s ease-out; }
-@keyframes hurt { from { background: rgba(255,107,127,.6); } to { background: var(--panel); } }
 .pill.over { color: var(--bad); border-color: rgba(255,107,127,.55); }
 
 .inspect[hidden] { display: none; }

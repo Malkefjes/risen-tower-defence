@@ -156,7 +156,7 @@ Measured on the standard maze (least alloy that holds, ship losing at most 5%):
 - **Building needs supply (built):** walls must join the network (the first touches the ship), so no loose walls in the open; a smelter must touch it; nothing goes down beyond the radius. A later tech could allow disconnected walls. The radius shows as a ring on the snow while you hold something to build; unsupplied walls look cold and dim.
 - **Breaches cut supply:** a broken or picked-up piece can leave the walls beyond it unsupplied.
 - **Upkeep costs resources (built):** the ship (and hubs) has its own 24-slot inventory (also storage; it starts a run with 200 stone so the first walls don't decay at once). Click the ship when you're next to it to open it (from further off, a click still shows its gun). Every minute it takes 3% of each supplied thing's build price (stone for stone walls and the smelter, alloy for plating and towers), about 10% per raid cycle; a bigger base costs more. The ship's panel shows the upkeep per minute and how long the stock lasts. If the ship is destroyed its inventory is lost.
-- **Decay (built):** anything unsupplied (cut off, out of range, upkeep unpaid, or the ship destroyed) loses HP steadily, full to broken in about 5 minutes; it stops when supply returns, and repair works as normal. The top bar shows "Upkeep unpaid" while it's unpaid. Towers keep firing (power may switch them later); they go when their wall breaks.
+- **Decay (built):** anything unsupplied (cut off, out of range, upkeep unpaid, or the ship destroyed) loses HP slowly, full to broken in about 15 minutes; it stops when supply returns. **Paid upkeep mends** supplied walls, slowly and in calm only (broken to full in about 4 minutes); repair by hand is calm-only too: during a raid a wall holds with what it has (decided 2026-09-26). The top bar shows "Upkeep unpaid" while it's unpaid. Towers keep firing (power may switch them later); they go when their wall breaks.
 - **The hub** (later): a buildable building with its own supply area and inventory that acts as a ship; it can be built anywhere, so you can recover or start an outpost.
 
 ### Walls
@@ -241,7 +241,7 @@ Not locked yet: zoom range, final model shapes.
 | Visual style | Clean low-poly 3D, fixed iso-style camera, evening light |
 | Palette | Colony orange, cyan power, dark steel, white; violet aliens |
 | Walls look | Armored deck; neighbouring walls fuse seamlessly; one orange |
-| Map | No edge; enemies can always go around. Generated world (zones, raised ground with cliffs, forests, lakes) |
+| Map | No edge; enemies can always go around. Generated world: a clearing and pine forest at the centre, windswept rocky highlands all around beyond (no violet wastes, decided 2026-09-26), raised ground with cliffs growing more common the further out, lakes |
 | Spawners | Caves anywhere except raised ground, 24+ cells from the ship, rarer than ore; the nearest few send each wave |
 | Waves | Each nearby cave sends packs of 3–5 a few seconds apart; a pack moves at one speed, packs vary a little in speed; enemies walk slightly off the tile centre (looks only) |
 | Basic enemy | The leaper: dark red, Tyranid-like, climbs out of a cave, bursts on death |

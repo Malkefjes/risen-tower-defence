@@ -610,11 +610,12 @@ export class Game {
     return max > hp ? Math.ceil(((max - hp) / max) * this.wallCost(piece.cells.length)) : 0;
   }
 
+  /** Repairs happen in calm only: during a raid a wall holds with what it has. */
   canRepair(piece: PlacedPiece | undefined): piece is PlacedPiece {
-    return !!piece && this.repairCost(piece) > 0 && this.ore("stone") >= this.repairCost(piece);
+    return !!piece && this.phase === "planning" && this.repairCost(piece) > 0 && this.ore("stone") >= this.repairCost(piece);
   }
 
-  /** Repair a piece to full HP for stone, even mid-raid. */
+  /** Repair a piece to full HP for stone, in calm. */
   repair(pieceId: number): boolean {
     const piece = this.pieces.find(p => p.id === pieceId);
     if (!this.canRepair(piece)) return false;
@@ -768,26 +769,33 @@ export class Game {
 
   /**
    * Take upkeep from the ship's stock as it adds up, and decay anything unsupplied, or
-   * everything supplied while the upkeep goes unpaid. Decay stops when it's paid again.
+   * everything supplied while the upkeep goes unpaid (slowly: `decayTime`). Paid upkeep
+   * mends supplied walls, slowly and in calm only (`repairTime` from broken to full).
    */
   private stepUpkeep(dt: number): void {
     if (!this.supplyRule) return;
-    if (this.god) { this.upkeepPaid = true; return; }
-    const u = this.upkeepPerMinute();
     let paid = true;
-    for (const kind of ["stone", "alloy"] as const) {
-      this.owed[kind] += (u[kind] * dt) / 60;
-      const whole = Math.floor(this.owed[kind]);
-      if (whole <= 0) continue;
-      const took = this.shipStore.remove(kind, whole);
-      this.owed[kind] -= took;
-      if (took < whole) { paid = false; this.owed[kind] = Math.min(this.owed[kind], 1); }
+    if (!this.god) {
+      const u = this.upkeepPerMinute();
+      for (const kind of ["stone", "alloy"] as const) {
+        this.owed[kind] += (u[kind] * dt) / 60;
+        const whole = Math.floor(this.owed[kind]);
+        if (whole <= 0) continue;
+        const took = this.shipStore.remove(kind, whole);
+        this.owed[kind] -= took;
+        if (took < whole) { paid = false; this.owed[kind] = Math.min(this.owed[kind], 1); }
+      }
     }
     this.upkeepPaid = paid;
-    const rate = dt / Math.max(1, this.tuning.decayTime);
+    const rate = dt / Math.max(1, this.tuning.decayTime), mend = dt / Math.max(1, this.tuning.repairTime);
     const broken: number[] = [];
     for (const p of this.pieces) {
-      if (this.upkeepPaid && this.pieceSupplied(p)) continue;
+      if (this.upkeepPaid && this.pieceSupplied(p)) {
+        if (this.phase !== "planning") continue;
+        const max = this.wallMaxHp(p), hp = this.world.pieceHp.get(p.id) ?? max;
+        if (hp < max) this.world.pieceHp.set(p.id, Math.min(max, hp + max * mend));
+        continue;
+      }
       const max = this.wallMaxHp(p), hp = (this.world.pieceHp.get(p.id) ?? max) - max * rate;
       if (hp > 0) this.world.pieceHp.set(p.id, hp);
       else broken.push(p.id);
