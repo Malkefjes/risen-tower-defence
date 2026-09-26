@@ -91,7 +91,7 @@ mesh.material = GREY;
 // follows the wrist. Set up once in the bind pose (arms out, palms down): the grip at the
 // middle of the hand, the barrel along the arm, the top toward his front (the thumb side).
 // The model's muzzle is its -x end, its top +y.
-const GUN_LENGTH = 0.3 * rigHeight, GRIP = new THREE.Vector3(0.58, -0.52, 0);
+const GUN_LENGTH = 0.3 * rigHeight, GRIP = new THREE.Vector3(0.58, -0.07, 0);
 // The wrist: carried, the barrel points ahead and a little down; aimed, along the arm.
 const gunTune = { along: 0, up: 0, side: 0, roll: 0, carry: -1.35, aimed: 0 };
 const gun = new THREE.Group();
