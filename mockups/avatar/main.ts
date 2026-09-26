@@ -8,7 +8,7 @@ import { GLB } from "./sentinelData";
 // Erik's new avatar, the Neon Star Sentinel (a skinned model with walk and run clips),
 // running circles on the snow in the game's evening light.
 // Stand, walk, run and sprint play his clips; jump and aiming the gun are added in
-// code on top of them; both in one grey for now.
+// code on top of them; both in one dark steel for now.
 
 THREE.ColorManagement.enabled = false;
 
@@ -81,8 +81,8 @@ const size = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
 const k = rigHeight / size.y;
 model.scale.setScalar(k);
 
-/** One grey for the Sentinel and his gun, the light armour grey; the colour scheme comes later. */
-const GREY = new THREE.MeshStandardMaterial({ color: "#eef1f6", flatShading: true, roughness: 0.6, metalness: 0.05 });
+/** One colour for the Sentinel and his gun, the dark steel of his hands and feet; the colour scheme comes later. */
+const GREY = new THREE.MeshStandardMaterial({ color: "#2c3142", flatShading: true, roughness: 0.6, metalness: 0.05 });
 mesh.material = GREY;
 
 // The gun, Erik's Starforge Blaster: in the right hand, its barrel along the forearm (so it
