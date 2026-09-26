@@ -117,7 +117,7 @@ export function generateWorld(seed: number, opts: WorldGenOptions = {}): Generat
     const e = elev(x / 22, y / 22) * 0.8 + elev2(x / 9, y / 9) * 0.2;
     // Cliffs grow more common the further out: the bar drops with distance from the landing site.
     const out = smooth(30, 105, Math.hypot(x, y));
-    const threshold = 0.64 * z.highlands + 0.8 * (z.forest + z.clearing) - 0.14 * out;
+    const threshold = 0.64 * z.highlands + 0.8 * (z.forest + z.clearing) - 0.03 * out;
     if (e > threshold) high.add(cellKey(x, y));
   }
   const n8 = (set: Set<string>, x: number, y: number) => {
