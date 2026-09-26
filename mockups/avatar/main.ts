@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { EVENING } from "../../src/render/models";
+import { colonyOrange } from "../../src/render/palette";
 import { createRig } from "../../src/render/rig";
 import { BLASTER } from "./blasterData";
 import { GLB } from "./sentinelData";
@@ -86,20 +87,30 @@ model.scale.setScalar(k);
 /** One colour for the Sentinel and his gun, the dark steel of his hands and feet; the colour scheme comes later. */
 const GREY = new THREE.MeshStandardMaterial({ color: "#2c3142", flatShading: true, roughness: 0.6, metalness: 0.05 });
 // The visor: the three flat faces across the front of his helmet, below the ridge (found
-// by their shape in the file), drawn last with the colony's cyan power colour.
+// by their shape in the file), in the colony's cyan power colour.
 const VISOR = [1115, 1233, 1642, 1651, 1689, 1779, 1809];
 const VISOR_MAT = new THREE.MeshStandardMaterial({ color: "#7ff5e6", emissive: "#4fdcca", emissiveIntensity: 0.8, roughness: 0.4, flatShading: true });
+// The shoulder pads, in colony orange: the blocks over his upper arms, outside the torso
+// (|x| > 0.26), above the arm (y > 1.04) and in front of the backpack (z > -0.1).
+const isPad = (c: THREE.Vector3) => Math.abs(c.x) > 0.26 && c.y > 1.04 && c.z > -0.1;
 {
-  const index = mesh.geometry.index!, tris = index.count / 3, isVisor = new Set(VISOR);
-  const order = [...Array(tris).keys()].filter(f => !isVisor.has(f)).concat(VISOR);
+  const index = mesh.geometry.index!, pos = mesh.geometry.attributes.position!, tris = index.count / 3, isVisor = new Set(VISOR);
+  const c = new THREE.Vector3(), part = (f: number) => {
+    if (isVisor.has(f)) return 1;
+    c.set(0, 0, 0);
+    for (let k = 0; k < 3; k++) { const v = index.getX(f * 3 + k); c.x += pos.getX(v) / 3; c.y += pos.getY(v) / 3; c.z += pos.getZ(v) / 3; }
+    return isPad(c) ? 2 : 0;
+  };
+  const parts = [...Array(tris).keys()].map(part);
+  const order = [0, 1, 2].flatMap(g => [...Array(tris).keys()].filter(f => parts[f] === g));
   const out = new (index.array.constructor as Uint32ArrayConstructor)(index.count);
   order.forEach((f, i) => out.set(index.array.subarray(f * 3, f * 3 + 3), i * 3));
   mesh.geometry.setIndex(new THREE.BufferAttribute(out, 1));
   mesh.geometry.clearGroups();
-  mesh.geometry.addGroup(0, (tris - VISOR.length) * 3, 0);
-  mesh.geometry.addGroup((tris - VISOR.length) * 3, VISOR.length * 3, 1);
+  let start = 0;
+  for (const g of [0, 1, 2]) { const n = parts.filter(p => p === g).length * 3; mesh.geometry.addGroup(start, n, g); start += n; }
 }
-mesh.material = [GREY, VISOR_MAT];
+mesh.material = [GREY, VISOR_MAT, colonyOrange()];
 // The backpack: in the file it's skinned to the head and both shoulders, so it stretched.
 // Everything behind his back (the pack and its antenna) now moves with the upper spine alone.
 {
