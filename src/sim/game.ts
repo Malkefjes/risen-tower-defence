@@ -1147,6 +1147,7 @@ export class Game {
     const input = { ...this.avatarInput, sprint: this.avatarInput.sprint && !this.mineInput.firing };
     this.avatar.step(dt, input, this.heightAtFine, this.avatarTuning, this.standableFine, AVATAR_SUB);
     this.avatarInput.jump = false;
+    this.avatarInput.slide = false;
     if (this.avatar.landed) this.events.push({ type: "avatar-landed" });
     // Mining is the player's own action, so it runs on real time too.
     this.stepMining(dt);

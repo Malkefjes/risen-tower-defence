@@ -35,6 +35,14 @@ export interface AvatarTuning {
   radius: number;
   /** Highest ledge the avatar walks up without jumping. */
   stepUp: number;
+  /** Sliding (only from a sprint): speed multiplier when the slide starts. */
+  slideBoost: number;
+  /** How long a slide lasts, seconds; its speed eases back to the sprint's top over it. */
+  slideTime: number;
+  /** Speed multiplier for a jump made while sliding (kept through the air). */
+  slideJump: number;
+  /** Seconds after a slide before the next can start. */
+  slideCooldown: number;
 }
 
 /** Erik's tuned values. */
@@ -48,6 +56,10 @@ export const defaultAvatarTuning = (): AvatarTuning => ({
   jumpRise: 0.35,
   radius: 0.18,
   stepUp: 0.12,
+  slideBoost: 1.3,
+  slideTime: 0.7,
+  slideJump: 1.2,
+  slideCooldown: 0.35,
 });
 
 export interface AvatarInput {
@@ -58,6 +70,8 @@ export interface AvatarInput {
   jump: boolean;
   /** Sprint held (the caller decides when sprinting is allowed). */
   sprint?: boolean;
+  /** Slide pressed this tick (only starts from a sprint). */
+  slide?: boolean;
 }
 
 const EPS = 1e-4;
@@ -72,6 +86,14 @@ export class Avatar {
   landed = false;
   /** True on the tick the avatar left the ground by jumping. */
   jumped = false;
+  /** Seconds left of the slide under way (0 when not sliding). */
+  slideLeft = 0;
+  /** Seconds before another slide can start. */
+  private slideCool = 0;
+  /** Speed at the start of the slide under way. */
+  private slideFrom = 0;
+  /** In the air from a jump made while sliding: the extra speed is kept until landing. */
+  private slideLeap = false;
   /** Grid steps per cell for this tick's collision (see `step`). */
   private sub = 1;
   /** State at the start of the last tick, so the renderer can draw in between ticks. */
@@ -84,7 +106,11 @@ export class Avatar {
     this.x = this.prevX = x; this.y = this.prevY = y; this.z = this.prevZ = z;
     this.vx = this.vy = this.vz = 0;
     this.grounded = true;
+    this.slideLeft = this.slideCool = 0;
+    this.slideLeap = false;
   }
+
+  get sliding(): boolean { return this.slideLeft > 0; }
 
   get speed(): number { return Math.hypot(this.vx, this.vy); }
 
@@ -103,19 +129,42 @@ export class Avatar {
     let ix = input.x, iy = input.y;
     const il = Math.hypot(ix, iy);
     if (il > 1) { ix /= il; iy /= il; }
-    const top = t.speed * (input.sprint ? t.sprint : 1);
-    const wantX = ix * top, wantY = iy * top;
-    const rate = t.accel * (this.grounded ? 1 : t.airControl) * dt;
-    const dx = wantX - this.vx, dy = wantY - this.vy, dl = Math.hypot(dx, dy);
-    if (dl <= rate) { this.vx = wantX; this.vy = wantY; }
-    else { this.vx += (dx / dl) * rate; this.vy += (dy / dl) * rate; }
+    const top = t.speed * (input.sprint ? t.sprint : 1), sprintTop = t.speed * t.sprint;
+    this.slideCool = Math.max(0, this.slideCool - dt);
+    // A slide starts from a sprint on the ground, with a burst of speed.
+    if (input.slide && input.sprint && this.grounded && !this.sliding && this.slideCool <= 0 && this.speed > t.speed * 1.02) {
+      this.slideLeft = t.slideTime;
+      this.slideFrom = this.speed * t.slideBoost;
+      this.vx *= t.slideBoost; this.vy *= t.slideBoost;
+    }
+    if (this.sliding) {
+      // No steering while sliding: the speed eases from the burst back to the sprint's top.
+      this.slideLeft = Math.max(0, this.slideLeft - dt);
+      const sp = this.speed, want = sprintTop + (this.slideFrom - sprintTop) * (this.slideLeft / t.slideTime);
+      if (sp > EPS) { this.vx *= want / sp; this.vy *= want / sp; }
+      if (!this.sliding) this.slideCool = t.slideCooldown;
+    } else {
+      // In the air after a slide jump, the extra speed is kept (only steered), until landing.
+      const cap = this.slideLeap && !this.grounded ? Math.max(top, this.speed) : top;
+      const wantX = ix * cap, wantY = iy * cap;
+      const rate = t.accel * (this.grounded ? 1 : t.airControl) * dt;
+      const dx = wantX - this.vx, dy = wantY - this.vy, dl = Math.hypot(dx, dy);
+      if (dl <= rate) { this.vx = wantX; this.vy = wantY; }
+      else { this.vx += (dx / dl) * rate; this.vy += (dy / dl) * rate; }
+    }
 
-    // Jump and gravity.
+    // Jump and gravity. A jump out of a slide ends it and carries extra speed.
     const g = (2 * t.jumpHeight) / (t.jumpRise * t.jumpRise);
     if (input.jump && this.grounded) {
       this.vz = (2 * t.jumpHeight) / t.jumpRise;
       this.grounded = false;
       this.jumped = true;
+      if (this.sliding) {
+        this.vx *= t.slideJump; this.vy *= t.slideJump;
+        this.slideLeft = 0;
+        this.slideCool = t.slideCooldown;
+        this.slideLeap = true;
+      }
     }
     if (!this.grounded) { this.vz -= g * dt; this.z += this.vz * dt; }
 
@@ -136,7 +185,10 @@ export class Avatar {
     }
     if (!this.grounded && this.vz <= 0 && this.z <= support) {
       this.z = support; this.vz = 0; this.grounded = true; this.landed = true;
+      this.slideLeap = false;
     }
+    // A slide ends off the ground, or when something stops it.
+    if (this.sliding && (!this.grounded || this.speed < t.speed)) { this.slideLeft = 0; this.slideCool = t.slideCooldown; }
 
     // Face the direction of travel.
     if (this.speed > 0.2) {

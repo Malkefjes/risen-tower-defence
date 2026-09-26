@@ -119,9 +119,13 @@ export interface AvatarMotion {
   aiming: boolean;
   /** How far the upper body turns from the legs toward the aim (radians, about the vertical). */
   twist: number;
+  /** Sliding (feet first, from a sprint). */
+  slide?: boolean;
 }
 
 interface Loaded {
+  /** The model inside `object`: leans back for the slide. */
+  model: THREE.Object3D;
   mixer: THREE.AnimationMixer;
   actions: Record<Clip, THREE.AnimationAction>;
   bone: (part: string) => THREE.Bone;
@@ -141,6 +145,8 @@ export class Sentinel {
   private rig: Loaded | null = null;
   private weights: Record<Clip, number> = { stand: 1, walk: 0, run: 0, sprint: 0 };
   private clock = 0;
+  /** How far into the slide pose he is (0 to 1), eased. */
+  private slideW = 0;
   private q = new THREE.Quaternion();
   private q2 = new THREE.Quaternion();
 
@@ -203,23 +209,25 @@ export class Sentinel {
     const restDir = fore.getWorldPosition(new THREE.Vector3()).sub(arm.getWorldPosition(new THREE.Vector3())).normalize().applyQuaternion(rootInv);
     const aimArm = new THREE.Quaternion().setFromUnitVectors(restDir, new THREE.Vector3(0, -0.25, 1).normalize())
       .multiply(rootInv.clone().multiply(arm.getWorldQuaternion(new THREE.Quaternion())));
-    const touched = new Map(["Spine", "Spine2", "LeftUpLeg", "RightUpLeg", "RightArm", "RightForeArm", "RightHand"].map(n => [bone(n), bone(n).quaternion.clone()] as const));
-    this.rig = { mixer, actions, bone, touched, restFore: fore.quaternion.clone(), restHand: bone("RightHand").quaternion.clone(), aimArm };
+    const touched = new Map(["Spine", "Spine2", "LeftUpLeg", "RightUpLeg", "RightLeg", "RightArm", "RightForeArm", "RightHand"].map(n => [bone(n), bone(n).quaternion.clone()] as const));
+    this.rig = { model, mixer, actions, bone, touched, restFore: fore.quaternion.clone(), restHand: bone("RightHand").quaternion.clone(), aimArm };
   }
 
   update(dt: number, m: AvatarMotion): void {
     const r = this.rig;
     if (!r) return;
     this.clock += dt;
-    // The clips blend by ground speed, each played at the rate that keeps the feet planted.
-    const s = Math.max(0, m.speed);
+    this.slideW += ((m.slide ? 1 : 0) - this.slideW) * Math.min(1, dt * (m.slide ? 14 : 8));
+    // The clips blend by ground speed, each played at the rate that keeps the feet planted;
+    // sliding, they give way to the still stand pose.
+    const s = m.slide ? 0 : Math.max(0, m.speed);
     let lo = 0;
     while (lo < CLIPS.length - 2 && s > CLIP_SPEED[CLIPS[lo + 1]!]) lo++;
     const a = CLIPS[lo]!, b = CLIPS[lo + 1]!;
     const t = Math.min(1, (s - CLIP_SPEED[a]) / (CLIP_SPEED[b] - CLIP_SPEED[a]));
     for (const c of CLIPS) {
       const want = c === a ? 1 - t : c === b ? t : 0;
-      this.weights[c] += (want - this.weights[c]) * Math.min(1, dt * 8);
+      this.weights[c] += (want - this.weights[c]) * Math.min(1, dt * (m.slide ? 14 : 8));
       const act = r.actions[c];
       act.setEffectiveWeight(this.weights[c]);
       act.setEffectiveTimeScale(c === "stand" ? 1 : Math.max(0.2, (s / (CYCLE[c] / act.getClip().duration)) * STRIDE) * (m.grounded ? 1 : 0.3));
@@ -233,7 +241,8 @@ export class Sentinel {
     // Standing: a slow breath through the chest (the file has no idle yet).
     if (this.weights.stand > 0.5) r.bone("Spine2").rotateX(Math.sin(this.clock * 1.1) * 0.03 * this.weights.stand);
     // In the air: knees up.
-    if (!m.grounded) for (const leg of ["LeftUpLeg", "RightUpLeg"]) r.bone(leg).rotateX(-0.6);
+    if (!m.grounded) for (const leg of ["LeftUpLeg", "RightUpLeg"]) r.bone(leg).rotateX(-0.6 * (1 - this.slideW));
+    this.poseSlide(r);
     this.object.updateMatrixWorld(true);
     // The upper body turns toward the aim, about the vertical.
     const yaw = this.q2.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, m.twist);
@@ -249,6 +258,29 @@ export class Sentinel {
       arm.quaternion.copy(arm.parent!.getWorldQuaternion(this.q).invert().multiply(want));
     }
     this.object.updateMatrixWorld(true);
+  }
+
+  /**
+   * The slide, feet first: the whole body leans back from the feet (shifted ahead so the hips
+   * stay over where he is), the upper body curls up, the right leg tucks under, the left
+   * stays out in front. All turns are about his side axis, so they don't depend on the bones' axes.
+   */
+  private poseSlide(r: Loaded): void {
+    const w = this.slideW;
+    r.model.rotation.x = -1.2 * w;
+    r.model.position.set(0, 0, 0.4 * w);
+    if (w < 0.001) return;
+    this.object.updateMatrixWorld(true);
+    const side = new THREE.Vector3(1, 0, 0).applyQuaternion(this.object.getWorldQuaternion(this.q2));
+    const turn = (part: string, angle: number) => {
+      const b = r.bone(part);
+      b.parent!.updateMatrixWorld(true);
+      turnWorld(b, new THREE.Quaternion().setFromAxisAngle(side, angle * w), this.q);
+      b.updateMatrixWorld(true);
+    };
+    turn("Spine", 0.7);
+    turn("RightUpLeg", -0.6);
+    turn("RightLeg", 1.5);
   }
 }
 

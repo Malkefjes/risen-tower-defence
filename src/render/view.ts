@@ -594,7 +594,7 @@ export class GameView {
     this.avatar.object.rotation.y = av.prevFacing + df * alpha;
     const want = firing ? Math.max(-TWIST_MAX, Math.min(TWIST_MAX, wrapAngle(aimYaw - this.avatar.object.rotation.y))) : 0;
     this.twist += (want - this.twist) * Math.min(1, dt * 14);
-    this.avatar.update(dt, { speed: av.speed, grounded: av.grounded, aiming: ready || firing, twist: this.twist });
+    this.avatar.update(dt, { speed: av.speed, grounded: av.grounded, aiming: ready || firing, twist: this.twist, slide: av.sliding });
     this.avatar.muzzle.getWorldPosition(this.tip);
     this.mining.update(dt, node, firing, this.game.mineInput.onSpot, firing ? this.tip : null);
   }

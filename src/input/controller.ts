@@ -9,6 +9,9 @@ import { BuildWheel, type WheelItem } from "../ui/buildWheel";
 import { buildingsIcon, pieceIcon, platingIcon, repairIcon, smelterIcon, towerIcon, type Hud } from "../ui/hud";
 import type { GameView, Overlay } from "../render/view";
 
+/** The key that starts a slide while sprinting (KeyboardEvent.key, lower case). */
+const SLIDE_KEY = "control";
+
 const DRAG_THRESHOLD = 5;
 /** A left press shorter than this is a click (select a tower, pick up a wall); longer is just the tool firing. */
 const CLICK_TIME = 250;
@@ -220,7 +223,10 @@ export class Controller {
   private onKey(e: KeyboardEvent): void {
     const k = e.key.toLowerCase();
     if (e.target instanceof HTMLInputElement) return;
-    if (["w", "a", "s", "d", "shift", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) { this.keys.add(k); if (k.startsWith("arrow")) e.preventDefault(); return; }
+    // Slide (from a sprint). Ctrl with a movement key would be a browser shortcut; the ones a
+    // page may stop are stopped (Ctrl+W and Ctrl+Shift+W can't be).
+    if (k === SLIDE_KEY) { e.preventDefault(); if (!e.repeat) this.game.avatarInput.slide = true; return; }
+    if (["w", "a", "s", "d", "shift", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) { this.keys.add(k); if (k.startsWith("arrow") || e.ctrlKey) e.preventDefault(); return; }
     if ((e.ctrlKey || e.metaKey) && k === "z") { e.preventDefault(); this.undo(); return; }
     switch (k) {
       case "1": case "2": case "3": case "4": case "5": case "6": {
