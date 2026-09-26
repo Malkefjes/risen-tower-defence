@@ -55,7 +55,8 @@ export function wolfModel(o: WolfOptions): Enemy {
       const stride = walking ? 0.55 : 0.1;
       legFR.rotation.x = s * stride; legBL.rotation.x = s * stride;
       legFL.rotation.x = -s * stride; legBR.rotation.x = -s * stride;
-      tilt.position.y = Math.abs(c) * 0.04 * (walking ? 1 : 0.5);
+      // A low, smooth trot: the body barely rises and falls.
+      tilt.position.y = Math.abs(c) * 0.012 * (walking ? 1 : 0.5);
       tilt.rotation.x = (walking ? 0.03 : Math.max(0, s) * 0.18) - mat.emissiveIntensity * 0.25;
     },
     flash(k) { mat.emissiveIntensity = k * 0.6; },
