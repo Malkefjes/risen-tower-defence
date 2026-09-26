@@ -86,7 +86,7 @@ Enemies and towers are the two deepest systems; everything else supports them. E
 | **Elite** | Small pack, tough, hits hard; later becomes the new baseline | Relying on one answer (too tough for splash, too many for one big gun) | A balanced defence |
 | **Brute** | Slow, huge HP, armoured, breaks walls fast | The maze holding; opens shortcuts for the pack behind it | Laser cannon; plated front walls and spare routes |
 | **Boss** | Big, armoured, resistant | One damage source | Variety, prepped with support |
-| **Titan** | Heavy armour, heavy resistances; comes from special far spawners and becomes inevitable the longer a run goes, announced long ahead | The whole defence | A prep zone (Heavy, Cracked, burning) before the killzone |
+| **Titan** | Heavy armour, heavy resistances; comes from special far spawners and becomes inevitable the longer a run goes, announced long ahead | The whole defence | A prep zone (Heavy, burning) before the killzone |
 
 **Damage types** (sci-fi, no melee, no frost):
 
@@ -104,10 +104,10 @@ Enemies and towers are the two deepest systems; everything else supports them. E
 **Statuses:**
 
 - **Heavy** (brown): slowed, from the support tower. Replaces frost.
-- **Cracked:** armour lowered, from the support tower.
+- **Cracked:** armour lowered. Not needed yet; maybe later as a support mod.
 - **Burning:** from incendiary; resistances off, no healing.
 
-The Titan shows the whole system: Heavy and Cracked, then burning, then the laser cannon, in that order along the maze.
+The Titan shows the whole system: Heavy, then burning, then the laser cannon, in that order along the maze.
 
 ### Supply and upkeep (decided 2026-09-25)
 
@@ -131,6 +131,17 @@ The Titan shows the whole system: Heavy and Cracked, then burning, then the lase
 - First tower: the **Twin** (1×1), which grows into the **Gatling** (2×2). Both are single-target guns: they become the gun at 1×1 and 2×2. Six baseline towers, one per purpose (gun, laser cannon, explosive, thermite mortar, AA, support), each grown and modded (see "Threats and answers").
 - Default targeting: the enemy with the most progress. Targeting options later.
 - Selling: full refund shortly after placing, 75% after (a tuning knob).
+
+**Baseline towers (decided 2026-09-26):** six, one per purpose. Only the AA hits flyers at first; other towers can be modded for air cover later.
+
+| Tower | Damage | What it does | Weak against | Where it wants to be |
+| --- | --- | --- | --- | --- |
+| **Gun** | Piercing | Rapid, cheap, medium range; the workhorse (today's Twin and Gatling) | Armour (Brutes, Bosses) | Anywhere; many small ones spread along the path |
+| **Laser cannon** | Laser | Long range, slow, one huge hit | Swarms (overkill, slow to switch) | Long straight lines of sight down the maze |
+| **Explosive** | Explosive | Bursts on impact, short to medium range, area damage. Look open: rocket pod, grenade launcher or missile rack (mockups) | Single tough targets (armour counts on each hit) | Switchbacks and corners where packs bunch |
+| **Thermite mortar** | Incendiary | Lobs shells far with a **minimum range**; the ground burns for a few seconds (resistances off, no healing) | Anything on its own; it preps, it doesn't kill | Set back from the path, aimed where it doubles back |
+| **AA** | Piercing | Fast tracking, air only | Everything on the ground | Under the air lanes (straight lines from caves to targets) |
+| **Support** | None | Applies Heavy (slow) | Kills nothing | Early in the maze, before the killzone |
 
 ### The avatar
 
@@ -228,5 +239,6 @@ WASD run (relative to the screen) · Shift sprint · Space jump · hold left mou
 - Economy numbers: ore per trip, costs of walls, towers and buildings. Found through play, with the tuning panel.
 - How fast should the threat meter climb, and what exactly feeds it?
 - Enemy target preferences: which types go for what?
-- The baseline towers: shape, footprint and cost of each (gun, laser cannon, explosive, thermite mortar, AA, support), and what becomes of the Twin and Gatling.
+- Tower looks and numbers: mockups for each baseline tower (the explosive one: rocket pod, grenade launcher or missile rack), then range, damage and cost per size.
+- Which towers are there from the start and which are unlocked (progression).
 - Meta between planets: what exactly carries over, and how is it earned?
