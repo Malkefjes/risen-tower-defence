@@ -24,6 +24,8 @@ export class FlowField {
     readonly extra?: ReadonlySet<string>,
     /** Cells over `bounds` as they were when the field was made: 0 open, 1 solid, 2 wall (crossable at a cost). */
     readonly blocked?: Uint8Array,
+    /** What stepping into each wall cell costs (its chew time, as distance). */
+    readonly cost?: Float32Array,
   ) {}
 
   get width(): number { return this.bounds.x1 - this.bounds.x0 + 1; }
@@ -58,13 +60,23 @@ export class FlowField {
     return this.world.isBlocked(x, y, this.extra) ? 1 : 0;
   }
 
-  /** The next cell on the fastest route from (x,y), or null if none. */
+  /** The chew time of stepping into a cell (0 unless it's a wall). */
+  private entry(x: number, y: number): number {
+    if (!this.cost || !this.inBounds(x, y)) return 0;
+    return this.cost[(y - this.bounds.y0) * this.width + (x - this.bounds.x0)]!;
+  }
+
+  /**
+   * The next cell on the fastest route from (x,y), or null if none. Stepping into a
+   * wall costs its chew time on top of the distance beyond it, so the end of a wall
+   * gets walked round, not chewed.
+   */
   next(x: number, y: number): Cell | null {
     let best: Cell | null = null;
     let bestV = Infinity;
     for (const [dx, dy, c] of DIRS) {
       if (!this.canStep(x, y, dx, dy)) continue;
-      const v = c + this.at(x + dx, y + dy);
+      const v = c + this.at(x + dx, y + dy) + this.entry(x + dx, y + dy);
       if (v < bestV - 1e-9) { bestV = v; best = [x + dx, y + dy]; }
     }
     return best;
@@ -97,7 +109,7 @@ export function computeField(world: World, extra?: ReadonlySet<string>, extraCel
   // A number grid of blocked cells: building it once is far cheaper than looking up
   // text keys for every step of the search (big worlds have ~50,000 cells).
   const { grid: blocked, cost } = world.blockedGrid(bounds, extra, extraWallHp);
-  const field = new FlowField(world, bounds, dist, extra, blocked);
+  const field = new FlowField(world, bounds, dist, extra, blocked, cost);
   const heap = new MinHeap();
 
   // Paths lead to the nearest target: the ship and every smelter.

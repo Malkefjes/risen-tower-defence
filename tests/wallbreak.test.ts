@@ -25,6 +25,19 @@ describe("walls are slow obstacles", () => {
     expect(route.some(([x, y]) => x === 5 && y >= -3 && y <= 3)).toBe(false);
   });
 
+  it("the end of a wall gets walked round, not chewed: a wall costs its chew time to step into", () => {
+    // The ship is beyond the wall and up: the quickest way curls round the wall's end,
+    // where the end cell itself is nearer the ship than the open cell beside it.
+    const g = new Game(open({ ship: [[10, -5]] }), { seed: 1, waveSize: () => 3, tuning: { ship: noGun } });
+    column(g, 5, -8, 0);
+    g.field = computeField(g.world);
+    expect(g.routes()[0]!.some(([x, y]) => g.world.walls.has(`${x},${y}`))).toBe(false);
+    g.startWave();
+    let chewed = false;
+    for (let i = 0; i < 60 * 20; i++) { g.step(); if (g.walkers.some(w => w.attacking && g.world.walls.has(w.attacking))) chewed = true; }
+    expect(chewed).toBe(false);
+  });
+
   it("a full block gets chewed through, slowly, by at most two at a time", () => {
     const g = new Game(open(), { seed: 1, waveSize: () => 5, tuning: { ship: noGun, wallHp: 300, enemies: { grunt: { damage: 2 } }, wallClawers: 2, packMin: 5, packMax: 5 } });
     column(g, 5, -60, 60);

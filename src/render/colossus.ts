@@ -53,7 +53,10 @@ function readGlb(base64: string): THREE.BufferGeometry {
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(accessor(prim.attributes.POSITION), 3));
   if (prim.indices !== undefined) g.setIndex(new THREE.BufferAttribute(accessor(prim.indices), 1));
-  if (node.matrix) g.applyMatrix4(new THREE.Matrix4().fromArray(node.matrix));
+  // A node places its mesh either with a matrix or with translation, rotation and scale.
+  const m = node.matrix ? new THREE.Matrix4().fromArray(node.matrix) : new THREE.Matrix4().compose(
+    new THREE.Vector3(...(node.translation ?? [0, 0, 0])), new THREE.Quaternion(...(node.rotation ?? [0, 0, 0, 1])), new THREE.Vector3(...(node.scale ?? [1, 1, 1])));
+  g.applyMatrix4(m);
   return g;
 }
 
