@@ -97,9 +97,12 @@ const PADS = new Set([37, 42, 52, 65, 69, 77, 81, 96, 100, 101, 106, 109, 114, 1
 // The forearm guards, the same way: grown from each guard's big outer side face, from the
 // elbow down to its cuff at the wrist (the fist below stays dark).
 const GUARDS = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 19, 20, 22, 24, 25, 27, 28, 30, 31, 32, 33, 34, 38, 40, 43, 44, 46, 47, 48, 50, 51, 53, 54, 56, 61, 62, 64, 67, 68, 71, 72, 75, 76, 82, 85, 86, 89, 90, 94, 97, 98, 102, 105, 108, 110, 112, 135, 136, 142, 156, 157, 167, 170, 176, 193, 195, 197, 199, 209, 213, 221, 237, 247, 249, 253, 254, 271, 272, 279, 287, 290, 291, 302, 315, 341, 347, 363, 382, 388, 390, 395, 400, 404, 416, 422, 430, 434, 2611, 2612, 2629, 2641, 2655, 2666, 2669, 2677, 2689, 2697, 2704, 2713, 2727, 2760, 2779, 2784, 2786, 2787, 2802, 2803, 2816, 2818, 2829, 2830, 2832, 2835, 2837, 2840, 2841, 2842, 2844, 2847, 2849, 2856, 2861, 2879, 2882, 2901, 2914, 2923, 2926, 2931, 2938, 2941, 2945, 2951, 2954, 2963, 2965, 2967, 2968, 2969, 2974, 2975, 2977, 2978, 2984, 2990, 2996, 2997, 2998, 3000, 3001, 3002, 3003, 3004, 3006, 3007, 3008, 3010, 3011, 3013, 3016, 3017, 3018, 3021, 3022, 3024, 3026, 3027, 3028, 3029, 3031, 3032, 3033, 3034, 3035, 3036, 3037, 3038, 3039, 3040, 3041, 3042, 3043, 3044, 3045, 3046, 3047]);
+// The chest piece: the raised block across his chest (its two sloped front faces, sides,
+// top ledge and underside), grown the same way from its front face.
+const CHEST = new Set([806, 810, 811, 857, 916, 926, 1059, 1060, 1062, 1063, 1393, 1561, 1623, 1634, 1683, 1884, 1902, 1909, 1962, 2071, 2080, 2201, 2240, 2241, 2243]);
 {
   const index = mesh.geometry.index!, tris = index.count / 3, isVisor = new Set(VISOR);
-  const part = (f: number) => (isVisor.has(f) ? 1 : PADS.has(f) || GUARDS.has(f) ? 2 : 0);
+  const part = (f: number) => (isVisor.has(f) ? 1 : PADS.has(f) || GUARDS.has(f) || CHEST.has(f) ? 2 : 0);
   const parts = [...Array(tris).keys()].map(part);
   const order = [0, 1, 2].flatMap(g => [...Array(tris).keys()].filter(f => parts[f] === g));
   const out = new (index.array.constructor as Uint32ArrayConstructor)(index.count);
