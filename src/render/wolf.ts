@@ -4,7 +4,7 @@ import { assemble, cutStone, type Marks, type V3 } from "./stoneCreature";
 import { GLB } from "./wolfData";
 
 /**
- * The Swarm: Erik's 201-triangle stone wolf, in the same mined-stone grey as the
+ * The Runner: Erik's 201-triangle stone wolf, in the same mined-stone grey as the
  * Brute. Cut into five parts: the body (with head and tail) and four legs, which trot
  * in diagonal pairs.
  */

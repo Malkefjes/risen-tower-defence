@@ -46,7 +46,7 @@ const map: MapDef = {
 
 /** Each enemy type's size and numbers, from the panel. The Brute's are locked. */
 const brute = { size: 2, hp: 80, speed: 1, gap: 3 };
-const swarm = { size: 1, hp: 4, speed: 1.8, pack: 8 };
+const runner = { size: 1.5, hp: 4, speed: 3, pack: 5 };
 /** How enemies are marked as enemies; switched live from the panel. */
 const marks = { outline: true, ring: false };
 
@@ -57,7 +57,7 @@ const game = new Game(map, {
   tuning: {
     startHp: 1e9, ship: { damage: 0 }, enemyHpGrowth: 1, wallHp: 1e6,
     towers: { gun: [{ cost: 0 }, { cost: 0 }, { cost: 0 }] },
-    enemies: { brute: { hp: brute.hp, speed: brute.speed }, swarm: { hp: swarm.hp, speed: swarm.speed } },
+    enemies: { brute: { hp: brute.hp, speed: brute.speed }, runner: { hp: runner.hp, speed: runner.speed } },
     // Enemies fill most of a one-cell lane: they keep close to its centre line.
     laneSpread: 0.05,
   },
@@ -72,12 +72,12 @@ WALLS.forEach((cells, i) => {
 
 const view = new GameView(document.getElementById("view")!, game, undefined, {
   // Strides keep pace with the ground covered; a bigger body takes longer strides.
-  enemy: w => w.kind === "swarm"
-    ? wolfModel({ scale: swarm.size, strideRate: (swarm.speed * 1.1) / swarm.size, marks })
+  enemy: w => w.kind === "runner"
+    ? wolfModel({ scale: runner.size, strideRate: (runner.speed * 1.1) / runner.size, marks })
     : colossusModel({ scale: brute.size, strideRate: (brute.speed * 0.75) / brute.size, marks }),
-  barY: w => w.kind === "swarm" ? 0.45 * swarm.size + 0.1 : COLOSSUS_HEIGHT * brute.size + 0.08,
+  barY: w => w.kind === "runner" ? 0.45 * runner.size + 0.1 : COLOSSUS_HEIGHT * brute.size + 0.08,
   // A wolf gets a small bar, so a pack doesn't turn into a wall of red.
-  barScale: w => w.kind === "swarm" ? 0.5 : 1,
+  barScale: w => w.kind === "runner" ? 0.5 : 1,
   burst: { color: "#5a5f70", count: 12, size: 2.2 },
   alwaysBars: true,
 });
@@ -103,9 +103,9 @@ function section(title: string, ...kids: HTMLElement[]): void {
 }
 const tune = game.tuning;
 /** Send `n` enemies of a kind out of the cave now, `gap` seconds apart (a pack moves at one speed, like the game's). */
-function spawn(kind: "brute" | "swarm", n: number, gap: number): void {
+function spawn(kind: "brute" | "runner", n: number, gap: number): void {
   if (game.phase === "planning") game.startWave();
-  const queue = (game as unknown as { packQueue: { at: Cell; delay: number; speed: number; kind: "brute" | "swarm" }[] }).packQueue;
+  const queue = (game as unknown as { packQueue: { at: Cell; delay: number; speed: number; kind: "brute" | "runner" }[] }).packQueue;
   const speed = tune.enemies[kind].speed * (1 + (Math.random() * 2 - 1) * tune.speedSpread);
   for (let i = 0; i < n; i++) queue.push({ at: map.spawners[0]!, delay: i * gap, speed, kind });
 }
@@ -129,12 +129,13 @@ section("Brute",
   slider("Seconds between Brutes", 0.5, 12, 0.5, () => brute.gap, v => { brute.gap = v; }),
   buttons(["Spawn 1", () => spawn("brute", 1, 0)], ["Spawn 5", () => spawn("brute", 5, brute.gap)]),
 );
-section("Swarm",
-  slider("Size (1 = one cell long)", 0.3, 2, 0.05, () => swarm.size, v => { swarm.size = v; }),
-  slider("Speed (cells per second)", 0.3, 5, 0.05, () => swarm.speed, v => { swarm.speed = v; tune.enemies.swarm.speed = v; }),
-  slider("HP", 1, 60, 1, () => swarm.hp, v => { swarm.hp = v; tune.enemies.swarm.hp = v; }),
-  slider("Wolves per pack", 1, 30, 1, () => swarm.pack, v => { swarm.pack = v; }),
-  buttons(["Spawn 1", () => spawn("swarm", 1, 0)], ["Spawn a pack", () => spawn("swarm", swarm.pack, PACK_STAGGER)]),
+section("Runner",
+  slider("Size (1 = one cell long)", 0.3, 3, 0.05, () => runner.size, v => { runner.size = v; }),
+  slider("Speed (cells per second)", 0.3, 6, 0.05, () => runner.speed, v => { runner.speed = v; tune.enemies.runner.speed = v; }),
+  slider("HP", 1, 60, 1, () => runner.hp, v => { runner.hp = v; tune.enemies.runner.hp = v; }),
+  slider("Wolves per pack", 1, 30, 1, () => runner.pack, v => { runner.pack = v; }),
+  // A pack runs nose to tail: each wolf leaves as the one ahead has cleared its length.
+  buttons(["Spawn 1", () => spawn("runner", 1, 0)], ["Spawn a pack", () => spawn("runner", runner.pack, Math.max(PACK_STAGGER, (runner.size * 1.1) / runner.speed))]),
 );
 const markRow = document.createElement("div");
 markRow.className = "chips";
