@@ -1048,27 +1048,39 @@ export class Game {
 
   /**
    * A raid's packs, planned ahead (the same plan every time for a raid of this run), so
-   * the warning can show what's coming. Types come in from their `from` raid; packs are
-   * picked by share among the types that still fit in what's left of the raid's size.
+   * the warning can show what's coming. The raid's size is shared between the types that
+   * have come in by then (their `from`), by their `share`; each type's part becomes whole
+   * enemies at its `cost`, in packs. A type's first raid always brings at least a pack of it.
+   * The packs come in a shuffled order.
    */
   raidPlan(round = this.round): RaidPack[] {
     const t = this.tuning, rng = new Rng((this.planSeed * 31 + round * 7919) >>> 0), out: RaidPack[] = [];
-    let left = this.waveSize(round);
+    const total = this.waveSize(round);
     const lo = Math.max(1, Math.round(Math.min(t.packMin, t.packMax))), hi = Math.max(lo, Math.round(t.packMax));
-    for (let guard = 0; left > 1e-9 && guard < 500; guard++) {
-      const kind = this.packKind(left, round, rng), e = this.enemyStats(kind), cost = Math.max(0.01, e.cost);
-      const full = e.pack > 0 ? Math.round(e.pack) : lo + rng.int(hi - lo + 1);
-      // As many as what's left of the raid pays for, and at least one.
-      const size = Math.max(1, Math.min(full, Math.floor(left / cost + 1e-9)));
-      out.push({ kind, size });
-      left = Math.max(0, left - size * cost);
+    const shared = ENEMY_KINDS.filter(k => this.enemyStats(k).share > 0);
+    const due = shared.filter(k => this.enemyStats(k).from <= round);
+    const kinds: EnemyKind[] = due.length ? due : shared.length ? shared : ["grunt"];
+    const shares = kinds.reduce((a, k) => a + Math.max(0, this.enemyStats(k).share), 0) || 1;
+    for (const kind of kinds) {
+      const e = this.enemyStats(kind), part = total * (shared.length ? e.share / shares : 1);
+      let n = Math.round(part / Math.max(0.01, e.cost));
+      // Its first raid shows the new type properly: at least a whole pack.
+      if (e.from === round && shared.length) n = Math.max(n, e.pack > 0 ? Math.round(e.pack) : lo);
+      while (n > 0) {
+        const full = e.pack > 0 ? Math.round(e.pack) : lo + rng.int(hi - lo + 1), size = Math.min(n, full);
+        out.push({ kind, size });
+        n -= size;
+      }
     }
+    // Too small a raid for any whole enemy: one of the cheapest.
+    if (!out.length) out.push({ kind: kinds.reduce((a, b) => this.enemyStats(a).cost <= this.enemyStats(b).cost ? a : b), size: 1 });
+    for (let i = out.length - 1; i > 0; i--) { const j = rng.int(i + 1); [out[i], out[j]] = [out[j]!, out[i]!]; }
     return out;
   }
 
   /** The coming raid's mix: how many of each type, from all active caves together. */
   raidMix(round = this.round): { kind: EnemyKind; count: number }[] {
-    const caves = this.activeSpawners().length, counts = new Map<EnemyKind, number>();
+    const caves = this.activeSpawners(round).length, counts = new Map<EnemyKind, number>();
     for (const p of this.raidPlan(round)) counts.set(p.kind, (counts.get(p.kind) ?? 0) + p.size * caves);
     return ENEMY_KINDS.filter(k => counts.has(k)).map(kind => ({ kind, count: counts.get(kind)! }));
   }
@@ -1078,24 +1090,7 @@ export class Game {
 
   /** HP of an enemy of a type in the given raid. */
   enemyHp(kind: EnemyKind = "grunt", round = this.round): number {
-    return Math.max(1, Math.round(this.enemyStats(kind).hp * this.tuning.enemyHpGrowth ** (round - 1)));
-  }
-
-  /**
-   * What the next pack is: picked by the types' shares among those that still fit in
-   * what's left of the raid (the cheapest when none fits). Grunts when no type has a share.
-   */
-  private packKind(left: number, round: number, rng: Rng): EnemyKind {
-    const shared = ENEMY_KINDS.filter(k => this.enemyStats(k).share > 0);
-    if (!shared.length) return "grunt";
-    // Only the types that have come in by this raid (all of them, if none has yet).
-    const due = shared.filter(k => this.enemyStats(k).from <= round);
-    const kinds = due.length ? due : shared;
-    const fits = kinds.filter(k => this.enemyStats(k).cost <= left + 1e-9);
-    const pool = fits.length ? fits : [kinds.reduce((a, b) => this.enemyStats(a).cost <= this.enemyStats(b).cost ? a : b)];
-    let r = rng.next() * pool.reduce((a, k) => a + this.enemyStats(k).share, 0);
-    for (const k of pool) if ((r -= this.enemyStats(k).share) < 0) return k;
-    return pool[pool.length - 1]!;
+    return Math.max(1, Math.round(this.enemyStats(kind).hp * (1 + Math.max(0, this.tuning.enemyHpStep) * (round - 1))));
   }
 
   /** A walking speed within ±speedSpread of the type's: one per pack, so a pack moves as one. */
@@ -1349,12 +1344,18 @@ export class Game {
     this.events.push({ type: "phase", phase: p });
   }
 
+  /** How many caves send enemies in a raid: one at first, another every `caveEvery` raids, up to `activeCaves`. */
+  cavesIn(round = this.round): number {
+    const t = this.tuning, max = Math.max(1, Math.round(t.activeCaves));
+    return t.caveEvery > 0 ? Math.min(max, 1 + Math.floor((round - 1) / Math.round(t.caveEvery))) : max;
+  }
+
   /**
-   * The caves that send enemies: the few nearest the ship by walking distance
-   * (`tuning.activeCaves`). A big world has caves everywhere; the far ones stay quiet.
+   * The caves that send enemies: the nearest to the ship by walking distance, as many
+   * as `cavesIn` says for this raid. A big world has caves everywhere; the far ones stay quiet.
    */
-  activeSpawners(): Cell[] {
-    const n = Math.max(1, Math.round(this.tuning.activeCaves));
+  activeSpawners(round = this.round): Cell[] {
+    const n = this.cavesIn(round);
     if (this.world.spawners.length <= n) return this.world.spawners;
     return [...this.world.spawners].sort((a, b) => this.field.at(a[0], a[1]) - this.field.at(b[0], b[1])).slice(0, n);
   }

@@ -39,8 +39,10 @@ export interface Tuning {
   reach: number;
   /** Top speed multiplier while sprinting. */
   sprint: number;
-  /** How many caves (the nearest to the ship) send enemies each raid. */
+  /** How many caves (the nearest to the ship) send enemies at most. */
   activeCaves: number;
+  /** Caves open up over a run: one in the first raids, another every `caveEvery` raids (0: all from the start). */
+  caveEvery: number;
   /** The ship's HP; enemies claw it down. */
   startHp: number;
   /** A smelter's HP. */
@@ -66,8 +68,12 @@ export interface Tuning {
   raidStep: number;
   /** Seconds a raid's packs are spread over: a bigger raid comes denser, not longer. Packs never come closer than one after another. */
   raidSpread: number;
-  /** Enemy HP multiplier per raid after the first (all types). */
-  enemyHpGrowth: number;
+  /**
+   * Enemy HP grows in a straight line: each raid after the first adds this share of a
+   * type's raid-1 HP (0.1: raid 5 has 1.4 times the HP). Raids grow in numbers too, but the
+   * counts stay readable (the lesson in CLAUDE.md), so toughness carries the rest.
+   */
+  enemyHpStep: number;
   /** Each pack's speed varies by up to this share either way (0.12 = ±12%); a pack moves as one. */
   speedSpread: number;
   /** Enemies leave a cave in packs of packMin to packMax, packGap seconds apart. */
@@ -110,6 +116,7 @@ export const defaultTuning = (): Tuning => ({
   reach: 1.5,
   sprint: 1.4,
   activeCaves: 3,
+  caveEvery: 2,
   startHp: 400,
   smelterHp: 150,
   supplyRadius: 40,
@@ -119,10 +126,10 @@ export const defaultTuning = (): Tuning => ({
   wallHp: 600,
   platedHpMult: 3,
   wallClawers: 2,
-  raidBase: 11,
-  raidStep: 10,
+  raidBase: 3,
+  raidStep: 7,
   raidSpread: 45,
-  enemyHpGrowth: 1,
+  enemyHpStep: 0.25,
   speedSpread: 0.12,
   packMin: 3,
   packMax: 5,
@@ -135,11 +142,11 @@ export const defaultTuning = (): Tuning => ({
     // One Gun pass: a 1×1 Gun's reach covers about 8 cells of a single-lane maze.
     grunt: { hp: 16, speed: 1.475, damage: 2, pack: 0, gap: 0.25, cost: 1, share: 0, from: 1, armour: 0 },
     // Dies to one missile; comes in swarms that bunch up in a lane.
-    swarm: { hp: 5, speed: 1.5, damage: 1, pack: 12, gap: 0.15, cost: 0.25, share: 4, from: 1, armour: 0 },
+    swarm: { hp: 4, speed: 1.5, damage: 1, pack: 8, gap: 0.15, cost: 0.25, share: 4, from: 1, armour: 0 },
     // Few and tough: three Gun passes at full speed, so it outruns a short killzone unless it's Heavy.
-    runner: { hp: 24, speed: 3, damage: 1, pack: 3, gap: 1.2, cost: 6, share: 3, from: 2, armour: 0 },
+    runner: { hp: 24, speed: 3, damage: 1, pack: 3, gap: 1.2, cost: 6, share: 14, from: 2, armour: 0 },
     // Armoured: the Gun's rounds do half; the laser cannon's go through.
-    brute: { hp: 80, speed: 1, damage: 4, pack: 1, gap: 3, cost: 4, share: 1, from: 3, armour: 0.5 },
+    brute: { hp: 80, speed: 1, damage: 4, pack: 1, gap: 3, cost: 4, share: 5, from: 3, armour: 0.5 },
   },
   towers: {
     // The workhorse: the unit everything is measured in.
@@ -150,9 +157,10 @@ export const defaultTuning = (): Tuning => ({
     ],
     // The missile rack: worse than the Gun per alloy on one target, far better on a pack.
     explosive: [
-      { cost: 250, damage: 5, range: 4, rate: 1 / 1.5, radius: 0.75, heavy: 0 },
-      { cost: 625, damage: 7, range: 5, rate: 1.2, radius: 1, heavy: 0 },
-      { cost: 1250, damage: 8.5, range: 6, rate: 2, radius: 1.25, heavy: 0 },
+      // Big, slow missiles: one kills a Swarm while its HP grows (a 1×1 rack to raid 5, a 2×2 to raid 9, a 3×3 to 13).
+      { cost: 250, damage: 8, range: 4, rate: 0.45, radius: 0.9, heavy: 0 },
+      { cost: 625, damage: 12, range: 5, rate: 0.833, radius: 1.15, heavy: 0 },
+      { cost: 1250, damage: 16, range: 6, rate: 1.25, radius: 1.4, heavy: 0 },
     ],
     // The laser cannon, a sniper: the longest reach, slow, big shots that armour barely dents.
     laser: [

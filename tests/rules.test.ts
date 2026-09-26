@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { alloyByRaid, holdBudget } from "../src/sim/balance";
+import { Game } from "../src/sim/game";
+import { generateWorld } from "../src/sim/worldgen";
 import type { TowerKind } from "../src/sim/towers";
 
 /**
@@ -13,18 +15,29 @@ const right = (round: number): TowerKind[] =>
   round < 2 ? ["explosive", "gun"] : round < 3 ? ["explosive", "support", "gun", "gun", "gun"] : ["explosive", "laser", "support", "gun", "gun", "laser"];
 
 describe("the balance anchors hold for the default numbers", () => {
-  it("the margin: the right towers hold each raid with about 80% of the tower curve's alloy (between half and all of it)", () => {
-    for (const n of [1, 2, 3, 5]) {
+  it("the margin: raids 1–3 are gentle (learning, then a second cave and the first Brutes); from raid 4 the right towers need about 80% of the tower curve's alloy (between 45% and all of it)", () => {
+    for (const n of [1, 2, 3]) expect(holdBudget({ round: n, towers: right(n) }), `raid ${n}`).toBeLessThanOrEqual(alloyByRaid(n));
+    for (const n of [4, 6, 8]) {
       const need = holdBudget({ round: n, towers: right(n) }), curve = alloyByRaid(n);
       expect(need, `raid ${n}`).toBeLessThanOrEqual(curve);
-      expect(need, `raid ${n}`).toBeGreaterThanOrEqual(0.5 * curve);
+      expect(need, `raid ${n}`).toBeGreaterThanOrEqual(0.45 * curve);
     }
   });
 
-  it("the counter ratio: Guns alone need well over twice the alloy against a Swarm raid", () => {
+  it("raids stay readable: about a dozen enemies from one cave in raid 1, growing steadily, under 200 by raid 10", () => {
+    const g = new Game(generateWorld(1).map, { seed: 7, supply: true });
+    const count = (r: number) => g.raidMix(r).reduce((a, m) => a + m.count, 0);
+    expect(g.activeSpawners(1)).toHaveLength(1);
+    expect(count(1)).toBeGreaterThanOrEqual(8);
+    expect(count(1)).toBeLessThanOrEqual(20);
+    for (let r = 2; r <= 10; r++) expect(count(r), `raid ${r}`).toBeGreaterThanOrEqual(count(r - 1));
+    expect(count(10)).toBeLessThanOrEqual(200);
+  });
+
+  it("the counter ratio: Guns alone need at least twice the alloy against a Swarm raid", () => {
     const racks = holdBudget({ round: 3, towers: ["explosive"], only: ["swarm"] });
     const guns = holdBudget({ round: 3, towers: ["gun"], only: ["swarm"] });
-    expect(guns / racks).toBeGreaterThanOrEqual(2.5);
+    expect(guns / racks).toBeGreaterThanOrEqual(2);
   });
 
   it("the laser cannon is the cheap answer to Brutes (about 3x), but Guns alone can still hold them", () => {

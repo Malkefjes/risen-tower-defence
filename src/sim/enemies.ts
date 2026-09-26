@@ -20,7 +20,7 @@ export const ENEMY_INFO: Record<EnemyKind, { name: string; length: number }> = {
 };
 
 export interface EnemyStats {
-  /** HP in raid 1; it grows by `Tuning.enemyHpGrowth` per raid after that. */
+  /** HP in raid 1; each raid after adds `Tuning.enemyHpStep` of it. */
   hp: number;
   /** Walking speed, cells per second (packs vary around it by `Tuning.speedSpread`). */
   speed: number;

@@ -57,7 +57,7 @@ const game = new Game(map, {
   // Nothing comes on its own: every enemy is sent from the panel.
   waveSize: () => 0,
   tuning: {
-    startHp: 1e9, ship: { damage: 0 }, enemyHpGrowth: 1, wallHp: 1e6,
+    startHp: 1e9, ship: { damage: 0 }, enemyHpStep: 0, wallHp: 1e6,
     towers: { gun: [{ cost: 0 }, { cost: 0 }, { cost: 0 }] },
     enemies: { brute: { hp: brute.hp, speed: brute.speed }, runner: { hp: runner.hp, speed: runner.speed }, swarm: { hp: swarm.hp, speed: swarm.speed } },
     // Enemies fill most of a one-cell lane: they keep close to its centre line.

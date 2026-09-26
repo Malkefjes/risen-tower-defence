@@ -53,12 +53,19 @@ describe("generated world", () => {
   });
 
   it("only the nearest caves send enemies", () => {
-    const g = new Game(map, { seed: 1, tuning: { activeCaves: 2 } });
+    const g = new Game(map, { seed: 1, tuning: { activeCaves: 2, caveEvery: 0 } });
     const active = g.activeSpawners();
     expect(active).toHaveLength(2);
     const d = (c: readonly [number, number]) => g.field.at(c[0], c[1]);
     const far = g.world.spawners.filter(s => !active.includes(s));
     for (const f of far) for (const a of active) expect(d(a)).toBeLessThanOrEqual(d(f));
+  });
+
+  it("caves open up over a run: one at first, another every caveEvery raids", () => {
+    const g = new Game(map, { seed: 1 });
+    expect([1, 2, 3, 4, 5, 9].map(r => g.activeSpawners(r).length)).toEqual([1, 1, 2, 2, 3, 3]);
+    // The first cave is the nearest, and it stays open.
+    expect(g.activeSpawners(5)).toContain(g.activeSpawners(1)[0]);
   });
 
   it("starts the player on open ground", () => {

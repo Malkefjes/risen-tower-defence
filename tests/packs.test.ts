@@ -83,15 +83,23 @@ describe("raids mix enemy types", () => {
     expect(new Set(g.walkers.map(w => w.speed)).size).toBe(1);
   });
 
-  it("a type that no longer fits what's left isn't sent; a raid too small for any sends the cheapest", () => {
-    // A Runner takes 1 of the raid's size and a Brute 6, both due from raid 1.
-    const only = (share: Record<string, number>) => ({ enemies: { swarm: { share: share.swarm ?? 0 }, runner: { share: share.runner ?? 0, cost: 1, from: 1 }, brute: { share: share.brute ?? 0, cost: 6, from: 1 } } });
-    const g = new Game(map(), { seed: 3, waveSize: () => 2, tuning: only({ brute: 5, runner: 1 }) });
-    g.startWave();
-    expect([...sent(g, 20)]).toEqual([["runner", 2]]);
-    const h = new Game(map(), { seed: 3, waveSize: () => 1, tuning: only({ brute: 1 }) });
-    h.startWave();
-    expect([...sent(h, 5)]).toEqual([["brute", 1]]);
+  it("a raid is shared between the types by their shares; one whose share doesn't make a whole enemy isn't sent", () => {
+    const enemies = (share: Record<string, number>) => ({ enemies: {
+      // All in before raid 1 (from 0), so no first-raid pack is added.
+      swarm: { share: share.swarm ?? 0, cost: 0.25, pack: 8, from: 0 }, runner: { share: share.runner ?? 0, cost: 1, pack: 3, from: 0 }, brute: { share: share.brute ?? 0, cost: 6, pack: 1, from: 0 },
+    } });
+    // 12 in raid size, half each: 24 Swarms and 6 Runners.
+    const g = new Game(map(), { seed: 3, waveSize: () => 12, tuning: enemies({ swarm: 1, runner: 1 }) });
+    expect(g.raidMix()).toEqual([{ kind: "swarm", count: 24 }, { kind: "runner", count: 6 }]);
+    // A Brute's share of 2 is a third of one: none come.
+    const h = new Game(map(), { seed: 3, waveSize: () => 4, tuning: enemies({ runner: 1, brute: 1 }) });
+    expect(h.raidMix()).toEqual([{ kind: "runner", count: 2 }]);
+  });
+
+  it("a type's first raid brings at least a whole pack of it", () => {
+    const g = new Game(map(), { seed: 3, waveSize: () => 2, tuning: { enemies: { swarm: { share: 10, cost: 0.25, from: 1 }, runner: { share: 1, cost: 6, pack: 3, from: 2 }, brute: { share: 0 } } } });
+    expect(g.raidMix(1).map(m => m.kind)).toEqual(["swarm"]);
+    expect(g.raidMix(2).find(m => m.kind === "runner")?.count).toBe(3);
   });
 });
 
