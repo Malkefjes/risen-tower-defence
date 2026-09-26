@@ -75,20 +75,59 @@ function golemTemplate(): Promise<Template> {
 /**
  * The file's skinning ties the inner hands (the thumbs) partly to the thigh and knee they
  * hang beside, and some thigh to the hands, so a swinging arm stretched the thumb back to the
- * leg. Every vertex held by both an arm and a leg now keeps only the side holding most of it.
+ * leg. Neither the weights nor the distance to the bones tell a thumb from a thigh (the thumb
+ * sits by the knee), but the surface does: every vertex held by both an arm and a leg goes
+ * wholly to the one it reaches first along the mesh, a vertex held only by the arm or only by
+ * the leg.
  */
 function separateArmsFromLegs(mesh: THREE.SkinnedMesh): void {
+  const g = mesh.geometry, p = g.attributes.position!, si = g.attributes.skinIndex!, sw = g.attributes.skinWeight!;
   const names = mesh.skeleton.bones.map(b => b.name);
   const isArm = names.map(n => /Arm|Hand|Shoulder/.test(n)), isLeg = names.map(n => /Leg|Foot|Toe/.test(n));
-  const si = mesh.geometry.attributes.skinIndex!, sw = mesh.geometry.attributes.skinWeight!;
-  for (let v = 0; v < si.count; v++) {
-    let arm = 0, leg = 0;
-    for (let q = 0; q < 4; q++) { const b = si.getComponent(v, q), w = sw.getComponent(v, q); if (isArm[b]) arm += w; else if (isLeg[b]) leg += w; }
-    if (arm <= 0 || leg <= 0) continue;
-    const drop = arm >= leg ? isLeg : isArm;
+  // One node per position (the file splits vertices along its texture seams).
+  const ids = new Map<string, number>(), node = new Int32Array(p.count);
+  for (let v = 0; v < p.count; v++) {
+    const k = `${p.getX(v).toFixed(5)},${p.getY(v).toFixed(5)},${p.getZ(v).toFixed(5)}`;
+    node[v] = ids.get(k) ?? ids.set(k, ids.size).size - 1;
+  }
+  const n = ids.size, arm = new Float32Array(n), leg = new Float32Array(n), at: THREE.Vector3[] = [];
+  for (let v = 0; v < p.count; v++) {
+    at[node[v]!] ??= new THREE.Vector3().fromBufferAttribute(p, v);
+    let a = 0, l = 0;
+    for (let q = 0; q < 4; q++) { const b = si.getComponent(v, q), w = sw.getComponent(v, q); if (isArm[b]) a += w; else if (isLeg[b]) l += w; }
+    arm[node[v]!] = a; leg[node[v]!] = l;
+  }
+  const edges: number[][] = Array.from({ length: n }, () => []), index = g.index!;
+  for (let f = 0; f < index.count; f += 3) {
+    const t = [node[index.getX(f)]!, node[index.getX(f + 1)]!, node[index.getX(f + 2)]!];
+    for (let i = 0; i < 3; i++) edges[t[i]!]!.push(t[(i + 1) % 3]!, t[(i + 2) % 3]!);
+  }
+  // Distance along the surface from every node the arm (or the leg) wholly holds.
+  const along = (from: (i: number) => boolean) => {
+    const d = new Float64Array(n).fill(Infinity), done = new Uint8Array(n), open: number[] = [];
+    for (let i = 0; i < n; i++) if (from(i)) { d[i] = 0; open.push(i); }
+    while (open.length) {
+      let k = 0;
+      for (let j = 1; j < open.length; j++) if (d[open[j]!]! < d[open[k]!]!) k = j;
+      const i = open[k]!;
+      open[k] = open[open.length - 1]!; open.pop();
+      if (done[i]) continue;
+      done[i] = 1;
+      for (const j of edges[i]!) {
+        const dj = d[i]! + at[i]!.distanceTo(at[j]!);
+        if (dj < d[j]!) { d[j] = dj; open.push(j); }
+      }
+    }
+    return d;
+  };
+  const toArm = along(i => arm[i]! > 0.999), toLeg = along(i => leg[i]! > 0.999);
+  for (let v = 0; v < p.count; v++) {
+    const i = node[v]!;
+    if (arm[i]! <= 0.001 || leg[i]! <= 0.001) continue;
+    const drop = toArm[i]! <= toLeg[i]! ? isLeg : isArm;
     let total = 0;
     for (let q = 0; q < 4; q++) if (drop[si.getComponent(v, q)]) sw.setComponent(v, q, 0); else total += sw.getComponent(v, q);
-    for (let q = 0; q < 4; q++) sw.setComponent(v, q, sw.getComponent(v, q) / total);
+    if (total > 0) for (let q = 0; q < 4; q++) sw.setComponent(v, q, sw.getComponent(v, q) / total);
   }
   sw.needsUpdate = true;
 }
