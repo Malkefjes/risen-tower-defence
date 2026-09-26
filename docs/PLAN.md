@@ -92,8 +92,12 @@ Built in this order:
 The hub (4C) and stray groups are parked. A system is built when the first threat that needs it arrives.
 1. **One pair, done the new way (done 2026-09-26):** enemy types exist (the leaper is the Grunt, numbers per type); the Twin and Gatling are one Gun that grows in place (1×1 to 2×2; 3×3 once it has a model), selling returns 75% of what was spent before this calm; every balance number in `sim/tuning.ts`, with DPS and alloy per DPS in the tuning panel, the design's balance rules as tests, and `runRaid` to play a raid out headless.
 2. **Enemy looks (done 2026-09-26):** Erik's stone creatures replace the leaper: the Brute (Colossus), the Runner (wolf) and the Swarm (Grumtooth), tried in `mockups/playground`; raids mix them by share. Still to do: drawing them in bulk (instancing), HP tuning, a Grunt look.
-3. **The first contrast:** the explosive tower against the Swarm (mockups first); the warning shows the raid's mix.
-4. Then play it, and pick the next pair from that (Runner and support, Brute and laser cannon, Flyer and AA).
+3. **An answer to every current enemy (agreed 2026-09-26):** the Gun stays the general-purpose workhorse; each new enemy gets its answer, in this order:
+   1. The explosive tower (the missile rack, picked and tuned in `mockups/missile`; missiles home in) into the game, against the Swarm.
+   2. The support tower (Heavy, applied as a pulse: 40% slower, not stacking; 2×2 means more range and a longer effect): mockups A/B/C, then into the game, against the Runner.
+   3. The laser cannon: mockups A/B/C, then into the game with the Brute's armour, against the Brute.
+4. **Balance by rules (agreed 2026-09-26):** tests with `runRaid` on a standard maze: with the alloy you'd have by then, the right towers hold and the same alloy in the wrong ones costs the ship heavily (destroyed by about raid 4); enemy HP set from time in range; a raid schedule (raid 1 Swarm, 2 adds Runners, 3 the first Brute, then mixed, about +30% a raid, tied to what the economy can buy); the warning shows the raid's mix. A common-sense baseline Erik plays and corrects.
+5. Then play it, and pick what comes next (Flyer and AA, Support enemies and the mortar).
 
 ### M2: Outposts
 - **Extractors** built on nodes: they mine on their own into a visible stockpile next to them, which you collect by walking over.
