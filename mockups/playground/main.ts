@@ -23,26 +23,28 @@ function run(x0: number, y0: number, x1: number, y1: number): Cell[] {
   for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) out.push([x, y]);
   return out;
 }
+// A tight, single-lane serpentine built right up against the ship: one-cell lanes
+// between one-cell walls, the gaps alternating top and bottom, the way in at the top left.
+const DIVIDERS: Cell[][] = [-7, -5, -3, -1, 1, 3, 5, 7].map((x, i) => i % 2 === 0 ? run(x, -4, x, 3) : run(x, -3, x, 4));
 const WALLS: Cell[][] = [
-  run(-8, -7, 17, -7), run(-8, 7, 17, 7), // top and bottom
-  run(17, -6, 17, 6), // far end
-  run(-8, -6, -8, -2), run(-8, 2, -8, 6), // near end, with the way in
-  run(-4, -6, -4, 4), run(0, -4, 0, 6), run(4, -6, 4, 4), run(8, -4, 8, 6), // the serpentine
-  run(16, 0, 16, 0), // ties the walls to the ship
+  run(-9, -5, 12, -5), run(-9, 5, 12, 5), // top and bottom
+  run(-9, -3, -9, 4), // the near end, open at (-9, -4)
+  run(9, -4, 12, -2), run(9, 2, 12, 4), run(12, -1, 12, 1), // hugging the ship
+  ...DIVIDERS,
 ];
 const map: MapDef = {
   name: "playground",
-  spawners: [[-12, 0]],
-  caves: [{ x: -14, y: 0, dir: [1, 0] }],
-  ship: run(13, -1, 15, 1),
-  start: [11, 4],
+  spawners: [[-14, -4]],
+  caves: [{ x: -16, y: -4, dir: [1, 0] }],
+  ship: run(9, -1, 11, 1),
+  start: [0, 7],
   rocks: [], trees: [],
 };
 
 // ------------------------------------------------------------------ settings
 
 const look = {
-  size: 1,
+  size: 0.9,
   palette: "mix" as ColossusPalette | "mix",
   hp: 12,
   speed: 1.2,
@@ -60,6 +62,8 @@ const game = new Game(map, {
     towers: { gun: [{ cost: 0 }, { cost: 0 }, { cost: 0 }] },
     enemies: { grunt: { hp: look.hp, speed: look.speed } },
     packMin: look.pack, packMax: look.pack, packGap: look.gap,
+    // Golems nearly fill a one-cell lane: they keep close to its centre line.
+    laneSpread: 0.05,
   },
 });
 game.pieces.length = 0;
@@ -81,9 +85,9 @@ const view = new GameView(document.getElementById("view")!, game, undefined, {
   burst: { color: "#5a5f70", count: 12, size: 2.2 },
 });
 // Frame the whole maze, from the cave to the ship.
-view.zoom = 10;
+view.zoom = 8.5;
 view.resize();
-view.userPan(5 - view.target.x, 1 - view.target.z);
+view.userPan(2 - view.target.x, 1.5 - view.target.z);
 
 // ------------------------------------------------------------------ panel
 
