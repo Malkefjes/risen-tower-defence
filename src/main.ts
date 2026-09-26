@@ -102,3 +102,4 @@ requestAnimationFrame(frame);
 // For headless checks: glide the camera to a cell.
 (window as unknown as { lookAtCell: (x: number, y: number) => void }).lookAtCell = (x, y) => view.userPan(x + 0.5 - view.target.x, y + 0.5 - view.target.z);
 (window as unknown as { game: Game }).game = game;
+(window as unknown as { view: GameView }).view = view;
