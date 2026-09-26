@@ -17,9 +17,6 @@ type Part = "body" | "armR" | "armL" | "legR" | "legL";
 export const COLOSSUS_PALETTES = {
   // The grey of the stone you mine (render/ore.ts): two shades, no snow.
   ore: { side: ["#4a4f5c", "#555a67"], top: "#5b606d", under: "#383c47", lift: 1, alt: 0.5 },
-  snow: { side: ["#6b6862", "#5f5c57"], top: "#eef0f4", under: "#403d3a", lift: 1.3, alt: 0.2 },
-  ice: { side: ["#3f4454", "#3b4050"], top: "#86cbe6", under: "#2a2d38", lift: 1.3, alt: 0.2 },
-  earth: { side: ["#3d352f", "#413832"], top: "#a08c74", under: "#2a2420", lift: 1.3, alt: 0.2 },
 } as const;
 export type ColossusPalette = keyof typeof COLOSSUS_PALETTES;
 
@@ -134,7 +131,7 @@ export function colossusModel(o: ColossusOptions): Enemy {
     m.position.set(x * SCALE, (y + LIFT) * SCALE, z * SCALE);
     m.castShadow = true;
     const hull = new THREE.Mesh(geo![k], outlineMat);
-    hull.scale.setScalar(1.07);
+    hull.scale.setScalar(1.035);
     m.add(hull);
     outlines.push(hull);
     tilt.add(m);

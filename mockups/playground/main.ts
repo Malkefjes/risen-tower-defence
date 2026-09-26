@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { COLOSSUS_HEIGHT, COLOSSUS_PALETTES, colossusModel, type ColossusPalette } from "../../src/render/colossus";
+import { COLOSSUS_HEIGHT, colossusModel } from "../../src/render/colossus";
 import { GameView, type Overlay } from "../../src/render/view";
 import { Game, PACK_STAGGER, TICK, type PlacedPiece } from "../../src/sim/game";
 import { growAt, type Tower } from "../../src/sim/towers";
@@ -45,13 +45,11 @@ const map: MapDef = {
 
 const look = {
   size: 2,
-  palette: "ore" as ColossusPalette | "mix",
-  hp: 12,
-  speed: 1.2,
+  hp: 80,
+  speed: 1,
   pack: 1,
   gap: 3,
 };
-const PALETTES = Object.keys(COLOSSUS_PALETTES) as ColossusPalette[];
 /** How enemies are marked as enemies; switched live from the panel. */
 const marks = { outline: true, ring: false };
 
@@ -78,7 +76,7 @@ WALLS.forEach((cells, i) => {
 
 const view = new GameView(document.getElementById("view")!, game, undefined, {
   enemy: () => colossusModel({
-    palette: look.palette === "mix" ? PALETTES[Math.floor(Math.random() * PALETTES.length)]! : look.palette,
+    palette: "ore",
     scale: look.size,
     // Strides keep pace with the ground it covers; a bigger golem takes longer strides.
     strideRate: (look.speed * 0.75) / look.size,
@@ -108,22 +106,11 @@ function section(title: string, ...kids: HTMLElement[]): void {
   h.textContent = title;
   panel.append(h, ...kids);
 }
-const chips = document.createElement("div");
-chips.className = "chips";
-const drawChips = () => {
-  chips.innerHTML = (["mix", ...PALETTES] as const).map(p => `<button class="chip" data-p="${p}" aria-pressed="${look.palette === p}">${p === "mix" ? "Mixed" : p === "ore" ? "Stone" : p === "snow" ? "Snow" : p === "ice" ? "Ice" : "Earth"}</button>`).join("");
-};
-chips.addEventListener("click", e => {
-  const b = (e.target as HTMLElement).closest("button");
-  if (b) { look.palette = b.dataset.p as ColossusPalette | "mix"; drawChips(); }
-});
-drawChips();
 const tune = game.tuning;
 section("Golem",
   slider("Size (1 = 0.8 cells tall)", 0.5, 3.5, 0.05, () => look.size, v => { look.size = v; view.looks.barY = COLOSSUS_HEIGHT * v + 0.08; }),
   slider("Speed (cells per second)", 0.3, 4, 0.05, () => look.speed, v => { look.speed = v; tune.enemies.grunt.speed = v; }),
-  slider("HP", 1, 80, 1, () => look.hp, v => { look.hp = v; tune.enemies.grunt.hp = v; }),
-  chips,
+  slider("HP", 1, 300, 1, () => look.hp, v => { look.hp = v; tune.enemies.grunt.hp = v; }),
 );
 const markRow = document.createElement("div");
 markRow.className = "chips";
