@@ -6,8 +6,8 @@ import type { Cell } from "../../src/sim/types";
 import "./style.css";
 
 // The explosive tower's picked look, the missile rack, at 1×1 and grown to 2×2 on a
-// plated wall, with sliders to fine-tune its look and how it fires. Missiles land
-// where they were aimed (homing would be a mod), so a walking pack can step out of it.
+// plated wall, with sliders to fine-tune its look and how it fires. Missiles home in
+// on the Grumtooth they were fired at and burst where it is when they arrive.
 
 THREE.ColorManagement.enabled = false;
 
@@ -17,14 +17,14 @@ const models = createDefaultModels(mat);
 // ------------------------------------------------------------------ the numbers
 
 const DEFAULTS = {
-  size: 1, tilt: 29, count1: 2, count2: 4, cheeks: 1, radar: 1,
+  size: 1, tilt: 30, count1: 3, count2: 6, cheeks: 1.2, radar: 0,
   every1: 1.5, every2: 0.9, reload1: 1.6, reload2: 2, turn: 2.6,
   push: 1.3, climb: 2.4, flight: 1.05,
   blast1: 0.9, blast2: 1.2, flash: 1, smoke: 5, scorch: 6, trail: 1,
   swarm: 1, speed: 1, zoom: 1,
 };
 type Params = typeof DEFAULTS;
-const KEY = "frostfall.missile.v1";
+const KEY = "frostfall.missile.v2";
 const P: Params = { ...DEFAULTS };
 try { Object.assign(P, JSON.parse(localStorage.getItem(KEY) ?? "{}")); } catch { /* no saved numbers */ }
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(P)); } catch { /* storage off */ } };
@@ -69,7 +69,7 @@ function missileMesh(s: number): THREE.Group {
 interface Muzzle { at: THREE.Vector3; load: THREE.Object3D; reloadAt: number }
 interface Tower {
   big: boolean; x: number; z: number; root: THREE.Group; yaw: THREE.Group; pitch: THREE.Group;
-  muzzles: Muzzle[]; next: number; shot: number; aim: THREE.Vector3; spinner?: THREE.Object3D;
+  muzzles: Muzzle[]; next: number; shot: number; aim: THREE.Vector3; target?: Walker; spinner?: THREE.Object3D;
 }
 
 const missileScale = (big: boolean) => P.size * (big ? 1.7 : 1.15);
@@ -177,7 +177,7 @@ scene.add(models.create("wallPiece", { cells }));
 const towers: Tower[] = [
   { big: false, x: 0.5, z: 1.5, next: 0.8 },
   { big: true, x: 2, z: 1, next: 1.4 },
-].map(t => ({ ...t, ...buildRack(t.big), shot: 0, aim: pickGround() }));
+].map(t => ({ ...t, ...buildRack(t.big), shot: 0, aim: pickGround() } as Tower));
 for (const t of towers) { t.root.position.set(t.x, DECK_TOP, t.z); scene.add(t.root); }
 
 /** Rebuild both racks with the current look numbers, keeping where they point. */
@@ -214,18 +214,20 @@ function walkerAt(w: Walker, out: THREE.Vector3): THREE.Vector3 {
   const along = ((walkClock * WALK - w.offset) % loop + loop) % loop - SPAN;
   return out.copy(CENTER).addScaledVector(FRONT, 3.9 + w.lane).addScaledVector(SIDE, along);
 }
-/** Aim at a random Grumtooth in reach, where it stands now; the ground if none is. */
-function pickAim(t: Tower): THREE.Vector3 {
+/** Pick a random Grumtooth in reach to follow; a spot on the ground if none is. */
+function pickAim(t: Tower): void {
+  t.target = undefined;
   if (P.swarm > 0) {
-    const inReach = walkers.map(w => walkerAt(w, new THREE.Vector3())).filter(p => p.distanceTo(new THREE.Vector3(t.x, 0, t.z)) < 6);
-    if (inReach.length) return inReach[Math.floor(Math.random() * inReach.length)]!;
+    const home = new THREE.Vector3(t.x, 0, t.z);
+    const inReach = walkers.filter(w => walkerAt(w, tmp).distanceTo(home) < 6);
+    if (inReach.length) { t.target = inReach[Math.floor(Math.random() * inReach.length)]!; walkerAt(t.target, t.aim); return; }
   }
-  return pickGround();
+  t.aim.copy(pickGround());
 }
 
 // ------------------------------------------------------------------ shots and blasts
 
-interface Shot { obj: THREE.Object3D; t: number; dur: number; curve: THREE.CubicBezierCurve3; trailT: number; blast: number }
+interface Shot { obj: THREE.Object3D; t: number; dur: number; curve: THREE.CubicBezierCurve3; trailT: number; blast: number; target?: Walker; dist: number }
 interface Puff { obj: THREE.Mesh; t: number; life: number; vel: THREE.Vector3; grow: number; fade: number }
 const shots: Shot[] = [];
 const puffs: Puff[] = [];
@@ -311,7 +313,7 @@ function fire(t: Tower, now: number): boolean {
   obj.position.copy(from);
   obj.lookAt(from.clone().add(fwd));
   scene.add(obj);
-  shots.push({ obj, t: 0, dur: P.flight + dist * 0.09, curve, trailT: 0, blast: t.big ? P.blast2 : P.blast1 });
+  shots.push({ obj, t: 0, dur: P.flight + dist * 0.09, curve, trailT: 0, blast: t.big ? P.blast2 : P.blast1, target: t.target, dist });
   return true;
 }
 
@@ -429,7 +431,8 @@ function frame(now: number): void {
   }
 
   for (const t of towers) {
-    // Missiles land where the rack aimed when it fired, so it keeps its aim point.
+    // The rack follows its target as it walks.
+    if (t.target && P.swarm > 0) walkerAt(t.target, t.aim);
     tmp.copy(t.aim).sub(t.root.position);
     const want = Math.atan2(tmp.x, tmp.z);
     let diff = want - t.yaw.rotation.y;
@@ -437,7 +440,7 @@ function frame(now: number): void {
     t.yaw.rotation.y += Math.sign(diff) * Math.min(Math.abs(diff), dt * P.turn);
     t.next -= dt;
     if (Math.abs(diff) < 0.04 && t.next <= 0) {
-      if (fire(t, clock)) { t.next = t.big ? P.every2 : P.every1; t.aim = pickAim(t); }
+      if (fire(t, clock)) { t.next = t.big ? P.every2 : P.every1; pickAim(t); }
       else t.next = 0.05;
     }
     for (const mz of t.muzzles) {
@@ -451,6 +454,13 @@ function frame(now: number): void {
     const s = shots[i]!;
     s.t += dt;
     const u = Math.min(1, s.t / s.dur);
+    // Homing: the end of the flight follows the target, so it bursts where the target is.
+    if (s.target && P.swarm > 0) {
+      // (It lets go if the target wraps round to the start of its loop.)
+      if (walkerAt(s.target, tmp).distanceTo(s.curve.v3) < 1) s.curve.v3.copy(tmp);
+      else s.target = undefined;
+      s.curve.v2.copy(s.curve.v3).setY(P.climb + s.dist * 0.1);
+    }
     const p = s.curve.getPoint(u);
     s.curve.getPoint(Math.min(1, u + 0.02), tmp2);
     s.obj.position.copy(p);
