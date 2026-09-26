@@ -9,7 +9,7 @@ import { WALL_DECK } from "../../src/sim/world";
 import "./style.css";
 
 // A playground on the real game: a cave, a small walled maze of plated walls, the ship
-// at the far end, and packs of Colossus golems that never stop coming. Guns are free.
+// at the far end. Golems come out of the cave when sent from the panel. Guns are free.
 // Click a wall to put a Gun on it, click a Gun to grow it toward the cursor, right-click
 // a Gun to take it away. Drag to pan, scroll to zoom, WASD to walk.
 
@@ -52,11 +52,11 @@ const look = {
   gap: 3,
 };
 const PALETTES = Object.keys(COLOSSUS_PALETTES) as ColossusPalette[];
-let waveSize = 12;
 
 const game = new Game(map, {
   seed: 7,
-  waveSize: () => waveSize,
+  // Nothing comes on its own: every golem is sent from the panel.
+  waveSize: () => 0,
   tuning: {
     startHp: 1e9, ship: { damage: 0 }, enemyHpGrowth: 1, wallHp: 1e6,
     towers: { gun: [{ cost: 0 }, { cost: 0 }, { cost: 0 }] },
@@ -124,27 +124,26 @@ section("Golem",
 section("Packs",
   slider("Golems per pack", 1, 12, 1, () => look.pack, v => { look.pack = v; tune.packMin = tune.packMax = v; }),
   slider("Seconds between packs", 0.5, 12, 0.5, () => look.gap, v => { look.gap = v; tune.packGap = v; }),
-  slider("Golems per raid", 1, 60, 1, () => waveSize, v => { waveSize = v; }),
 );
 section("Gun",
   slider("Damage", 0.5, 10, 0.5, () => tune.towers.gun[0]!.damage, v => { tune.towers.gun[0]!.damage = v; tune.towers.gun[1]!.damage = v; }),
 );
-/** Send packs out of the cave now, on top of the raid under way (each pack at one speed, like the game's). */
-function spawnPacks(n: number): void {
+/** Send `n` packs of `size` out of the cave now, on top of any still walking (each pack at one speed, like the game's). */
+function spawn(n: number, size: number): void {
   if (game.phase === "planning") game.startWave();
   const queue = (game as unknown as { packQueue: { at: Cell; delay: number; speed: number; kind: "grunt" }[] }).packQueue;
   for (let p = 0; p < n; p++) {
     const speed = look.speed * (1 + (Math.random() * 2 - 1) * tune.speedSpread);
-    for (let i = 0; i < look.pack; i++) queue.push({ at: map.spawners[0]!, delay: p * tune.packGap + i * PACK_STAGGER, speed, kind: "grunt" });
+    for (let i = 0; i < size; i++) queue.push({ at: map.spawners[0]!, delay: p * tune.packGap + i * PACK_STAGGER, speed, kind: "grunt" });
   }
 }
 const spawnRow = document.createElement("div");
 spawnRow.className = "chips";
-for (const [label, n] of [["Spawn a pack", 1], ["Spawn 5 packs", 5]] as const) {
+for (const [label, go] of [["Spawn 1", () => spawn(1, 1)], ["Spawn a pack", () => spawn(1, look.pack)], ["Spawn 5 packs", () => spawn(5, look.pack)]] as const) {
   const b = document.createElement("button");
   b.className = "chip";
   b.textContent = label;
-  b.addEventListener("click", () => spawnPacks(n));
+  b.addEventListener("click", go);
   spawnRow.append(b);
 }
 panel.append(spawnRow);
@@ -254,8 +253,6 @@ let last = performance.now(), acc = 0, avatarAcc = 0, fpsT = 0, frames = 0, fps 
 function frame(now: number): void {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
-  // Raids follow each other with no calm in between.
-  if (game.phase === "planning") game.startWave();
   steer();
   avatarAcc += dt;
   while (avatarAcc >= TICK) { game.stepAvatar(TICK); avatarAcc -= TICK; }
