@@ -79,6 +79,32 @@ export function cutStone<P extends string>(glb: string, pivots: Record<P, V3>, a
 /** Enemy marks, read every frame so they can be switched live. */
 export interface Marks { outline: boolean; ring: boolean }
 
+/**
+ * The outline shell for a part: the part pushed out a fixed distance along its
+ * smoothed normals (so it hugs thin tails and ears as closely as broad backs; scaling
+ * the part up instead shifts pieces far from its pivot off the body).
+ */
+const hulls = new WeakMap<THREE.BufferGeometry, THREE.BufferGeometry>();
+function hullOf(g: THREE.BufferGeometry, width: number): THREE.BufferGeometry {
+  let h = hulls.get(g);
+  if (h) return h;
+  const p = g.attributes.position!, n = new Map<string, THREE.Vector3>(), key = (i: number) => `${p.getX(i).toFixed(4)},${p.getY(i).toFixed(4)},${p.getZ(i).toFixed(4)}`;
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  for (let i = 0; i < p.count; i += 3) {
+    a.fromBufferAttribute(p, i); b.fromBufferAttribute(p, i + 1); c.fromBufferAttribute(p, i + 2);
+    const f = b.clone().sub(a).cross(c.clone().sub(a));
+    for (let k = 0; k < 3; k++) { const kk = key(i + k); n.set(kk, (n.get(kk) ?? new THREE.Vector3()).add(f)); }
+  }
+  h = g.clone();
+  const q = h.attributes.position!;
+  for (let i = 0; i < q.count; i++) {
+    const d = n.get(key(i))!.clone().normalize().multiplyScalar(width);
+    q.setXYZ(i, q.getX(i) + d.x, q.getY(i) + d.y, q.getZ(i) + d.z);
+  }
+  hulls.set(g, h);
+  return h;
+}
+
 let outlineMat: THREE.MeshBasicMaterial | undefined, ringMat: THREE.MeshBasicMaterial | undefined, ringGeo: THREE.RingGeometry | undefined;
 
 /**
@@ -98,8 +124,7 @@ export function assemble<P extends string>(geo: Record<P, THREE.BufferGeometry>,
     const m = new THREE.Mesh(geo[k], mat);
     m.position.set(...place(k));
     m.castShadow = true;
-    const hull = new THREE.Mesh(geo[k], outlineMat);
-    hull.scale.setScalar(1.035);
+    const hull = new THREE.Mesh(hullOf(geo[k], 0.008), outlineMat);
     m.add(hull);
     outlines.push(hull);
     tilt.add(m);

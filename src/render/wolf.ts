@@ -35,7 +35,8 @@ export interface WolfOptions {
 /** One wolf. */
 export function wolfModel(o: WolfOptions): Enemy {
   geo ??= cutStone(GLB, PIVOTS, c => {
-    if (c.y > BELLY) return "body";
+    // The tail hangs low behind the back legs: it stays with the body.
+    if (c.y > BELLY || c.z < BACK_Z - 0.14) return "body";
     const front = c.z > (FRONT_Z + BACK_Z) / 2;
     return c.x >= 0 ? (front ? "legFR" : "legBR") : (front ? "legFL" : "legBL");
   }, SCALE);
