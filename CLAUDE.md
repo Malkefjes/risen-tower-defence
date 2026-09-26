@@ -33,6 +33,7 @@ Read this first in every session. Sessions do not share memory; this file, `docs
 
 ## Picks and looks (for reference)
 
+- UI: **smoked glass** (UI mockup B, 2026-09-26; the look section at the end of `src/style.css`): dark tinted panes with a blur, square edges, hairline borders, small uppercase labels in Inter; orange marks what's active. No vignette over the game.
 - Rig (player): humanoid exo-rig, white armor, dark steel limbs, orange bands, cyan visor, blocky multitool with a cyan beam, raised only when mining or building.
 - Walls: stone look C (terraced courses); plated walls are the Armored deck (orange). Ship: the Rocket with the Reactor core. Turrets: Twin/Gatling (design B), now the Gun at 1×1 and 2×2. Explosive tower: the missile rack (mockup C, https://claude.ai/artifact/B77csS1AgA2S1NGvjr88S1; tuned at https://claude.ai/artifact/VjKWFYSEM4soGb9MTV6jxh: size 1, tilt 30°, 3 and 6 missiles, cheeks 1.2, no radar), in the game.
 - Ore: B1 ore body (stone grey, metal steel-silver). Hotbar icons are rendered from the real models (`render/icons.ts`); alloy is one plain ingot, no glow.

@@ -13,7 +13,7 @@ export interface WheelItem {
   off: boolean;
 }
 
-const ORANGE = "#d9573a";
+const ORANGE = "#ff7a2f";
 /** The empty centre, where nothing is picked, and the ring's outer edge (pixels). */
 const DEAD = 58, OUTER = 150, ICON_R = 104;
 
@@ -61,7 +61,7 @@ export class BuildWheel {
     let bg = "", fg = "";
     this.items.forEach((it, i) => {
       const a = wheelAngle(i, n), on = this.hover === i;
-      bg += `<path d="${segment(a - slice / 2 + gap, a + slice / 2 - gap, DEAD, OUTER)}" fill="${on ? "rgba(217,87,58,.32)" : "rgba(28,26,52,.66)"}" stroke="${on ? ORANGE : "rgba(255,255,255,.12)"}" stroke-width="${on ? 2.5 : 1}"/>`;
+      bg += `<path d="${segment(a - slice / 2 + gap, a + slice / 2 - gap, DEAD, OUTER)}" fill="${on ? "rgba(255,122,47,.28)" : "rgba(14,16,28,.62)"}" stroke="${on ? ORANGE : "rgba(255,255,255,.14)"}" stroke-width="${on ? 1.5 : 1}"/>`;
       const count = it.count === undefined ? "" : `<b>x${it.count}</b>`;
       fg += `<div class="it${it.off ? " off" : ""}" style="left:${(Math.cos(a) * ICON_R).toFixed(1)}px;top:${(Math.sin(a) * ICON_R).toFixed(1)}px;--s:${on ? 1.1 : 0.95}">${it.icon}${count}</div>`;
     });
