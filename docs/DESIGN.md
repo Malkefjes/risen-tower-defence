@@ -68,6 +68,47 @@ Principle: **waiting must cost something.** You don't choose when you're attacke
 - Live path preview while placing a piece. This is essential.
 - **Attacks (built):** enemies walk to a cell next to their target and claw it (`enemyDamage` 2 HP/s each); ship 400 HP, smelter 150. **The ship can be destroyed:** it slumps into a dark wreck that still blocks, its gun goes silent, a notice offers a New run, and the run goes on; raids move on to the next-nearest targets. A destroyed smelter is gone with what was in it. With nothing left to attack, enemies burrow away, so a raid still ends. Upkeep and decay: see "Supply and upkeep".
 
+### Threats and answers (decided 2026-09-26)
+
+Enemies and towers are the two deepest systems; everything else supports them. Enemies are **problems**, towers are **solutions**: each threat breaks one thing a defence relies on, and each baseline tower has one clear purpose. No flavour variants of the same auto turret.
+
+- **Early to mid game, a strict matrix:** every threat needs its answer, and raids mix threats, so a base needs all of them. Every tower is clearly bad against at least one threat, and a tower's worth depends on where it sits in the maze, so there is no single best tower.
+- **Late game, builds:** mods let you invest in one tower (or even walls) until it covers its own weaknesses ("this run I go laser cannon; I need an answer to swarms"). **Covering a weakness with mods must cost clearly more than placing the tower that answers it**, so a build is a commitment you chose, not the default. Mods are designed later; numbers stay open to being bent.
+- **Some threats are answered by the maze, not a tower** (wall thickness, plating, spare routes). That keeps mazing the core.
+
+| Threat | What it is | What it breaks | Baseline answer |
+| --- | --- | --- | --- |
+| **Grunt** | The ordinary enemy; the yardstick for the rest | Nothing in particular | Gun (piercing) |
+| **Swarm** | Tiny, huge packs, medium speed | Single-target damage, by numbers | Explosive area damage; switchbacks that bunch them |
+| **Runner** | Low HP, very fast, arrives ahead of the raid | Time in range | Heavy (slow) from the support tower, plus the gun; a longer maze |
+| **Flyer** | Flies a straight, predictable line from its cave to its target | The maze | AA (useless against ground). Few and fragile, so the maze stays the core |
+| **Support** | Heals or shields its pack | Your damage, and target choice | Incendiary (burning stops healing); kill it first |
+| **Elite** | Small pack, tough, hits hard; later becomes the new baseline | Relying on one answer (too tough for splash, too many for one big gun) | A balanced defence |
+| **Brute** | Slow, huge HP, armoured, breaks walls fast | The maze holding; opens shortcuts for the pack behind it | Laser cannon; plated front walls and spare routes |
+| **Boss** | Big, armoured, resistant | One damage source | Variety, prepped with support |
+| **Titan** | Heavy armour, heavy resistances; comes from special far spawners and becomes inevitable the longer a run goes, announced long ahead | The whole defence | A prep zone (Heavy, Cracked, burning) before the killzone |
+
+**Damage types** (sci-fi, no melee, no frost):
+
+- **Piercing:** rounds, rapid fire. The workhorse; flat armour hurts it most.
+- **Laser:** a cannon, slow and huge per shot (not a beam). Beats armour by the size of the hit.
+- **Explosive:** area damage. The swarm killer; armour counts on each target.
+- **Incendiary:** a **thermite mortar** that leaves ground burning for a few seconds (not a flamethrower). Low damage; its job is prep. The enemies adapted to the cold and fire undoes it: **a burning enemy loses its resistances and can't heal.** Burn ticks take armour like any hit. Burning ground melts the snow to a scorched patch. Placement is a maze question: aim it where the path doubles back, and slowed enemies burn longer.
+
+**Armour and resistances:**
+
+- **Armour** is a flat reduction per hit: many small hits do little, big hits go through.
+- **Resistances** are per damage type: half damage, never immune. Only Elites, Bosses and the Titan have them (at most one or two each), they are visible on the model and shown in the raid warning, and burning strips them. They exist so late-game builds have a problem to solve.
+- **Cold does nothing to them** (they live here). The one immunity, and it teaches the world.
+
+**Statuses:**
+
+- **Heavy** (brown): slowed, from the support tower. Replaces frost.
+- **Cracked:** armour lowered, from the support tower.
+- **Burning:** from incendiary; resistances off, no healing.
+
+The Titan shows the whole system: Heavy and Cracked, then burning, then the laser cannon, in that order along the maze.
+
 ### Supply and upkeep (decided 2026-09-25)
 
 - **Supply** comes from the ship (later also hubs). A wall or building is supplied when it's **within the supply radius** (large: 40 cells from the ship's centre, so a big base fits) **and connected to the ship through walls or buildings** (touching counts, corners too, since diagonal walls form a closed seam).
@@ -87,7 +128,7 @@ Principle: **waiting must cost something.** You don't choose when you're attacke
 
 - Towers stand only on walls. A footprint may span walls from different pieces; a wall carrying a tower can't be removed until the tower is sold.
 - Footprints (1×1, 2×2, later more). Bigger is stronger per material, but eats walls that could have extended the maze.
-- First tower: the **Twin** (1×1), which grows into the **Gatling** (2×2).
+- First tower: the **Twin** (1×1), which grows into the **Gatling** (2×2). Both are single-target guns, so they will be redesigned around the threat list (see "Threats and answers"): one baseline tower per purpose (gun, laser cannon, explosive, thermite mortar, AA, support), deepened by mods.
 - Default targeting: the enemy with the most progress. Targeting options later.
 - Selling: full refund shortly after placing, 75% after (a tuning knob).
 
@@ -155,6 +196,10 @@ Not locked yet: zoom range, final model shapes.
 | Movement | 8 directions, no corner cutting |
 | Tower sizes | Multiple footprints on wall blocks; a footprint may span several wall pieces |
 | First tower | Twin (1×1), grows into the Gatling (2×2) |
+| Threats | Grunt, Swarm, Runner, Flyer, Support, Elite, Brute, Boss, Titan; each breaks one thing a defence relies on |
+| Towers | One baseline tower per purpose, deepened by mods; late-game builds can cover a tower's weaknesses, at a clearly higher cost than the tower that answers them |
+| Damage | Piercing, laser (cannon), explosive, incendiary (thermite mortar); flat armour per hit; resistances per type, half damage, only on Elite, Boss, Titan, stripped by burning |
+| Slow | Heavy (brown), not frost: the enemies are cold-adapted |
 | Targeting | Most progress by default; options later |
 | Setting | Sci-fi colony on hostile planets; first world is snowy Frostfall |
 
@@ -183,4 +228,5 @@ WASD run (relative to the screen) · Shift sprint · Space jump · hold left mou
 - Economy numbers: ore per trip, costs of walls, towers and buildings. Found through play, with the tuning panel.
 - How fast should the threat meter climb, and what exactly feeds it?
 - Enemy target preferences: which types go for what?
+- The baseline towers: shape, footprint and cost of each (gun, laser cannon, explosive, thermite mortar, AA, support), and what becomes of the Twin and Gatling.
 - Meta between planets: what exactly carries over, and how is it earned?
