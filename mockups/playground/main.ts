@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { COLOSSUS_HEIGHT, colossusModel } from "../../src/render/colossus";
+import { IMP_HEIGHT, impModel } from "../../src/render/imp";
 import { wolfModel } from "../../src/render/wolf";
 import { GameView, type Overlay } from "../../src/render/view";
 import { Game, PACK_STAGGER, TICK, type PlacedPiece } from "../../src/sim/game";
@@ -10,7 +11,7 @@ import { WALL_DECK } from "../../src/sim/world";
 import "./style.css";
 
 // A playground on the real game: a cave, a small walled maze of plated walls, the ship
-// at the far end. Brutes and wolf packs come out of the cave when sent from the panel. Guns are free.
+// at the far end. Brutes, wolf packs and imp swarms come out of the cave when sent from the panel. Guns are free.
 // Click a wall to put a Gun on it, click a Gun to grow it toward the cursor, right-click
 // a Gun to take it away. Drag to pan, scroll to zoom, WASD to walk.
 
@@ -47,6 +48,7 @@ const map: MapDef = {
 /** Each enemy type's size and numbers, from the panel. The Brute's are locked. */
 const brute = { size: 2, hp: 80, speed: 1, gap: 3 };
 const runner = { size: 1.5, hp: 4, speed: 3, pack: 5 };
+const swarm = { size: 1, hp: 2, speed: 1.6, pack: 12 };
 /** How enemies are marked as enemies; switched live from the panel. */
 const marks = { outline: true, ring: false };
 
@@ -57,7 +59,7 @@ const game = new Game(map, {
   tuning: {
     startHp: 1e9, ship: { damage: 0 }, enemyHpGrowth: 1, wallHp: 1e6,
     towers: { gun: [{ cost: 0 }, { cost: 0 }, { cost: 0 }] },
-    enemies: { brute: { hp: brute.hp, speed: brute.speed }, runner: { hp: runner.hp, speed: runner.speed } },
+    enemies: { brute: { hp: brute.hp, speed: brute.speed }, runner: { hp: runner.hp, speed: runner.speed }, swarm: { hp: swarm.hp, speed: swarm.speed } },
     // Enemies fill most of a one-cell lane: they keep close to its centre line.
     laneSpread: 0.05,
   },
@@ -72,12 +74,12 @@ WALLS.forEach((cells, i) => {
 
 const view = new GameView(document.getElementById("view")!, game, undefined, {
   // Strides keep pace with the ground covered; a bigger body takes longer strides.
-  enemy: w => w.kind === "runner"
-    ? wolfModel({ scale: runner.size, strideRate: (runner.speed * 1.1) / runner.size, marks })
+  enemy: w => w.kind === "runner" ? wolfModel({ scale: runner.size, strideRate: (runner.speed * 1.1) / runner.size, marks })
+    : w.kind === "swarm" ? impModel({ scale: swarm.size, strideRate: (swarm.speed * 1.6) / swarm.size, marks })
     : colossusModel({ scale: brute.size, strideRate: (brute.speed * 0.75) / brute.size, marks }),
-  barY: w => w.kind === "runner" ? 0.45 * runner.size + 0.1 : COLOSSUS_HEIGHT * brute.size + 0.08,
+  barY: w => w.kind === "runner" ? 0.45 * runner.size + 0.1 : w.kind === "swarm" ? IMP_HEIGHT * swarm.size + 0.08 : COLOSSUS_HEIGHT * brute.size + 0.08,
   // A wolf gets a small bar, so a pack doesn't turn into a wall of red.
-  barScale: w => w.kind === "runner" ? 0.5 : 1,
+  barScale: w => w.kind === "runner" ? 0.5 : w.kind === "swarm" ? 0.35 : 1,
   burst: { color: "#5a5f70", count: 12, size: 2.2 },
   alwaysBars: true,
 });
@@ -103,9 +105,9 @@ function section(title: string, ...kids: HTMLElement[]): void {
 }
 const tune = game.tuning;
 /** Send `n` enemies of a kind out of the cave now, `gap` seconds apart (a pack moves at one speed, like the game's). */
-function spawn(kind: "brute" | "runner", n: number, gap: number): void {
+function spawn(kind: "brute" | "runner" | "swarm", n: number, gap: number): void {
   if (game.phase === "planning") game.startWave();
-  const queue = (game as unknown as { packQueue: { at: Cell; delay: number; speed: number; kind: "brute" | "runner" }[] }).packQueue;
+  const queue = (game as unknown as { packQueue: { at: Cell; delay: number; speed: number; kind: "brute" | "runner" | "swarm" }[] }).packQueue;
   const speed = tune.enemies[kind].speed * (1 + (Math.random() * 2 - 1) * tune.speedSpread);
   for (let i = 0; i < n; i++) queue.push({ at: map.spawners[0]!, delay: i * gap, speed, kind });
 }
@@ -136,6 +138,14 @@ section("Runner",
   slider("Wolves per pack", 1, 30, 1, () => runner.pack, v => { runner.pack = v; }),
   // A pack runs nose to tail: each wolf leaves as the one ahead has cleared its length.
   buttons(["Spawn 1", () => spawn("runner", 1, 0)], ["Spawn a pack", () => spawn("runner", runner.pack, Math.max(PACK_STAGGER, (runner.size * 1.1) / runner.speed))]),
+);
+// A swarm pours out of the cave in a stream.
+section("Swarm",
+  slider("Size (1 = half a cell tall)", 0.4, 3, 0.05, () => swarm.size, v => { swarm.size = v; }),
+  slider("Speed (cells per second)", 0.3, 5, 0.05, () => swarm.speed, v => { swarm.speed = v; tune.enemies.swarm.speed = v; }),
+  slider("HP", 1, 30, 1, () => swarm.hp, v => { swarm.hp = v; tune.enemies.swarm.hp = v; }),
+  slider("Imps per swarm", 1, 60, 1, () => swarm.pack, v => { swarm.pack = v; }),
+  buttons(["Spawn 1", () => spawn("swarm", 1, 0)], ["Spawn a swarm", () => spawn("swarm", swarm.pack, PACK_STAGGER * 0.6)]),
 );
 const markRow = document.createElement("div");
 markRow.className = "chips";
