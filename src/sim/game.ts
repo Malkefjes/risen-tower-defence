@@ -5,8 +5,8 @@ import { nodeArea, nodeCellTop, nodeFootprint, nodeMax, ORE_STAGES, stagesLeft, 
 import { computeField, keysOf, type FlowField } from "./pathfinding";
 import { pieceCells, type ShapeId } from "./pieces";
 import { Rng } from "./rng";
-import { ENEMY_INFO, ENEMY_KINDS, throughArmour, type EnemyKind, type EnemyStats } from "./enemies";
-import { BOLT_SPEED, footprint, missileTime, SLUG_SPEED, TOWER_INFO, TOWER_TOP, type Tower, type TowerKind, type TowerStats } from "./towers";
+import { ENEMY_INFO, ENEMY_KINDS, resistance, throughArmour, type DamageKind, type EnemyKind, type EnemyStats } from "./enemies";
+import { BOLT_SPEED, footprint, missileTime, SHOT_DAMAGE, SLUG_SPEED, TOWER_INFO, TOWER_TOP, type Tower, type TowerKind, type TowerStats } from "./towers";
 import { mergeTuning, type Tuning, type TuningPatch } from "./tuning";
 import { cellKey, parseKey, type Cell } from "./types";
 import { WALL_DECK, World, type MapDef } from "./world";
@@ -75,6 +75,8 @@ export interface Shot {
   dur: number;
   /** Blast radius: every enemy this close to where it lands is hit (0 = only the target). */
   radius: number;
+  /** What kind of damage it does. */
+  kind: DamageKind;
   /** Where it lands: the target's position, followed while the target lives. */
   x: number; y: number;
 }
@@ -1271,8 +1273,8 @@ export class Game {
     gun.targetId = st?.id ?? null;
     if (st && gun.cooldown <= 0) {
       gun.cooldown = 1 / s.rate;
-      const shot: Shot = { id: this.nextId++, towerId: SHIP_SHOOTER, targetId: st.id, damage: s.damage, t: 0, dur: Math.hypot(st.x - c.x, st.y - c.y) / BOLT_SPEED, radius: 0, x: st.x, y: st.y };
-      st.pending += this.hitFor(st, shot.damage);
+      const shot: Shot = { id: this.nextId++, towerId: SHIP_SHOOTER, targetId: st.id, damage: s.damage, t: 0, dur: Math.hypot(st.x - c.x, st.y - c.y) / BOLT_SPEED, radius: 0, x: st.x, y: st.y, kind: "piercing" };
+      st.pending += this.hitFor(st, shot.damage, shot.kind);
       this.shots.push(shot);
       this.events.push({ type: "shot", shot });
     }
@@ -1288,8 +1290,8 @@ export class Game {
       const dist = Math.hypot(target.x - t.cx, target.y - t.cy);
       const kind = TOWER_INFO[t.kind].shot;
       const dur = kind === "missile" ? missileTime(dist) : dist / (kind === "slug" ? SLUG_SPEED : BOLT_SPEED);
-      const shot: Shot = { id: this.nextId++, towerId: t.id, targetId: target.id, damage: s.damage, t: 0, dur, radius: s.radius, x: target.x, y: target.y };
-      target.pending += this.hitFor(target, shot.damage);
+      const shot: Shot = { id: this.nextId++, towerId: t.id, targetId: target.id, damage: s.damage, t: 0, dur, radius: s.radius, x: target.x, y: target.y, kind: SHOT_DAMAGE[kind as keyof typeof SHOT_DAMAGE] };
+      target.pending += this.hitFor(target, shot.damage, shot.kind);
       this.shots.push(shot);
       this.events.push({ type: "shot", shot });
     }
@@ -1318,22 +1320,25 @@ export class Game {
     this.shots = this.shots.filter(s => !landed.includes(s));
     for (const s of landed) {
       const target = this.walkers.find(x => x.id === s.targetId);
-      if (target) target.pending = Math.max(0, target.pending - this.hitFor(target, s.damage));
+      if (target) target.pending = Math.max(0, target.pending - this.hitFor(target, s.damage, s.kind));
       const tower = s.towerId === SHIP_SHOOTER ? undefined : this.towers.find(t => t.id === s.towerId);
       if (s.radius > 0) this.events.push({ type: "blast", x: s.x, y: s.y, radius: s.radius, towerId: s.towerId });
       // A blast hits everything in its radius (its target too, wherever it has got to).
       const hit = s.radius > 0
         ? this.walkers.filter(w => w === target || Math.hypot(w.x - s.x, w.y - s.y) <= s.radius)
         : target ? [target] : [];
-      for (const w of hit) this.damage(w, s.damage, tower);
+      for (const w of hit) this.damage(w, s.damage, s.kind, tower);
     }
   }
 
-  /** What a hit of `damage` really does to this enemy, through its armour. */
-  hitFor(w: Walker, damage: number): number { return throughArmour(damage, this.enemyStats(w.kind).armour); }
+  /** What a hit of `damage` of a kind really does to this enemy: less what it resists, then through its armour. */
+  hitFor(w: Walker, damage: number, kind: DamageKind = "piercing"): number {
+    const e = this.enemyStats(w.kind);
+    return throughArmour(damage * (1 - resistance(e, kind)), e.armour);
+  }
 
-  private damage(w: Walker, raw: number, tower: Tower | undefined): void {
-    const amount = this.hitFor(w, raw);
+  private damage(w: Walker, raw: number, kind: DamageKind, tower: Tower | undefined): void {
+    const amount = this.hitFor(w, raw, kind);
     if (tower && !w.practice) tower.dealt += Math.min(amount, w.hp);
     w.hp -= amount;
     if (w.hp > 0) { this.events.push({ type: "hit", walker: w }); return; }

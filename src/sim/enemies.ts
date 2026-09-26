@@ -39,10 +39,34 @@ export interface EnemyStats {
   from: number;
   /** Flat armour: taken off every hit, down to `ARMOUR_FLOOR` of it. Many small hits do little; big hits go through. */
   armour: number;
+  /**
+   * Resistances: the share of each damage type's hits it shrugs off (0.5 = half damage; never
+   * immune). Only the Elite (and later Bosses and the Titan) has any: at most one or two.
+   */
+  resistPiercing: number;
+  resistLaser: number;
+  resistExplosive: number;
 }
 
 /** However thick the armour, a hit always does at least this share of its damage (never immune). */
 export const ARMOUR_FLOOR = 0.1;
+
+/** The kinds of damage: Guns (and the ship's gun) pierce, the laser cannon burns through, missiles explode. */
+export type DamageKind = "piercing" | "laser" | "explosive";
+
+/** A resistance never takes off more than this share of a hit (never immune). */
+export const RESIST_MAX = 0.75;
+
+/** The share of a damage type's hits an enemy of these stats shrugs off. */
+export function resistance(e: EnemyStats, kind: DamageKind): number {
+  const r = kind === "piercing" ? e.resistPiercing : kind === "laser" ? e.resistLaser : e.resistExplosive;
+  return Math.min(RESIST_MAX, Math.max(0, r ?? 0));
+}
+
+/** What an enemy type resists, for the raid warning ("explosive", or "" for nothing). */
+export function resistsText(e: EnemyStats): string {
+  return (["piercing", "laser", "explosive"] as DamageKind[]).filter(k => resistance(e, k) > 0).join(", ");
+}
 
 /** What a hit of `damage` does through `armour`. */
 export const throughArmour = (damage: number, armour: number): number => Math.max(damage * ARMOUR_FLOOR, damage - armour);

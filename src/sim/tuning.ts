@@ -144,13 +144,14 @@ export const defaultTuning = (): Tuning => ({
   enemies: {
     // The pack: dies to one missile in raid 1 and comes six at a time, half a cell apart, so a
     // burst catches several (the Swarm's threat per raid size, in fewer, bigger bodies).
-    grunt: { hp: 8, speed: 1.5, damage: 2, pack: 6, gap: 0.15, cost: 0.5, share: 4, from: 1, armour: 0 },
-    // The Elite (Erik's Frost Titan): a look only for now, not sent (share 0) until its numbers are agreed.
-    elite: { hp: 40, speed: 1.3, damage: 4, pack: 3, gap: 0.6, cost: 5, share: 0, from: 6, armour: 0.25 },
+    grunt: { hp: 8, speed: 1.5, damage: 2, pack: 6, gap: 0.15, cost: 0.5, share: 4, from: 1, armour: 0, resistPiercing: 0, resistLaser: 0, resistExplosive: 0 },
+    // Small packs of three, tough, and missiles do half: too tough for splash, and the whole raid is too much for any
+    // one tower type. The answer is a balanced defence.
+    elite: { hp: 32, speed: 1.3, damage: 4, pack: 3, gap: 0.6, cost: 4, share: 4, from: 6, armour: 0, resistPiercing: 0, resistLaser: 0, resistExplosive: 0.5 },
     // Few and tough: three Gun passes at full speed, so it outruns a short killzone unless it's Heavy.
-    runner: { hp: 24, speed: 3, damage: 1, pack: 3, gap: 1.2, cost: 6, share: 14, from: 2, armour: 0 },
+    runner: { hp: 24, speed: 3, damage: 1, pack: 3, gap: 1.2, cost: 6, share: 14, from: 2, armour: 0, resistPiercing: 0, resistLaser: 0, resistExplosive: 0 },
     // Armoured: the Gun's rounds do half; the laser cannon's go through.
-    brute: { hp: 80, speed: 1, damage: 4, pack: 1, gap: 3, cost: 4, share: 5, from: 3, armour: 0.5 },
+    brute: { hp: 80, speed: 1, damage: 4, pack: 1, gap: 3, cost: 4, share: 5, from: 3, armour: 0.5, resistPiercing: 0, resistLaser: 0, resistExplosive: 0 },
   },
   towers: {
     // The workhorse: the unit everything is measured in.

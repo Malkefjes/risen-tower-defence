@@ -1,5 +1,5 @@
 import type { Game, GameEvent } from "../sim/game";
-import { ENEMY_INFO } from "../sim/enemies";
+import { ENEMY_INFO, resistsText } from "../sim/enemies";
 import { STACK_MAX } from "../sim/inventory";
 import type { OreNode } from "../sim/ore";
 import { itemIcons } from "../render/icons";
@@ -276,7 +276,11 @@ export class Hud {
     const g = this.game, key = `${g.round}|${g.activeSpawners().length}|${JSON.stringify(g.tuning.enemies)}|${g.tuning.raidBase}|${g.tuning.raidStep}`;
     if (key !== this.mixKey) {
       this.mixKey = key;
-      this.mixHtml = `<span class="mix">${g.raidMix().map(m => `${ENEMY_INFO[m.kind].name} ${m.count}`).join(" · ")}</span>`;
+      // A type that resists something says so: "Elite 9, resists explosive".
+      this.mixHtml = `<span class="mix">${g.raidMix().map(m => {
+        const r = resistsText(g.enemyStats(m.kind));
+        return `${ENEMY_INFO[m.kind].name} ${m.count}${r ? `, resists ${r}` : ""}`;
+      }).join(" · ")}</span>`;
     }
     return this.mixHtml;
   }

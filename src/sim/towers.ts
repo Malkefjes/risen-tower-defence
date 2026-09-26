@@ -17,6 +17,9 @@ export const MAX_TOWER_SIZE = 3;
  * (`missileTime`), following their target, and burst over `radius`. A field tower
  * fires nothing: every enemy within its range is Heavy (`Tuning.heavySlow`).
  */
+/** The damage each kind of shot does (a field does none). */
+export const SHOT_DAMAGE = { bolt: "piercing", slug: "laser", missile: "explosive" } as const;
+
 export const TOWER_INFO: Record<TowerKind, { name: string; maxSize: number; shot: "bolt" | "slug" | "missile" | "field" }> = {
   gun: { name: "Gun", maxSize: 2, shot: "bolt" },
   explosive: { name: "Missile rack", maxSize: 2, shot: "missile" },

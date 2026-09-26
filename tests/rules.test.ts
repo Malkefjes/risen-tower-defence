@@ -49,6 +49,14 @@ describe("the balance anchors hold for the default numbers", () => {
     expect(guns / lasers).toBeLessThanOrEqual(6);
   });
 
+  it("from raid 6 (the Elites) no one tower type holds a whole raid cheaper than the right mix: missiles are halved on Elites, lasers can't keep up with everything", () => {
+    for (const n of [6, 8]) {
+      const mix = holdBudget({ round: n, towers: right(n) });
+      expect(holdBudget({ round: n, towers: ["laser"] }), `raid ${n}, lasers alone`).toBeGreaterThanOrEqual(mix);
+      expect(holdBudget({ round: n, towers: ["explosive"] }), `raid ${n}, missile racks alone`).toBeGreaterThanOrEqual(mix);
+    }
+  });
+
   it("a Radome among Guns never costs more than Guns alone against Runners (a soft counter: the maze does the rest)", () => {
     const withRadome = holdBudget({ round: 3, towers: ["support", "gun", "gun", "gun", "gun", "gun", "gun", "gun", "gun"], only: ["runner"] });
     const guns = holdBudget({ round: 3, towers: ["gun"], only: ["runner"] });
