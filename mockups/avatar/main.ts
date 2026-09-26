@@ -200,6 +200,8 @@ const weights = { stand: 0, walk: 0, run: 1, sprint: 0 };
 const q = new THREE.Quaternion(), v = new THREE.Vector3(), fwd = new THREE.Vector3();
 const restFore = bone("RightForeArm").quaternion.clone();
 
+const touched = new Map(["Spine2", "LeftUpLeg", "RightUpLeg", "RightArm", "RightForeArm"].map(n => [bone(n), bone(n).quaternion.clone()] as const));
+
 function frame(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
@@ -222,7 +224,11 @@ function frame(now: number): void {
     a.setEffectiveWeight(weights[m]);
     a.setEffectiveTimeScale(m === "stand" ? 1 : Math.max(0.2, (speed / (CYCLE[m] / a.getClip().duration)) * stride) * (grounded ? 1 : 0.3));
   }
+  // The mixer skips bones whose pose hasn't changed (a still clip), so the bones touched
+  // below get their clip pose back first; otherwise the touches pile up frame on frame.
+  for (const [b, pose] of touched) b.quaternion.copy(pose);
   mixer.update(dt);
+  for (const [b, pose] of touched) pose.copy(b.quaternion);
   // Standing: a slow breath through the chest (the file has no idle yet).
   if (weights.stand > 0.5) bone("Spine2").rotateX(Math.sin(now / 900) * 0.03 * weights.stand);
   // In the air: knees up.
