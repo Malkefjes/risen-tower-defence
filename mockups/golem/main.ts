@@ -68,13 +68,13 @@ let enemy: Enemy | null = null;
 const holder = new THREE.Group();
 scene.add(holder);
 function rebuild(): void {
-  look = { ...GOLEM_LOOKS[kind], clip: clipOverride ?? GOLEM_LOOKS[kind].clip };
+  look = { ...GOLEM_LOOKS[kind], clip: clipOverride ?? GOLEM_LOOKS[kind].clip, stride: strides[kind] };
   speed = look.clip === "stand" ? 0 : speeds[kind].speed;
   if (enemy) holder.remove(enemy.object);
   enemy = golemEnemy(look, Math.max(speed, 0.001));
   holder.add(enemy.object);
   resize();
-  state.textContent = `${TYPES.find(t => t[0] === kind)![1]} · ${look.height.toFixed(2)} cells tall · ${speed} cells/s · ${look.color}`;
+  state.textContent = `${TYPES.find(t => t[0] === kind)![1]} · ${look.height.toFixed(2)} cells tall · ${speed} cells/s · stride ${look.stride.toFixed(2)} · ${look.color}`;
 }
 
 // ------------------------------------------------------------------ controls
@@ -93,6 +93,16 @@ const typeBar = document.getElementById("bar")!, clipBar = document.getElementBy
 for (const [k, label] of TYPES) button(typeBar, label, () => kind === k, () => { kind = k; clipOverride = null; rebuild(); });
 button(clipBar, "Own", () => clipOverride === null, () => { clipOverride = null; rebuild(); });
 for (const c of GOLEM_CLIPS) button(clipBar, CLIP_LABEL[c], () => clipOverride === c, () => { clipOverride = c; rebuild(); });
+// Each type's stride, kept per type while you switch between them.
+const strides = Object.fromEntries(TYPES.map(([k]) => [k, GOLEM_LOOKS[k].stride])) as Record<EnemyKind, number>;
+const strideLabel = document.createElement("label");
+strideLabel.innerHTML = `Stride <input type="range" min="0.2" max="1.5" step="0.05"> <span></span>`;
+const strideInput = strideLabel.querySelector("input")!, strideOut = strideLabel.querySelector("span")!;
+const syncStride = () => { strideInput.value = String(strides[kind]); strideOut.textContent = strides[kind].toFixed(2); };
+syncs.push(syncStride);
+syncStride();
+strideInput.addEventListener("input", () => { strides[kind] = Number(strideInput.value); strideOut.textContent = strides[kind].toFixed(2); rebuild(); });
+clipBar.appendChild(strideLabel);
 
 // ------------------------------------------------------------------ animation
 

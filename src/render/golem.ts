@@ -16,12 +16,8 @@ import { loopable, parseGlb } from "./skinned";
 export type GolemClip = "stand" | "walk" | "walk2" | "run";
 export const GOLEM_CLIPS: GolemClip[] = ["stand", "walk", "walk2", "run"];
 const CLIP_NAME: Record<GolemClip, string> = { stand: "restpose", walk: "Walking", walk2: "walking_2", run: "Running" };
-/**
- * Ground covered by one cycle of each clip, per cell of height (the Sentinel's clips, which
- * these are, scaled by his height), and the stride Erik picked for him.
- */
+/** Ground covered by one cycle of each clip, per cell of height (the Sentinel's clips, which these are, scaled by his height). */
 const CYCLE: Record<GolemClip, number> = { stand: 1, walk: 0.62, walk2: 0.72, run: 1.16 };
-const STRIDE = 0.5;
 
 export interface GolemLook {
   /** Height in cells. */
@@ -32,13 +28,15 @@ export interface GolemLook {
   clip: GolemClip;
   /** Width of its HP bar (1 = the normal half-cell bar). */
   bar: number;
+  /** How fast the clip plays for its speed (lower: slower, longer strides; the Sentinel's is 0.5). */
+  stride: number;
 }
 
 /** How each enemy type looks. */
 export const GOLEM_LOOKS: Record<EnemyKind, GolemLook> = {
-  grunt: { height: 0.75, color: "#6b7080", clip: "walk", bar: 0.4 },
-  runner: { height: 0.95, color: "#3e4657", clip: "run", bar: 0.5 },
-  brute: { height: 1.7, color: "#4a4f5c", clip: "walk2", bar: 1 },
+  grunt: { height: 0.75, color: "#6b7080", clip: "walk", bar: 0.4, stride: 0.5 },
+  runner: { height: 0.95, color: "#3e4657", clip: "run", bar: 0.5, stride: 0.5 },
+  brute: { height: 1.7, color: "#4a4f5c", clip: "walk2", bar: 1, stride: 0.5 },
 };
 
 /** One enemy's model, driven by the view: how it moves each frame and how it flashes when hit. */
@@ -180,7 +178,7 @@ export function golemEnemy(look: GolemLook, speed: number): Enemy {
     action = mixer.clipAction(clip);
     action.play();
     action.time = Math.random() * clip.duration;
-    rate = look.clip === "stand" ? 1 : (speed / (CYCLE[look.clip] * look.height / clip.duration)) * STRIDE;
+    rate = look.clip === "stand" ? 1 : (speed / (CYCLE[look.clip] * look.height / clip.duration)) * look.stride;
   }, e => console.error("golem", e));
   return {
     object,
