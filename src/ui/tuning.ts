@@ -30,6 +30,10 @@ const enemySections = (): Section[] => ENEMY_KINDS.map(kind => {
       stat(pick, "hp", "HP in raid 1", 1, 200, 1),
       stat(pick, "speed", "Speed (cells per second)", 0.2, 6, 0.05),
       stat(pick, "damage", "Damage per second (to buildings and walls)", 0, 50, 0.5),
+      stat(pick, "pack", "Per pack (0 = Grunt pack range)", 0, 40, 1),
+      stat(pick, "gap", "Seconds between them in a pack", 0.05, 5, 0.05),
+      stat(pick, "cost", "Raid size one takes (a Grunt is 1)", 0.05, 20, 0.05),
+      stat(pick, "share", "Share of raid packs (0 = never)", 0, 10, 1),
     ],
   };
 });

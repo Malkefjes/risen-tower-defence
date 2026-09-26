@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { Game, PACK_STAGGER } from "../src/sim/game";
 import type { MapDef } from "../src/sim/world";
+import { gruntsOnly } from "./helpers";
 
 const map = (): MapDef => ({ name: "test", spawners: [[0, 0]], ship: [[40, 0]], rocks: [], trees: [] });
 const run = (g: Game, seconds: number) => { for (let i = 0; i < Math.round(seconds * 60); i++) g.step(); };
 
 describe("enemy packs", () => {
   it("a cave sends a pack, one enemy after another, then waits before the next", () => {
-    const g = new Game(map(), { seed: 2, waveSize: () => 8, tuning: { packMin: 4, packMax: 4, packGap: 4 } });
+    const g = new Game(map(), { seed: 2, waveSize: () => 8, tuning: { packMin: 4, packMax: 4, packGap: 4, enemies: gruntsOnly } });
     g.startWave();
     run(g, 4 * PACK_STAGGER);
     expect(g.walkers).toHaveLength(4);
@@ -19,7 +20,7 @@ describe("enemy packs", () => {
   });
 
   it("the last pack is only what is left, and the raid counts it", () => {
-    const g = new Game(map(), { seed: 2, waveSize: () => 5, tuning: { packMin: 4, packMax: 4, packGap: 1 } });
+    const g = new Game(map(), { seed: 2, waveSize: () => 5, tuning: { packMin: 4, packMax: 4, packGap: 1, enemies: gruntsOnly } });
     g.startWave();
     expect(g.waveRemaining).toBe(5);
     run(g, 3);
@@ -27,7 +28,7 @@ describe("enemy packs", () => {
   });
 
   it("a pack moves at one speed, packs differ a little, and each enemy has its own line", () => {
-    const g = new Game(map(), { seed: 5, waveSize: () => 60, tuning: { packMin: 5, packMax: 5, packGap: 0.5, speedSpread: 0.12 } });
+    const g = new Game(map(), { seed: 5, waveSize: () => 60, tuning: { packMin: 5, packMax: 5, packGap: 0.5, speedSpread: 0.12, enemies: gruntsOnly } });
     g.startWave();
     const packs: number[][] = [];
     for (let p = 0; p < 12; p++) {
@@ -44,5 +45,49 @@ describe("enemy packs", () => {
     expect(new Set(packs.map(p => p[0])).size).toBeGreaterThan(1);
     for (const w of g.walkers) expect(Math.abs(w.lane!)).toBeLessThanOrEqual(1);
     expect(new Set(g.walkers.map(w => w.lane)).size).toBe(g.walkers.length);
+  });
+});
+
+describe("raids mix enemy types", () => {
+  const run = (g: Game, seconds: number) => { for (let i = 0; i < Math.round(seconds * 60); i++) g.step(); };
+  /** Play for a while and count every enemy that came out, by type (they may be killed or burrow before the end). */
+  const sent = (g: Game, seconds: number) => {
+    const seen = new Map<string, number>(), ids = new Set<number>();
+    for (let i = 0; i < Math.round(seconds * 60); i++) {
+      g.step();
+      for (const w of g.walkers) if (!ids.has(w.id)) { ids.add(w.id); seen.set(w.kind, (seen.get(w.kind) ?? 0) + 1); }
+    }
+    return seen;
+  };
+
+  it("send only types with a share, each in its own pack size, until the raid's size is spent", () => {
+    const g = new Game(map(), { seed: 4, waveSize: () => 30, tuning: { ship: { damage: 0 }, packGap: 0.2, startHp: 1e9 } });
+    g.startWave();
+    const seen = sent(g, 120);
+    expect(seen.has("grunt")).toBe(false);
+    const cost = [...seen].reduce((a, [k, n]) => a + n * g.tuning.enemies[k as "swarm"].cost, 0);
+    // The raid's size is spent (a last pack may overshoot it by at most one enemy's cost).
+    expect(cost).toBeGreaterThanOrEqual(30 - 1e-6);
+    expect(cost).toBeLessThanOrEqual(30 + g.tuning.enemies.brute.cost);
+  });
+
+  it("a pack is one type, as many as its pack size, spaced by its gap", () => {
+    const g = new Game(map(), { seed: 1, waveSize: () => 100, tuning: { enemies: { swarm: { share: 1 }, runner: { share: 0 }, brute: { share: 0 } } } });
+    g.startWave();
+    const e = g.tuning.enemies.swarm;
+    run(g, e.gap * (e.pack - 1) + 0.05);
+    expect(g.walkers).toHaveLength(e.pack);
+    expect(g.walkers.every(w => w.kind === "swarm")).toBe(true);
+    expect(new Set(g.walkers.map(w => w.speed)).size).toBe(1);
+  });
+
+  it("a type that no longer fits what's left isn't sent; a raid too small for any sends the cheapest", () => {
+    const only = (share: Record<string, number>) => ({ enemies: { swarm: { share: share.swarm ?? 0 }, runner: { share: share.runner ?? 0 }, brute: { share: share.brute ?? 0 } } });
+    const g = new Game(map(), { seed: 3, waveSize: () => 2, tuning: only({ brute: 5, runner: 1 }) });
+    g.startWave();
+    expect([...sent(g, 20)]).toEqual([["runner", 2]]);
+    const h = new Game(map(), { seed: 3, waveSize: () => 1, tuning: only({ brute: 1 }) });
+    h.startWave();
+    expect([...sent(h, 5)]).toEqual([["brute", 1]]);
   });
 });

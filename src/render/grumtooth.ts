@@ -1,6 +1,5 @@
 import * as THREE from "three";
-import type { Enemy } from "./leaper";
-import { assemble, cutStone, type Marks, type V3 } from "./stoneCreature";
+import { assemble, cutStone, type Enemy, type Marks, type V3 } from "./stoneCreature";
 import { GLB } from "./grumtoothData";
 
 /**

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Game } from "../src/sim/game";
 import { computeField } from "../src/sim/pathfinding";
 import type { MapDef } from "../src/sim/world";
-import { metalWall } from "./helpers";
+import { gruntsOnly, metalWall } from "./helpers";
 
 const open = (extra: Partial<MapDef> = {}): MapDef => ({ name: "test", spawners: [[0, 0]], ship: [[10, 0]], rocks: [], trees: [], start: [3, 8], ...extra });
 const run = (g: Game, seconds: number) => { for (let i = 0; i < Math.round(seconds * 60); i++) g.step(); };
@@ -39,7 +39,7 @@ describe("walls are slow obstacles", () => {
   });
 
   it("a full block gets chewed through, slowly, by at most two at a time", () => {
-    const g = new Game(open(), { seed: 1, waveSize: () => 5, tuning: { ship: noGun, wallHp: 300, enemies: { grunt: { damage: 2 } }, wallClawers: 2, packMin: 5, packMax: 5 } });
+    const g = new Game(open(), { seed: 1, waveSize: () => 5, tuning: { ship: noGun, wallHp: 300, enemies: { ...gruntsOnly, grunt: { damage: 2 } }, wallClawers: 2, packMin: 5, packMax: 5 } });
     column(g, 5, -60, 60);
     g.field = computeField(g.world);
     const route = g.routes()[0]!;

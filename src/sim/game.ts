@@ -5,7 +5,7 @@ import { nodeArea, nodeCellTop, nodeFootprint, nodeMax, ORE_STAGES, stagesLeft, 
 import { computeField, keysOf, type FlowField } from "./pathfinding";
 import { pieceCells, type ShapeId } from "./pieces";
 import { Rng } from "./rng";
-import type { EnemyKind, EnemyStats } from "./enemies";
+import { ENEMY_KINDS, type EnemyKind, type EnemyStats } from "./enemies";
 import { BOLT_SPEED, footprint, TOWER_INFO, TOWER_TOP, type Tower, type TowerKind, type TowerStats } from "./towers";
 import { mergeTuning, type Tuning, type TuningPatch } from "./tuning";
 import { cellKey, parseKey, type Cell } from "./types";
@@ -959,7 +959,7 @@ export class Game {
     return true;
   }
 
-  get waveRemaining(): number { return this.waveLeft * this.activeSpawners().length + this.packQueue.length + this.walkers.length; }
+  get waveRemaining(): number { return Math.ceil(this.waveLeft) * this.activeSpawners().length + this.packQueue.length + this.walkers.length; }
 
   /** An enemy type's numbers. */
   enemyStats(kind: EnemyKind): EnemyStats { return this.tuning.enemies[kind]; }
@@ -969,8 +969,19 @@ export class Game {
     return Math.max(1, Math.round(this.enemyStats(kind).hp * this.tuning.enemyHpGrowth ** (round - 1)));
   }
 
-  /** What the next pack is. Every pack is Grunts until raids mix types. */
-  private packKind(): EnemyKind { return "grunt"; }
+  /**
+   * What the next pack is: picked by the types' shares among those that still fit in
+   * what's left of the raid (the cheapest when none fits). Grunts when no type has a share.
+   */
+  private packKind(): EnemyKind {
+    const kinds = ENEMY_KINDS.filter(k => this.enemyStats(k).share > 0);
+    if (!kinds.length) return "grunt";
+    const fits = kinds.filter(k => this.enemyStats(k).cost <= this.waveLeft + 1e-9);
+    const pool = fits.length ? fits : [kinds.reduce((a, b) => this.enemyStats(a).cost <= this.enemyStats(b).cost ? a : b)];
+    let r = this.rng.next() * pool.reduce((a, k) => a + this.enemyStats(k).share, 0);
+    for (const k of pool) if ((r -= this.enemyStats(k).share) < 0) return k;
+    return pool[pool.length - 1]!;
+  }
 
   /** A walking speed within ±speedSpread of the type's: one per pack, so a pack moves as one. */
   private rollSpeed(kind: EnemyKind): number {
@@ -989,14 +1000,17 @@ export class Game {
 
   /** Send the next pack from every active cave: its enemies climb out one after another. */
   private sendPack(): void {
-    const t = this.tuning, lo = Math.max(1, Math.round(Math.min(t.packMin, t.packMax))), hi = Math.max(lo, Math.round(t.packMax));
-    const size = Math.min(this.waveLeft, lo + this.rng.int(hi - lo + 1));
+    const t = this.tuning, kind = this.packKind(), e = this.enemyStats(kind);
+    const lo = Math.max(1, Math.round(Math.min(t.packMin, t.packMax))), hi = Math.max(lo, Math.round(t.packMax));
+    const full = e.pack > 0 ? Math.round(e.pack) : lo + this.rng.int(hi - lo + 1), cost = Math.max(0.01, e.cost);
+    // As many as what's left of the raid pays for, and at least one.
+    const size = Math.max(1, Math.min(full, Math.floor(this.waveLeft / cost + 1e-9)));
     for (const at of this.activeSpawners()) {
-      const kind = this.packKind(), speed = this.rollSpeed(kind);
-      for (let i = 0; i < size; i++) this.packQueue.push({ at, delay: i * PACK_STAGGER, speed, kind });
+      const speed = this.rollSpeed(kind);
+      for (let i = 0; i < size; i++) this.packQueue.push({ at, delay: i * e.gap, speed, kind });
     }
-    this.waveLeft -= size;
-    this.spawnTimer = t.packGap + size * PACK_STAGGER;
+    this.waveLeft = Math.max(0, this.waveLeft - size * cost);
+    this.spawnTimer = t.packGap + size * e.gap;
   }
 
   /**

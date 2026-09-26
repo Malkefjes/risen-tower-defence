@@ -10,6 +10,14 @@ import * as THREE from "three";
 
 export type V3 = [number, number, number];
 
+/** One enemy's model, driven by the view: how it moves each frame and how it flashes when hit. */
+export interface Enemy {
+  object: THREE.Group;
+  update(t: number, walking: boolean): void;
+  /** Light the body up when hit (0 = normal, 1 = full flash). */
+  flash(k: number): void;
+}
+
 /** The grey of the stone you mine (render/ore.ts): two shades on the sides, a lighter top, a dark underside. */
 const STONE = { side: ["#4a4f5c", "#555a67"], top: "#5b606d", under: "#383c47" } as const;
 

@@ -2,7 +2,8 @@ import * as THREE from "three";
 import { SHIP_SHOOTER, type Game, type GameEvent, type PlacedPiece, type Shot, type Walker } from "../sim/game";
 import type { GeneratedWorld } from "../sim/worldgen";
 import { caveModel } from "./cave";
-import { leaperModel, type Enemy } from "./leaper";
+import { ENEMY_LOOKS, enemyBarHeight, enemyModel } from "./enemies";
+import type { Enemy, Marks } from "./stoneCreature";
 import { MiningView } from "./mining";
 import { smelterModel, type SmelterView } from "./smelterModel";
 import { buildScenery } from "./scenery";
@@ -50,8 +51,13 @@ export interface ViewLooks {
   barScale?: (w: Walker) => number;
   /** Show enemy HP bars at full health too (normally only once hurt). */
   alwaysBars?: boolean;
+  /** Enemy marks: a red outline and a red ground ring (both off unless switched on). */
+  marks?: Marks;
   burst?: { color: string; count: number; size: number };
 }
+
+/** A kill bursts into grey stone chips. */
+const STONE_BURST = { color: "#5a5f70", count: 12, size: 2.2 };
 
 /** Height of the wall deck, where towers stand. */
 const TOP = DECK_TOP;
@@ -174,7 +180,6 @@ export class GameView {
   private puffs: { mesh: THREE.Mesh; v: THREE.Vector3; life: number }[] = [];
   private gore: { mesh: THREE.Mesh; v: THREE.Vector3; life: number }[] = [];
   private goreGeo = new THREE.IcosahedronGeometry(0.025, 1);
-  private goreMat = new THREE.MeshStandardMaterial({ color: "#b3152a", roughness: 0.6, emissive: "#5a0612", emissiveIntensity: 0.4 });
   private shake = 0;
   private time = 0;
   private raycaster = new THREE.Raycaster();
@@ -459,7 +464,7 @@ export class GameView {
       else if (ev.type === "tower-built") { const v = this.towers.get(ev.tower.id); if (v) v.drop = 0.12; }
       else if (ev.type === "shot") this.onShot(ev.shot);
       else if (ev.type === "hit") { const w = this.walkers.get(ev.walker.id); if (w) w.userData.flash = 0.09; }
-      else if (ev.type === "killed") this.onKilled(ev.walker.x, ev.walker.y, this.looks.burst?.count, this.burstMat);
+      else if (ev.type === "killed") { const b = this.looks.burst ?? STONE_BURST; this.onKilled(ev.walker.x, ev.walker.y, b.count, this.burstMat, b.size); }
       else if (ev.type === "reset") { this.clearFx(); this.shipLand = 0; this.wreck = 0; this.followAvatar(); }
     }
     this.mining.onEvents(events);
@@ -618,7 +623,7 @@ export class GameView {
   }
 
   /**
-   * Enemies are leapers: they climb up out of the cave mouth, walk with their stride, flash when hit.
+   * Enemies are Erik's stone creatures: they climb up out of the cave mouth, walk with their stride, flash when hit.
    * Drawn between the last two ticks (`alpha`) and animated on the world's clock every frame
    * (`dt`, 0 while paused), so they move smoothly at any refresh rate.
    */
@@ -628,7 +633,7 @@ export class GameView {
       alive.add(w.id);
       let o = this.walkers.get(w.id);
       if (!o) {
-        const e = this.looks.enemy ? this.looks.enemy(w) : leaperModel();
+        const e = this.looks.enemy ? this.looks.enemy(w) : enemyModel(w, this.looks.marks ??= { outline: false, ring: false });
         o = e.object;
         o.userData.enemy = e;
         o.userData.t = Math.random() * 10;
@@ -656,7 +661,7 @@ export class GameView {
       const side = (w.lane ?? 0) * this.game.tuning.laneSpread, r = o.rotation.y;
       const cx = (w.px ?? w.x) + (w.x - (w.px ?? w.x)) * alpha, cy = (w.py ?? w.y) + (w.y - (w.py ?? w.y)) * alpha;
       const x = cx + Math.cos(r) * side, y = cy - Math.sin(r) * side;
-      this.syncBar(w.id, x, y, w.hp / w.maxHp, this.looks.barY?.(w) ?? 0.62, this.looks.barScale?.(w) ?? 1);
+      this.syncBar(w.id, x, y, w.hp / w.maxHp, this.looks.barY?.(w) ?? enemyBarHeight(w), this.looks.barScale?.(w) ?? ENEMY_LOOKS[w.kind].bar);
       // Climbing out: below the snow at the mouth, up on it half a cell out.
       const [fx, fy] = o.userData.from as [number, number], out = Math.hypot(cx - fx, cy - fy);
       o.position.set(x, -0.25 * Math.max(0, 1 - out / 0.5), y);
@@ -883,19 +888,17 @@ export class GameView {
   }
 
   /** A killed enemy simply bursts into a small spray of red dots. */
-  /** What a kill bursts into, if the looks say something other than the leaper's red. */
+  /** What a kill bursts into: grey stone chips, unless the looks say otherwise. */
   private burstMat_: THREE.Material | null = null;
   private get burstMat(): THREE.Material {
-    const b = this.looks.burst;
-    if (!b) return this.goreMat;
+    const b = this.looks.burst ?? STONE_BURST;
     return this.burstMat_ ??= new THREE.MeshStandardMaterial({ color: b.color, roughness: 0.9, flatShading: true });
   }
 
-  private onKilled(x: number, y: number, n = 10, mat: THREE.Material = this.goreMat): void {
-    const size = this.looks.burst?.size ?? 1;
+  private onKilled(x: number, y: number, n: number, mat: THREE.Material, size = 1): void {
     for (let i = 0; i < n; i++) {
       const m = new THREE.Mesh(this.goreGeo, mat);
-      if (mat !== this.goreMat) m.scale.setScalar(size);
+      m.scale.setScalar(size);
       m.position.set(x, 0.18, y);
       this.scene.add(m);
       const a = Math.random() * Math.PI * 2, sp = 0.4 + Math.random() * 0.8;

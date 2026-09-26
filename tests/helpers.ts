@@ -8,3 +8,6 @@ export function metalWall(g: Game, cells: [number, number][], id = 900 + g.piece
   g.pieces.push({ id, shape: "O", rot: 0, at: cells[0]!, cells, locked: false, paid: 0, metal: true, plated: 0 });
   for (const [x, y] of cells) g.world.walls.set(`${x},${y}`, id);
 }
+
+/** Tuning for raids of Grunts only (the other types' shares at 0): for tests about packs and clawing. */
+export const gruntsOnly = { swarm: { share: 0 }, runner: { share: 0 }, brute: { share: 0 } };

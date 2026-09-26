@@ -113,12 +113,11 @@ export const defaultTuning = (): Tuning => ({
   laneSpread: 0.2,
   sellRefund: 0.75,
   enemies: {
-    grunt: { hp: 6, speed: 1.475, damage: 2 },
-    swarm: { hp: 2, speed: 1.6, damage: 1 },
-    // Locked from the playground (2026-09-26): in packs, three cells per second.
-    runner: { hp: 4, speed: 3, damage: 1 },
-    // Locked from the playground (2026-09-26): 80 HP, one cell per second.
-    brute: { hp: 80, speed: 1, damage: 4 },
+    grunt: { hp: 6, speed: 1.475, damage: 2, pack: 0, gap: 0.25, cost: 1, share: 0 },
+    // From the playground (2026-09-26); HP still to be tuned.
+    swarm: { hp: 2, speed: 1.5, damage: 1, pack: 12, gap: 0.15, cost: 0.35, share: 4 },
+    runner: { hp: 4, speed: 3, damage: 1, pack: 5, gap: 0.65, cost: 1, share: 3 },
+    brute: { hp: 80, speed: 1, damage: 4, pack: 1, gap: 3, cost: 6, share: 1 },
   },
   towers: {
     gun: [

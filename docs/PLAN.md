@@ -91,8 +91,9 @@ Built in this order:
 ### Enemies and towers (the current focus, agreed 2026-09-26; see DESIGN "Threats and answers")
 The hub (4C) and stray groups are parked. A system is built when the first threat that needs it arrives.
 1. **One pair, done the new way (done 2026-09-26):** enemy types exist (the leaper is the Grunt, numbers per type); the Twin and Gatling are one Gun that grows in place (1×1 to 2×2; 3×3 once it has a model), selling returns 75% of what was spent before this calm; every balance number in `sim/tuning.ts`, with DPS and alloy per DPS in the tuning panel, the design's balance rules as tests, and `runRaid` to play a raid out headless.
-2. **The first contrast:** the Swarm and the explosive tower (mockups first); raids mix Grunts and Swarms and the warning shows the mix; swarmers need a cheap model drawn in bulk.
-3. Then play it, and pick the next pair from that (Runner and support, Brute and laser cannon, Flyer and AA).
+2. **Enemy looks (done 2026-09-26):** Erik's stone creatures replace the leaper: the Brute (Colossus), the Runner (wolf) and the Swarm (Grumtooth), tried in `mockups/playground`; raids mix them by share. Still to do: drawing them in bulk (instancing), HP tuning, a Grunt look.
+3. **The first contrast:** the explosive tower against the Swarm (mockups first); the warning shows the raid's mix.
+4. Then play it, and pick the next pair from that (Runner and support, Brute and laser cannon, Flyer and AA).
 
 ### M2: Outposts
 - **Extractors** built on nodes: they mine on their own into a visible stockpile next to them, which you collect by walking over.

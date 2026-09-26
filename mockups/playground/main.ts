@@ -47,10 +47,10 @@ const map: MapDef = {
 
 /** Each enemy type's size and numbers, from the panel. The Brute's are locked. */
 const brute = { size: 2, hp: 80, speed: 1, gap: 3 };
-const runner = { size: 1.5, hp: 4, speed: 3, pack: 5 };
-const swarm = { size: 1, hp: 2, speed: 1.6, pack: 12 };
+const runner = { size: 1.7, hp: 4, speed: 3, pack: 5 };
+const swarm = { size: 1.7, hp: 2, speed: 1.5, pack: 12 };
 /** How enemies are marked as enemies; switched live from the panel. */
-const marks = { outline: true, ring: false };
+const marks = { outline: false, ring: false };
 
 const game = new Game(map, {
   seed: 7,

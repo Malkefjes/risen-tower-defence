@@ -11,7 +11,8 @@ let seed = 1;
 try { seed = Number(localStorage.getItem("risen.world.seed")) || 1; } catch { /* storage blocked */ }
 const world = generateWorld(seed);
 const game = new Game(world.map, { tuning: loadTuning(), supply: true });
-const view = new GameView(document.getElementById("view")!, game, world);
+// Enemies show their HP bar even at full health, so they read as enemies at a glance.
+const view = new GameView(document.getElementById("view")!, game, world, { alwaysBars: true });
 
 let controller!: Controller;
 const hud = new Hud(game, {

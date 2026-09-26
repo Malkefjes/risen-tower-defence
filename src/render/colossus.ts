@@ -1,7 +1,6 @@
 import * as THREE from "three";
 import { GLB } from "./colossusData";
-import type { Enemy } from "./leaper";
-import { assemble, cutStone, segDist, type Marks, type V3 } from "./stoneCreature";
+import { assemble, cutStone, segDist, type Enemy, type Marks, type V3 } from "./stoneCreature";
 
 /**
  * The Brute: Erik's 705-triangle Colossus, a rock golem in the grey of the stone you
