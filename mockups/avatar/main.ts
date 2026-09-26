@@ -100,6 +100,19 @@ const VISOR_MAT = new THREE.MeshStandardMaterial({ color: "#7ff5e6", emissive: "
   mesh.geometry.addGroup((tris - VISOR.length) * 3, VISOR.length * 3, 1);
 }
 mesh.material = [GREY, VISOR_MAT];
+// The backpack: in the file it's skinned to the head and both shoulders, so it stretched.
+// Everything behind his back (the pack and its antenna) now moves with the upper spine alone.
+{
+  const pos = mesh.geometry.attributes.position!, si = mesh.geometry.attributes.skinIndex!, sw = mesh.geometry.attributes.skinWeight!;
+  const spine = bones.indexOf(bone("Spine2"));
+  for (let v = 0; v < pos.count; v++) {
+    if (pos.getZ(v) > -0.13 || pos.getY(v) < 0.8) continue;
+    si.setXYZW(v, spine, 0, 0, 0);
+    sw.setXYZW(v, 1, 0, 0, 0);
+  }
+  si.needsUpdate = true;
+  sw.needsUpdate = true;
+}
 
 // The gun, Erik's Starforge Blaster, held in the right fist: fixed to the hand bone, so it
 // follows the wrist. Set up once in the bind pose (arms out, palms down): the grip at the
