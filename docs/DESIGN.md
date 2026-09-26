@@ -148,7 +148,7 @@ The Titan shows the whole system: Heavy, then burning, then the laser cannon, in
 | --- | --- | --- | --- | --- |
 | **Gun** | Piercing | Rapid, cheap, medium range; the workhorse (today's Twin and Gatling) | Armour (Brutes, Bosses) | Anywhere; many small ones spread along the path |
 | **Laser cannon** | Laser | Long range, slow, one huge hit | Swarms (overkill, slow to switch) | Long straight lines of sight down the maze |
-| **Explosive** | Explosive | Bursts on impact, short to medium range, area damage. Look: the missile rack (a tilted cradle of missiles that climb, turn and dive; 2 missiles at 1×1, 4 and a radar at 2×2, reloading visibly) | Single tough targets (armour counts on each hit) | Switchbacks and corners where packs bunch |
+| **Explosive** | Explosive | Bursts on impact, short to medium range, area damage. Look: the missile rack (a tilted cradle of missiles that climb, turn and dive; 2 missiles at 1×1, 4 and a radar at 2×2, reloading visibly). Missiles land where they were aimed, so a pack can walk out of the blast; homing is a mod (later) | Single tough targets (armour counts on each hit) | Switchbacks and corners where packs bunch |
 | **Thermite mortar** | Incendiary | Lobs shells far with a **minimum range**; the ground burns for a few seconds (resistances off, no healing) | Anything on its own; it preps, it doesn't kill | Set back from the path, aimed where it doubles back |
 | **AA** | Piercing | Fast tracking, air only | Everything on the ground | Under the air lanes (straight lines from caves to targets) |
 | **Support** | None | Applies Heavy (slow) | Kills nothing | Early in the maze, before the killzone |
