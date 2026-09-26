@@ -13,11 +13,13 @@ import type { Enemy } from "./leaper";
 type V3 = [number, number, number];
 type Part = "body" | "armR" | "armL" | "legR" | "legL";
 
-/** Colourings: sides (two close shades), faces pointing up, faces pointing down. */
+/** Colourings: sides (two close shades, `alt` the share of the second), faces pointing up (`lift` brightens them against the low sun), faces pointing down. */
 export const COLOSSUS_PALETTES = {
-  snow: { side: ["#6b6862", "#5f5c57"], top: "#eef0f4", under: "#403d3a" },
-  ice: { side: ["#3f4454", "#3b4050"], top: "#86cbe6", under: "#2a2d38" },
-  earth: { side: ["#3d352f", "#413832"], top: "#a08c74", under: "#2a2420" },
+  // The grey of the stone you mine (render/ore.ts): two shades, no snow.
+  ore: { side: ["#4a4f5c", "#555a67"], top: "#5b606d", under: "#383c47", lift: 1, alt: 0.5 },
+  snow: { side: ["#6b6862", "#5f5c57"], top: "#eef0f4", under: "#403d3a", lift: 1.3, alt: 0.2 },
+  ice: { side: ["#3f4454", "#3b4050"], top: "#86cbe6", under: "#2a2d38", lift: 1.3, alt: 0.2 },
+  earth: { side: ["#3d352f", "#413832"], top: "#a08c74", under: "#2a2420", lift: 1.3, alt: 0.2 },
 } as const;
 export type ColossusPalette = keyof typeof COLOSSUS_PALETTES;
 
@@ -70,7 +72,7 @@ function segDist(p: THREE.Vector3, a: V3, b: V3): number {
 function build(palette: ColossusPalette): Record<Part, THREE.BufferGeometry> {
   const src = readGlb(GLB).toNonIndexed(), p = src.attributes.position!, pal = COLOSSUS_PALETTES[palette];
   // The low evening sun barely lights faces that point up, so their colour is lifted a little to read as snow or ice.
-  const sides = pal.side.map(h => new THREE.Color(h)), top = new THREE.Color(pal.top).multiplyScalar(1.3), under = new THREE.Color(pal.under);
+  const sides = pal.side.map(h => new THREE.Color(h)), top = new THREE.Color(pal.top).multiplyScalar(pal.lift), under = new THREE.Color(pal.under);
   const out = {} as Record<Part, { pos: number[]; col: number[] }>;
   for (const k of Object.keys(PIVOTS) as Part[]) out[k] = { pos: [], col: [] };
   const tri = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()], n = new THREE.Vector3(), c = new THREE.Vector3();
@@ -81,7 +83,7 @@ function build(palette: ColossusPalette): Record<Part, THREE.BufferGeometry> {
     let best = BONES[0]!, bestD = Infinity;
     for (const bone of BONES) { const d = segDist(c, bone.a, bone.b) - bone.bonus; if (d < bestD) { bestD = d; best = bone; } }
     // Every face gets its own small shift in shade, like the grain of rough stone.
-    const base = n.y > 0.38 ? top : n.y < -0.35 ? under : sides[(t / 3) % 5 === 0 ? 1 : 0]!;
+    const base = n.y > 0.38 ? top : n.y < -0.35 ? under : sides[(((t / 3) * 2654435761) % 1000) / 1000 < pal.alt ? 1 : 0]!;
     const col = base.clone().multiplyScalar(0.9 + (((t / 3) * 7919) % 97) / 97 * 0.2);
     const piv = PIVOTS[best.part], o = out[best.part];
     for (const v of tri) { o.pos.push((v.x - piv[0]) * SCALE, (v.y - piv[1]) * SCALE, (v.z - piv[2]) * SCALE); o.col.push(col.r, col.g, col.b); }

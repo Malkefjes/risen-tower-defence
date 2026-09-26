@@ -45,7 +45,7 @@ const map: MapDef = {
 
 const look = {
   size: 2,
-  palette: "snow" as ColossusPalette | "mix",
+  palette: "ore" as ColossusPalette | "mix",
   hp: 12,
   speed: 1.2,
   pack: 1,
@@ -111,7 +111,7 @@ function section(title: string, ...kids: HTMLElement[]): void {
 const chips = document.createElement("div");
 chips.className = "chips";
 const drawChips = () => {
-  chips.innerHTML = (["mix", ...PALETTES] as const).map(p => `<button class="chip" data-p="${p}" aria-pressed="${look.palette === p}">${p === "mix" ? "Mixed" : p === "snow" ? "Snow" : p === "ice" ? "Ice" : "Earth"}</button>`).join("");
+  chips.innerHTML = (["mix", ...PALETTES] as const).map(p => `<button class="chip" data-p="${p}" aria-pressed="${look.palette === p}">${p === "mix" ? "Mixed" : p === "ore" ? "Stone" : p === "snow" ? "Snow" : p === "ice" ? "Ice" : "Earth"}</button>`).join("");
 };
 chips.addEventListener("click", e => {
   const b = (e.target as HTMLElement).closest("button");
