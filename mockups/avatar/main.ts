@@ -241,12 +241,13 @@ function frame(now: number): void {
   // In the air: knees up.
   if (!grounded) for (const s of ["LeftUpLeg", "RightUpLeg"]) bone(s).rotateX(-0.6);
   // Aiming: the right arm points ahead and a little down, the forearm straight.
+  // The wrist never bends on its own: the hand stays in line with the forearm in every stance.
+  hand.quaternion.copy(restHand);
   placeGun(toolUp ? gunTune.aimed : gunTune.carry);
   if (toolUp) {
     sentinel.updateMatrixWorld(true);
     const arm = bone("RightArm");
     fore.quaternion.copy(restFore);
-    hand.quaternion.copy(restHand);
     const want = sentinel.getWorldQuaternion(new THREE.Quaternion()).multiply(aimArmQ);
     arm.quaternion.copy(arm.parent!.getWorldQuaternion(q).invert().multiply(want));
   }
