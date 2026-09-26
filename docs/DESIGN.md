@@ -92,7 +92,7 @@ Enemies and towers are the two deepest systems; everything else supports them. E
 
 **The Runner (look and numbers locked 2026-09-26):** Erik's Shadowfang Wolf, a 201-triangle stone wolf in the same mined-stone grey as the Brute, trotting (diagonal legs together). Size 1.5 (a cell and a half nose to tail), speed 3 cells per second, 4 HP, in packs (5 to start) running nose to tail, with the red outline and a half-width HP bar.
 
-**The Swarm (being tried):** Erik's Obsidian Imp, a 204-triangle spiky stone imp in the same stone, half a cell tall, streaming out in swarms (12 to start, 2 HP, 1.6 cells per second).
+**The Swarm (being tried):** Erik's Grumtooth, a 189-triangle hunched little stone brute with long arms, in the same stone, half a cell tall, streaming out in swarms (12 to start, 2 HP, 1.6 cells per second).
 
 **Enemy looks in general:** enemies are made of simple faceted shapes Erik models (or has generated) at game budget, cut into a few moving parts (body, arms, legs): Swarm 100–200 triangles, Grunt 400–800, Brute 1,000–2,500, Boss 3,000–8,000. Detailed models are design sheets that get rebuilt at budget.
 

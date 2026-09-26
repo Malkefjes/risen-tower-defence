@@ -1,7 +1,7 @@
 /**
  * Enemy types: the threats from the design doc's list, each with its own numbers in
  * `Tuning.enemies`. The leaper is the Grunt, the yardstick the others are measured
- * against. The Swarm (stone imps), the Runner (stone wolves) and the Brute (the stone Colossus) have their
+ * against. The Swarm (stone Grumtooths), the Runner (stone wolves) and the Brute (the stone Colossus) have their
  * looks and base numbers; raids don't send them yet. Pure data, no graphics.
  */
 export type EnemyKind = "grunt" | "swarm" | "runner" | "brute";
