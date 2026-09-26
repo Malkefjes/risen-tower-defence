@@ -1,11 +1,11 @@
 import * as THREE from "three";
-import { GOLEM_CLIPS, GOLEM_LOOKS, golemEnemy, setGolemSkin, type Enemy, type GolemClip, type GolemLook, type GolemSkin } from "../../src/render/golem";
+import { GOLEM_CLIPS, GOLEM_LOOKS, golemEnemy, type Enemy, type GolemClip, type GolemLook } from "../../src/render/golem";
 import { EVENING } from "../../src/render/models";
 import type { EnemyKind } from "../../src/sim/enemies";
 import { defaultTuning } from "../../src/sim/tuning";
 
 // The enemy golem (src/render/golem.ts, the same one as in the game), one type at a time in
-// its size, colour and speed, walking in place on the snow in the game's evening light.
+// its size, frost colour and speed, walking in place on the snow in the game's evening light.
 
 THREE.ColorManagement.enabled = false;
 
@@ -103,12 +103,6 @@ syncs.push(syncStride);
 syncStride();
 strideInput.addEventListener("input", () => { strides[kind] = Number(strideInput.value); strideOut.textContent = strides[kind].toFixed(2); rebuild(); });
 clipBar.appendChild(strideLabel);
-// What they're made of: the game's stone, or one of the three ice looks being tried.
-const SKIN_LABEL: [GolemSkin, string][] = [["stone", "Stone"], ["glacier", "A · Glacier"], ["clear", "B · Clear ice"], ["frost", "C · Frost"]];
-let skin: GolemSkin = "glacier";
-setGolemSkin(skin);
-const skinBar = document.getElementById("skins")!;
-for (const [s, label] of SKIN_LABEL) button(skinBar, label, () => skin === s, () => { skin = s; setGolemSkin(s); rebuild(); });
 
 // ------------------------------------------------------------------ animation
 

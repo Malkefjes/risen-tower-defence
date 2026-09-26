@@ -55,8 +55,8 @@ export interface ViewLooks {
   burst?: { color: string; count: number; size: number };
 }
 
-/** A kill bursts into grey stone chips. */
-const STONE_BURST = { color: "#5a5f70", count: 12, size: 2.2 };
+/** A kill bursts into chips of frosted ice. */
+const STONE_BURST = { color: "#cfe3ef", count: 12, size: 2.2 };
 /** Heavy's brown: a Radome's field, and the tint of an enemy in it (over 1, so grey stone turns warm brown, not dark). */
 const HEAVY_BROWN = "#8a5a32";
 /** Seconds before the laser cannon can fire that its coils start to glow. */

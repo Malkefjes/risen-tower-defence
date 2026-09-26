@@ -74,7 +74,7 @@ const view = new GameView(document.getElementById("view")!, game, undefined, {
   enemy: w => golemEnemy({ ...GOLEM_LOOKS[w.kind], height: cfg(w.kind).height }, cfg(w.kind).speed),
   barY: w => cfg(w.kind).height + 0.08,
   barScale: w => GOLEM_LOOKS[w.kind].bar,
-  burst: { color: "#5a5f70", count: 12, size: 2.2 },
+  burst: { color: "#cfe3ef", count: 12, size: 2.2 },
   alwaysBars: true,
 });
 // Frame the whole maze, from the cave to the ship.
