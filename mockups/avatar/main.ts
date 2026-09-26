@@ -92,8 +92,8 @@ mesh.material = GREY;
 // middle of the hand, the barrel along the arm, the top toward his front (the thumb side).
 // The model's muzzle is its -x end, its top +y.
 const GUN_LENGTH = 0.3 * rigHeight, GRIP = new THREE.Vector3(0.58, -0.07, 0);
-// The wrist: carried, the barrel points ahead and a little down; aimed, along the arm.
-const gunTune = { along: 0, up: 0, side: 0, roll: 0, carry: -1.35, aimed: 0 };
+// The wrist: the barrel lines up with the arm, so it points at the ground when carried.
+const gunTune = { along: 0, up: 0, side: 0, roll: 0, carry: 0, aimed: 0 };
 const gun = new THREE.Group();
 let placeGun = (_pitch: number) => {};
 {
