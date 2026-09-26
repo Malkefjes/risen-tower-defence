@@ -11,7 +11,7 @@ import "./style.css";
 // A playground on the real game: a cave, a small walled maze of plated walls, the ship
 // at the far end, and packs of Colossus golems that never stop coming. Guns are free.
 // Click a wall to put a Gun on it, click a Gun to grow it toward the cursor, right-click
-// a Gun to take it away. Drag to pan, scroll to zoom.
+// a Gun to take it away. Drag to pan, scroll to zoom, WASD to walk.
 
 THREE.ColorManagement.enabled = false;
 
@@ -186,6 +186,32 @@ el.addEventListener("pointerup", e => {
 el.addEventListener("wheel", e => { e.preventDefault(); view.zoomAt(Math.exp(e.deltaY * 0.0012), e.clientX, e.clientY); }, { passive: false });
 addEventListener("resize", () => view.resize());
 
+// WASD runs the rig, relative to the screen, as in the game; Shift sprints, Space jumps,
+// C brings the camera back to the rig. The first step takes the camera along.
+const keys = new Set<string>();
+addEventListener("keydown", e => {
+  const k = e.key.toLowerCase();
+  if (e.target instanceof HTMLInputElement) return;
+  if (["w", "a", "s", "d"].includes(k) && !keys.size) view.followAvatar();
+  keys.add(k);
+  if (k === " ") { e.preventDefault(); if (!e.repeat) game.avatarInput.jump = true; }
+  if (k === "c") view.followAvatar();
+});
+addEventListener("keyup", e => keys.delete(e.key.toLowerCase()));
+addEventListener("blur", () => keys.clear());
+function steer(): void {
+  let r = 0, u = 0;
+  if (keys.has("d")) r += 1;
+  if (keys.has("a")) r -= 1;
+  if (keys.has("w")) u += 1;
+  if (keys.has("s")) u -= 1;
+  // On the ground, screen right is (1, -1) and screen up is (-1, -1).
+  const mx = (r - u) * Math.SQRT1_2, my = (-r - u) * Math.SQRT1_2, ml = Math.hypot(mx, my);
+  game.avatarInput.x = ml ? mx / ml : 0;
+  game.avatarInput.y = ml ? my / ml : 0;
+  game.avatarInput.sprint = keys.has("shift");
+}
+
 /** What would happen on a click here: a new Gun, or the one under the cursor grown. */
 function ghost(): Overlay["towerGhost"] {
   if (!pointer || drag?.moved) return null;
@@ -211,6 +237,7 @@ function frame(now: number): void {
   last = now;
   // Raids follow each other with no calm in between.
   if (game.phase === "planning") game.startWave();
+  steer();
   avatarAcc += dt;
   while (avatarAcc >= TICK) { game.stepAvatar(TICK); avatarAcc -= TICK; }
   acc += dt;
