@@ -17,7 +17,7 @@ function rack(): Game {
 }
 
 const walker = (id: number, x: number, y: number, hp = 10): Walker => ({
-  id, x, y, cx: Math.floor(x), cy: Math.floor(y), tx: Math.floor(x), ty: Math.floor(y), kind: "swarm", speed: 0, hp, maxHp: hp, pending: 0, practice: false,
+  id, x, y, cx: Math.floor(x), cy: Math.floor(y), tx: Math.floor(x), ty: Math.floor(y), kind: "grunt", speed: 0, hp, maxHp: hp, pending: 0, practice: false,
 });
 
 const hpOf = (g: Game, id: number) => g.walkers.find(w => w.id === id)?.hp;

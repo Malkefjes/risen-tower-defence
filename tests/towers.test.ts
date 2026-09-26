@@ -131,7 +131,7 @@ describe("combat", () => {
 describe("hp and the run", () => {
   it("enemies stop beside the ship and claw it; practice walkers do no damage", () => {
     const noGun = { cost: 0, damage: 0, range: 5.5, rate: 1 };
-    const g = new Game(open({ ship: [[4, 0]] }), { seed: 1, waveSize: () => 3, tuning: { enemies: { ...gruntsOnly, grunt: { damage: 2 } }, ship: noGun } });
+    const g = new Game(open({ ship: [[4, 0]] }), { seed: 1, waveSize: () => 3, tuning: { enemies: { ...gruntsOnly, grunt: { ...gruntsOnly.grunt, damage: 2 } }, ship: noGun } });
     g.setTestWalkers(true);
     for (let i = 0; i < 60 * 8; i++) g.step();
     expect(g.hp).toBe(g.tuning.startHp);
@@ -148,7 +148,7 @@ describe("hp and the run", () => {
 
   it("enemies go for the nearest target, and walk on when it's destroyed", () => {
     const noGun = { cost: 0, damage: 0, range: 5.5, rate: 1 };
-    const g = new Game(open({ ship: [[20, 0]] }), { seed: 1, waveSize: () => 1, tuning: { startStone: 1000, startMetal: 1000, smelterHp: 40, enemies: { ...gruntsOnly, grunt: { damage: 5 } }, ship: noGun } });
+    const g = new Game(open({ ship: [[20, 0]] }), { seed: 1, waveSize: () => 1, tuning: { startStone: 1000, startMetal: 1000, smelterHp: 40, enemies: { ...gruntsOnly, grunt: { ...gruntsOnly.grunt, damage: 5 } }, ship: noGun } });
     const s = g.buildSmelter([6, -1]).smelter!;
     g.startWave();
     for (let i = 0; i < 60 * 6; i++) g.step();

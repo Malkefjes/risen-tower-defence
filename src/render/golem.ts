@@ -34,10 +34,9 @@ export interface GolemLook {
   bar: number;
 }
 
-/** How each enemy type looks. The Grunt isn't sent yet. */
+/** How each enemy type looks. */
 export const GOLEM_LOOKS: Record<EnemyKind, GolemLook> = {
-  grunt: { height: 1.0, color: "#555a67", clip: "walk", bar: 0.5 },
-  swarm: { height: 0.6, color: "#6b7080", clip: "walk", bar: 0.35 },
+  grunt: { height: 0.75, color: "#6b7080", clip: "walk", bar: 0.4 },
   runner: { height: 0.95, color: "#3e4657", clip: "run", bar: 0.5 },
   brute: { height: 1.7, color: "#4a4f5c", clip: "walk2", bar: 1 },
 };

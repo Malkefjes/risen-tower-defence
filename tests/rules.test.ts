@@ -10,7 +10,7 @@ import type { TowerKind } from "../src/sim/towers";
  * losing at most 5% of its HP.
  */
 
-/** The right towers for what a raid brings: missiles for swarms, a Radome with guns for runners, lasers for brutes. */
+/** The right towers for what a raid brings: missiles for Grunt packs, a Radome with guns for runners, lasers for brutes. */
 const right = (round: number): TowerKind[] =>
   round < 2 ? ["explosive", "gun"] : round < 3 ? ["explosive", "support", "gun", "gun", "gun"] : ["explosive", "laser", "support", "gun", "gun", "laser"];
 
@@ -24,19 +24,19 @@ describe("the balance anchors hold for the default numbers", () => {
     }
   });
 
-  it("raids stay readable: about a dozen enemies from one cave in raid 1, growing steadily, under 200 by raid 10", () => {
+  it("raids stay readable: one pack of Grunts from one cave in raid 1, growing steadily, about a hundred by raid 10", () => {
     const g = new Game(generateWorld(1).map, { seed: 7, supply: true });
     const count = (r: number) => g.raidMix(r).reduce((a, m) => a + m.count, 0);
     expect(g.activeSpawners(1)).toHaveLength(1);
-    expect(count(1)).toBeGreaterThanOrEqual(8);
-    expect(count(1)).toBeLessThanOrEqual(20);
+    expect(count(1)).toBeGreaterThanOrEqual(4);
+    expect(count(1)).toBeLessThanOrEqual(10);
     for (let r = 2; r <= 10; r++) expect(count(r), `raid ${r}`).toBeGreaterThanOrEqual(count(r - 1));
-    expect(count(10)).toBeLessThanOrEqual(200);
+    expect(count(10)).toBeLessThanOrEqual(120);
   });
 
-  it("the counter ratio: Guns alone need at least twice the alloy against a Swarm raid", () => {
-    const racks = holdBudget({ round: 3, towers: ["explosive"], only: ["swarm"] });
-    const guns = holdBudget({ round: 3, towers: ["gun"], only: ["swarm"] });
+  it("the counter ratio: Guns alone need at least twice the alloy against a raid of Grunt packs (it takes AOE)", () => {
+    const racks = holdBudget({ round: 3, towers: ["explosive"], only: ["grunt"] });
+    const guns = holdBudget({ round: 3, towers: ["gun"], only: ["grunt"] });
     expect(guns / racks).toBeGreaterThanOrEqual(2);
   });
 

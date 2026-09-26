@@ -9,7 +9,7 @@ import { WALL_DECK } from "../../src/sim/world";
 import "./style.css";
 
 // A playground on the real game: a cave, a small walled maze of plated walls, the ship
-// at the far end. Brutes, wolf packs and Grumtooth swarms come out of the cave when sent from the panel. Guns are free.
+// at the far end. Brutes, Runner packs and Grunt packs come out of the cave when sent from the panel. Guns are free.
 // Click a wall to put a Gun on it, click a Gun to grow it toward the cursor, right-click
 // a Gun to take it away. Drag to pan, scroll to zoom, WASD to walk.
 
@@ -46,8 +46,8 @@ const map: MapDef = {
 /** Each enemy type's height (cells) and numbers, from the panel. */
 const brute = { height: GOLEM_LOOKS.brute.height, hp: 80, speed: 1, gap: 3 };
 const runner = { height: GOLEM_LOOKS.runner.height, hp: 4, speed: 3, pack: 5 };
-const swarm = { height: GOLEM_LOOKS.swarm.height, hp: 2, speed: 1.5, pack: 12 };
-const cfg = (kind: string) => kind === "runner" ? runner : kind === "swarm" ? swarm : brute;
+const grunt = { height: GOLEM_LOOKS.grunt.height, hp: 8, speed: 1.5, pack: 6 };
+const cfg = (kind: string) => kind === "runner" ? runner : kind === "grunt" ? grunt : brute;
 
 const game = new Game(map, {
   seed: 7,
@@ -56,7 +56,7 @@ const game = new Game(map, {
   tuning: {
     startHp: 1e9, ship: { damage: 0 }, enemyHpStep: 0, wallHp: 1e6,
     towers: { gun: [{ cost: 0 }, { cost: 0 }, { cost: 0 }] },
-    enemies: { brute: { hp: brute.hp, speed: brute.speed }, runner: { hp: runner.hp, speed: runner.speed }, swarm: { hp: swarm.hp, speed: swarm.speed } },
+    enemies: { brute: { hp: brute.hp, speed: brute.speed }, runner: { hp: runner.hp, speed: runner.speed }, grunt: { hp: grunt.hp, speed: grunt.speed } },
     // Enemies fill most of a one-cell lane: they keep close to its centre line.
     laneSpread: 0.05,
   },
@@ -99,9 +99,9 @@ function section(title: string, ...kids: HTMLElement[]): void {
 }
 const tune = game.tuning;
 /** Send `n` enemies of a kind out of the cave now, `gap` seconds apart (a pack moves at one speed, like the game's). */
-function spawn(kind: "brute" | "runner" | "swarm", n: number, gap: number): void {
+function spawn(kind: "brute" | "runner" | "grunt", n: number, gap: number): void {
   if (game.phase === "planning") game.startWave();
-  const queue = (game as unknown as { packQueue: { at: Cell; delay: number; speed: number; kind: "brute" | "runner" | "swarm" }[] }).packQueue;
+  const queue = (game as unknown as { packQueue: { at: Cell; delay: number; speed: number; kind: "brute" | "runner" | "grunt" }[] }).packQueue;
   const speed = tune.enemies[kind].speed * (1 + (Math.random() * 2 - 1) * tune.speedSpread);
   for (let i = 0; i < n; i++) queue.push({ at: map.spawners[0]!, delay: i * gap, speed, kind });
 }
@@ -133,13 +133,13 @@ section("Runner",
   // A pack runs nose to tail: each wolf leaves as the one ahead has cleared its length.
   buttons(["Spawn 1", () => spawn("runner", 1, 0)], ["Spawn a pack", () => spawn("runner", runner.pack, game.packSpacing("runner", runner.speed))]),
 );
-// A swarm pours out of the cave in a stream.
-section("Swarm",
-  slider("Height (cells)", 0.3, 2.5, 0.05, () => swarm.height, v => { swarm.height = v; }),
-  slider("Speed (cells per second)", 0.3, 5, 0.05, () => swarm.speed, v => { swarm.speed = v; tune.enemies.swarm.speed = v; }),
-  slider("HP", 1, 30, 1, () => swarm.hp, v => { swarm.hp = v; tune.enemies.swarm.hp = v; }),
-  slider("Per swarm", 1, 60, 1, () => swarm.pack, v => { swarm.pack = v; }),
-  buttons(["Spawn 1", () => spawn("swarm", 1, 0)], ["Spawn a swarm", () => spawn("swarm", swarm.pack, game.packSpacing("swarm", swarm.speed))]),
+// A pack of Grunts climbs out one after another.
+section("Grunt",
+  slider("Height (cells)", 0.3, 2.5, 0.05, () => grunt.height, v => { grunt.height = v; }),
+  slider("Speed (cells per second)", 0.3, 5, 0.05, () => grunt.speed, v => { grunt.speed = v; tune.enemies.grunt.speed = v; }),
+  slider("HP", 1, 30, 1, () => grunt.hp, v => { grunt.hp = v; tune.enemies.grunt.hp = v; }),
+  slider("Per pack", 1, 60, 1, () => grunt.pack, v => { grunt.pack = v; }),
+  buttons(["Spawn 1", () => spawn("grunt", 1, 0)], ["Spawn a pack", () => spawn("grunt", grunt.pack, game.packSpacing("grunt", grunt.speed))]),
 );
 const barRow = document.createElement("div");
 barRow.className = "chips";

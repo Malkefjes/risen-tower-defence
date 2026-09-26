@@ -142,10 +142,9 @@ export const defaultTuning = (): Tuning => ({
   sellRefund: 0.75,
   // Set from the balance anchors (design doc): HP in Gun passes, cost by what it takes to hold.
   enemies: {
-    // One Gun pass: a 1×1 Gun's reach covers about 8 cells of a single-lane maze.
-    grunt: { hp: 16, speed: 1.475, damage: 2, pack: 0, gap: 0.25, cost: 1, share: 0, from: 1, armour: 0 },
-    // Dies to one missile; comes in swarms that bunch up in a lane.
-    swarm: { hp: 4, speed: 1.5, damage: 1, pack: 8, gap: 0.15, cost: 0.25, share: 4, from: 1, armour: 0 },
+    // The pack: dies to one missile in raid 1 and comes six at a time, half a cell apart, so a
+    // burst catches several (the Swarm's threat per raid size, in fewer, bigger bodies).
+    grunt: { hp: 8, speed: 1.5, damage: 2, pack: 6, gap: 0.15, cost: 0.5, share: 4, from: 1, armour: 0 },
     // Few and tough: three Gun passes at full speed, so it outruns a short killzone unless it's Heavy.
     runner: { hp: 24, speed: 3, damage: 1, pack: 3, gap: 1.2, cost: 6, share: 14, from: 2, armour: 0 },
     // Armoured: the Gun's rounds do half; the laser cannon's go through.
@@ -160,7 +159,7 @@ export const defaultTuning = (): Tuning => ({
     ],
     // The missile rack: worse than the Gun per alloy on one target, far better on a pack.
     explosive: [
-      // Big, slow missiles: one kills a Swarm while its HP grows (a 1×1 rack to raid 5, a 2×2 to raid 9, a 3×3 to 13).
+      // Big, slow missiles: one kills a Grunt while its HP grows (a 1×1 rack in raid 1, a 2×2 to raid 3, a 3×3 to raid 5).
       { cost: 250, damage: 8, range: 4, rate: 0.45, radius: 0.9, heavy: 0 },
       { cost: 625, damage: 12, range: 5, rate: 0.833, radius: 1.15, heavy: 0 },
       { cost: 1250, damage: 16, range: 6, rate: 1.25, radius: 1.4, heavy: 0 },

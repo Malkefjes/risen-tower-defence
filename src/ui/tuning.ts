@@ -117,7 +117,7 @@ const SECTIONS: Section[] = [
 ];
 
 // v6: enemy numbers moved per type and towers per size; older saves still load through mergeTuning.
-const STORE = "risen.tuning.v6";
+const STORE = "risen.tuning.v7";
 
 /** Tuning saved in this browser, if any, over the defaults. Never throws. */
 export function loadTuning(): Tuning | undefined {

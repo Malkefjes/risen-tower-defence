@@ -9,5 +9,8 @@ export function metalWall(g: Game, cells: [number, number][], id = 900 + g.piece
   for (const [x, y] of cells) g.world.walls.set(`${x},${y}`, id);
 }
 
-/** Tuning for raids of Grunts only (the other types' shares at 0): for tests about packs and clawing. */
-export const gruntsOnly = { swarm: { share: 0 }, runner: { share: 0 }, brute: { share: 0 } };
+/**
+ * Tuning for raids of Grunts only (the other types' shares at 0), in the plain numbers the
+ * pack and clawing tests were written with: packs of 3 to 5, each Grunt a whole raid unit.
+ */
+export const gruntsOnly = { grunt: { hp: 16, pack: 0, gap: 0.25, cost: 1 }, runner: { share: 0 }, brute: { share: 0 } };

@@ -43,7 +43,7 @@ scene.add(grid);
 const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
 let zoom = 1;
 const lookAt = new THREE.Vector3(0, 0.5, 0);
-let look: GolemLook = { ...GOLEM_LOOKS.swarm };
+let look: GolemLook = { ...GOLEM_LOOKS.grunt };
 function resize(): void {
   const w = container.clientWidth, h = container.clientHeight, aspect = w / h;
   renderer.setSize(w, h);
@@ -60,10 +60,10 @@ resize();
 
 // ------------------------------------------------------------------ the golem
 
-const TYPES: [EnemyKind, string][] = [["swarm", "Swarm"], ["runner", "Runner"], ["brute", "Brute"], ["grunt", "Grunt"]];
+const TYPES: [EnemyKind, string][] = [["grunt", "Grunt"], ["runner", "Runner"], ["brute", "Brute"]];
 const CLIP_LABEL: Record<GolemClip, string> = { stand: "Stand", walk: "Walk", walk2: "Walk 2", run: "Run" };
 const speeds = defaultTuning().enemies;
-let kind: EnemyKind = "swarm", clipOverride: GolemClip | null = null, speed = speeds.swarm.speed;
+let kind: EnemyKind = "grunt", clipOverride: GolemClip | null = null, speed = speeds.grunt.speed;
 let enemy: Enemy | null = null;
 const holder = new THREE.Group();
 scene.add(holder);

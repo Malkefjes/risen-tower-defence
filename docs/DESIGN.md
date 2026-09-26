@@ -78,8 +78,7 @@ Enemies and towers are the two deepest systems; everything else supports them. E
 
 | Threat | What it is | What it breaks | Baseline answer |
 | --- | --- | --- | --- |
-| **Grunt** | The ordinary enemy; the yardstick for the rest | Nothing in particular | Gun (piercing) |
-| **Swarm** | Tiny, huge packs, medium speed | Single-target damage, by numbers | Explosive area damage; switchbacks that bunch them |
+| **Grunt** | The pack: the ordinary enemy, in packs of six, medium speed (took over the Swarm's job, 2026-09-26) | Single-target damage, by numbers | Explosive area damage; switchbacks that bunch them |
 | **Runner** | Low HP, very fast, arrives ahead of the raid | Time in range | Heavy (slow) from the support tower, plus the gun; a longer maze |
 | **Flyer** | Flies a straight, predictable line from its cave to its target | The maze | AA (useless against ground). Few and fragile, so the maze stays the core |
 | **Support** | Heals or shields its pack | Your damage, and target choice | Incendiary (burning stops healing); kill it first |
@@ -92,7 +91,7 @@ Enemies and towers are the two deepest systems; everything else supports them. E
 
 
 
-**In the game (2026-09-26):** the leaper is gone. Raids send packs of Swarms, Runners and Brutes, each type by its share of the packs and taking its cost of the raid's size (a Grunt is 1: Swarm 0.35, Runner 1, Brute 6). HP bars always show; the red outline stays in the code, off, for a later option.
+**In the game (2026-09-26):** the leaper is gone, and so is the Swarm (Erik, 2026-09-26: with a detailed model for every type, endless small bodies were never feasible; the Grunt pack took its job). Raids send packs of Grunts, Runners and Brutes, each type by its share of the packs and taking its cost of the raid's size (Grunt 0.5, Runner 6, Brute 4). HP bars always show; the red outline stays in the code, off, for a later option.
 
 **Enemy looks in general:** one rigged model for all types for now (see above), told apart by size, colour and gait; a Boss or new types may get their own. At about 3,000 triangles a golem, a raid of 170 is about a million triangles with shadows: if that proves heavy, the Swarm gets a lighter version.
 
@@ -125,10 +124,12 @@ Every balance number is set against a few anchors, not guessed one by one.
 - **The tower curve:** a competent player has 3–4 small towers by raid 1, about 10 (a couple grown) by raid 5, about 20 (several grown) by raid 10 (700 alloy of towers by raid 1, about 510 more each raid). The economy is set to pay for this, not the other way round.
 - **The margin: 80%.** A competent defence of the right towers needs about 80% of the curve's alloy to hold a raid: it holds with a little to spare and leaks when built worse, with room above for clever builds.
 - **The counter ratio: about 3×.** Answering a threat with the wrong towers takes about three times the alloy: the counter is felt, but a build from almost any tower stays possible.
-- **Raids stay readable (added 2026-09-26, after raid 1 came out at 132 Swarms):** how many enemies, from how many directions, is an anchor of its own. Raid 1 is about a dozen Swarms from **one cave**; caves open up over a run (a second at raid 3, the third at raid 5, `caveEvery`); counts grow steadily (about 30 at raid 3, 80 at raid 5, 170 at raid 10). A raid is shared between the types by their shares, and a type's first raid brings a whole pack of it.
-- **Toughness carries the rest:** with counts held readable, enemy HP grows in a straight line (+25% of raid-1 HP a raid) to keep the margin. Missiles are big and slow so one still kills a Swarm as it toughens (a 1×1 rack to raid 5, grown racks far beyond). The end of a run comes from the Titan, not from numbers outrunning you.
+- **Raids stay readable (added 2026-09-26, after raid 1 came out at 132 Swarms; since the Swarm was dropped, Grunts):** how many enemies, from how many directions, is an anchor of its own. Raid 1 is one pack of 6 Grunts from **one cave**; caves open up over a run (a second at raid 3, the third at raid 5, `caveEvery`); counts grow steadily (18 at raid 3, 48 at raid 5, about 100 at raid 10: 69 Grunts, 21 Runners, 12 Brutes). A raid is shared between the types by their shares, and a type's first raid brings a whole pack of it.
+- **Toughness carries the rest:** with counts held readable, enemy HP grows in a straight line (+25% of raid-1 HP a raid) to keep the margin. Missiles are big and slow so one kills a Grunt early on (a 1×1 rack in raid 1, a 2×2 to raid 3, a 3×3 to raid 5); later it takes two, still worth it on a bunched pack. The end of a run comes from the Titan, not from numbers outrunning you.
 
 These are checked headless on the **standard maze** (`sim/balance.ts`: a walled single-lane serpentine of about 85 cells, towers in 2×2 slots on its columns), by the least alloy of given towers that holds a raid.
+
+**The Grunt replaces the Swarm (2026-09-26):** Grunt 8 HP, speed 1.5, packs of 6, cost 0.5 (the Swarm's HP per raid size, in half as many bodies). Counts 6, 7, 18, 22, 48, 57, 69, 78, 90, 102. Guns alone need 2.13× the alloy of missile racks against Grunt packs at raid 3 (racks 750, Guns 1600); the margin tests still hold.
 
 **The second pass (2026-09-26):** readable raids (above). Counts 12, 12, 30, 40, 81, 96 … 171 by raid 10. On the standard maze the right towers need 38% of the curve in raid 3 (gentle: a second cave and the first Brutes), 61% in raid 4, 73–88% in raids 5–8; Guns alone need about twice as much. Swarm counter about 2× (under the 3× anchor), Runner soft (a Radome slightly cheaper than Guns alone). Swarm 4 HP; missile rack 8 damage every 2.2 s (1×1), 12 and 16 grown.
 
@@ -146,7 +147,7 @@ Measured on the standard maze (least alloy that holds, ship losing at most 5%):
 | Brute alone (raid 4) | lasers 2700 | Guns 6300 (2.3×) |
 | Runners alone (raid 3) | Radome + Guns 1500 | Guns 1800 (1.2×) |
 
-`tests/rules.test.ts` keeps it so: every raid holds within the curve but not with less than half of it; Swarm and Brute counters; a Radome never makes a defence dearer. The economy (does mining and smelting pay for the curve?) is checked next.
+`tests/rules.test.ts` keeps it so: every raid holds within the curve but not with less than half of it; Grunt-pack and Brute counters; a Radome never makes a defence dearer. The economy (does mining and smelting pay for the curve?) is checked next.
 
 ### Supply and upkeep (decided 2026-09-25)
 

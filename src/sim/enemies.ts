@@ -1,12 +1,12 @@
 /**
  * Enemy types: the threats from the design doc's list, each with its own numbers in
- * `Tuning.enemies`. The leaper is the Grunt, the yardstick the others are measured
- * against. Raids send packs of the Swarm (stone Grumtooths), the Runner (stone wolves)
- * and the Brute (the stone Colossus), picked by their shares; the Grunt has no look
- * of its own yet and isn't sent. Pure data, no graphics.
+ * `Tuning.enemies`. Raids send packs of the Grunt (the pack, the missiles' job), the
+ * Runner (few, tough and fast) and the Brute (big, slow, armoured), picked by their
+ * shares. The Swarm was dropped (2026-09-26): with Erik's detailed golem for every type,
+ * endless small bodies were never feasible. Pure data, no graphics.
  */
-export type EnemyKind = "grunt" | "swarm" | "runner" | "brute";
-export const ENEMY_KINDS: readonly EnemyKind[] = ["grunt", "swarm", "runner", "brute"];
+export type EnemyKind = "grunt" | "runner" | "brute";
+export const ENEMY_KINDS: readonly EnemyKind[] = ["grunt", "runner", "brute"];
 
 /**
  * `length`: how long one is along its path, in cells (its look, nose to tail): a pack
@@ -14,7 +14,6 @@ export const ENEMY_KINDS: readonly EnemyKind[] = ["grunt", "swarm", "runner", "b
  */
 export const ENEMY_INFO: Record<EnemyKind, { name: string; length: number }> = {
   grunt: { name: "Grunt", length: 0.5 },
-  swarm: { name: "Swarm", length: 0.55 },
   runner: { name: "Runner", length: 1.7 },
   brute: { name: "Brute", length: 1 },
 };

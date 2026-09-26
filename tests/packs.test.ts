@@ -9,7 +9,7 @@ const run = (g: Game, seconds: number) => { for (let i = 0; i < Math.round(secon
 describe("enemy packs", () => {
   it("a cave sends a pack, one enemy after another, then waits before the next", () => {
     // Grunts half a second apart (longer than a body length at their speed).
-    const g = new Game(map(), { seed: 2, waveSize: () => 8, tuning: { packMin: 4, packMax: 4, packGap: 4, enemies: { ...gruntsOnly, grunt: { gap: 0.5 } } } });
+    const g = new Game(map(), { seed: 2, waveSize: () => 8, tuning: { packMin: 4, packMax: 4, packGap: 4, enemies: { ...gruntsOnly, grunt: { ...gruntsOnly.grunt, gap: 0.5 } } } });
     g.startWave();
     run(g, 4 * 0.5);
     expect(g.walkers).toHaveLength(4);
@@ -29,7 +29,7 @@ describe("enemy packs", () => {
   });
 
   it("a pack moves at one speed, packs differ a little, and each enemy has its own line", () => {
-    const g = new Game(map(), { seed: 5, waveSize: () => 60, tuning: { packMin: 5, packMax: 5, packGap: 0.5, speedSpread: 0.12, enemies: { ...gruntsOnly, grunt: { gap: 0.5 } } } });
+    const g = new Game(map(), { seed: 5, waveSize: () => 60, tuning: { packMin: 5, packMax: 5, packGap: 0.5, speedSpread: 0.12, enemies: { ...gruntsOnly, grunt: { ...gruntsOnly.grunt, gap: 0.5 } } } });
     g.startWave();
     const packs: number[][] = [];
     for (let p = 0; p < 12; p++) {
@@ -62,50 +62,50 @@ describe("raids mix enemy types", () => {
   };
 
   it("send only types with a share, each in its own pack size, until the raid's size is spent", () => {
-    const g = new Game(map(), { seed: 4, waveSize: () => 30, tuning: { ship: { damage: 0 }, packGap: 0.2, startHp: 1e9 } });
+    const g = new Game(map(), { seed: 4, waveSize: () => 30, tuning: { ship: { damage: 0 }, packGap: 0.2, startHp: 1e9, enemies: { runner: { share: 0 } } } });
     g.startWave();
     const seen = sent(g, 120);
-    expect(seen.has("grunt")).toBe(false);
-    const cost = [...seen].reduce((a, [k, n]) => a + n * g.tuning.enemies[k as "swarm"].cost, 0);
+    expect(seen.has("runner")).toBe(false);
+    const cost = [...seen].reduce((a, [k, n]) => a + n * g.tuning.enemies[k as "grunt"].cost, 0);
     // The raid's size is spent (a last pack may overshoot it by at most one enemy's cost).
     expect(cost).toBeGreaterThanOrEqual(30 - 1e-6);
     expect(cost).toBeLessThanOrEqual(30 + g.tuning.enemies.brute.cost);
   });
 
   it("a pack is one type, as many as its pack size, spaced by its gap (or a body length)", () => {
-    const g = new Game(map(), { seed: 1, waveSize: () => 100, tuning: { enemies: { swarm: { share: 1 }, runner: { share: 0 }, brute: { share: 0 } } } });
+    const g = new Game(map(), { seed: 1, waveSize: () => 100, tuning: { enemies: { grunt: { share: 1 }, runner: { share: 0 }, brute: { share: 0 } } } });
     g.startWave();
-    const e = g.tuning.enemies.swarm;
+    const e = g.tuning.enemies.grunt;
     g.step();
-    run(g, g.packSpacing("swarm", g.walkers[0]!.speed) * (e.pack - 1) + 0.02);
+    run(g, g.packSpacing("grunt", g.walkers[0]!.speed) * (e.pack - 1) + 0.02);
     expect(g.walkers).toHaveLength(e.pack);
-    expect(g.walkers.every(w => w.kind === "swarm")).toBe(true);
+    expect(g.walkers.every(w => w.kind === "grunt")).toBe(true);
     expect(new Set(g.walkers.map(w => w.speed)).size).toBe(1);
   });
 
   it("a raid is shared between the types by their shares; one whose share doesn't make a whole enemy isn't sent", () => {
     const enemies = (share: Record<string, number>) => ({ enemies: {
       // All in before raid 1 (from 0), so no first-raid pack is added.
-      swarm: { share: share.swarm ?? 0, cost: 0.25, pack: 8, from: 0 }, runner: { share: share.runner ?? 0, cost: 1, pack: 3, from: 0 }, brute: { share: share.brute ?? 0, cost: 6, pack: 1, from: 0 },
+      grunt: { share: share.grunt ?? 0, cost: 0.25, pack: 8, from: 0 }, runner: { share: share.runner ?? 0, cost: 1, pack: 3, from: 0 }, brute: { share: share.brute ?? 0, cost: 6, pack: 1, from: 0 },
     } });
-    // 12 in raid size, half each: 24 Swarms and 6 Runners.
-    const g = new Game(map(), { seed: 3, waveSize: () => 12, tuning: enemies({ swarm: 1, runner: 1 }) });
-    expect(g.raidMix()).toEqual([{ kind: "swarm", count: 24 }, { kind: "runner", count: 6 }]);
+    // 12 in raid size, half each: 24 Grunts and 6 Runners.
+    const g = new Game(map(), { seed: 3, waveSize: () => 12, tuning: enemies({ grunt: 1, runner: 1 }) });
+    expect(g.raidMix()).toEqual([{ kind: "grunt", count: 24 }, { kind: "runner", count: 6 }]);
     // A Brute's share of 2 is a third of one: none come.
     const h = new Game(map(), { seed: 3, waveSize: () => 4, tuning: enemies({ runner: 1, brute: 1 }) });
     expect(h.raidMix()).toEqual([{ kind: "runner", count: 2 }]);
   });
 
   it("a type's first raid brings at least a whole pack of it", () => {
-    const g = new Game(map(), { seed: 3, waveSize: () => 2, tuning: { enemies: { swarm: { share: 10, cost: 0.25, from: 1 }, runner: { share: 1, cost: 6, pack: 3, from: 2 }, brute: { share: 0 } } } });
-    expect(g.raidMix(1).map(m => m.kind)).toEqual(["swarm"]);
+    const g = new Game(map(), { seed: 3, waveSize: () => 2, tuning: { enemies: { grunt: { share: 10, cost: 0.25, from: 1 }, runner: { share: 1, cost: 6, pack: 3, from: 2 }, brute: { share: 0 } } } });
+    expect(g.raidMix(1).map(m => m.kind)).toEqual(["grunt"]);
     expect(g.raidMix(2).find(m => m.kind === "runner")?.count).toBe(3);
   });
 });
 
 describe("packs climb out a body length apart", () => {
   it("no enemy of a pack starts inside the one before it, even when the type's gap is shorter", () => {
-    const g = new Game(map(), { seed: 2, waveSize: () => 3, tuning: { enemies: { swarm: { share: 1, gap: 0.01, pack: 12, from: 1, cost: 0.25 }, runner: { share: 0 }, brute: { share: 0 } } } });
+    const g = new Game(map(), { seed: 2, waveSize: () => 3, tuning: { enemies: { grunt: { share: 1, gap: 0.01, pack: 12, from: 1, cost: 0.25 }, runner: { share: 0 }, brute: { share: 0 } } } });
     g.startWave();
     const seen: number[] = [];
     for (let i = 0; i < 60 * 8; i++) {
