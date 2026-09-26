@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { COLOSSUS_HEIGHT, COLOSSUS_PALETTES, colossusModel, type ColossusPalette } from "../../src/render/colossus";
 import { GameView, type Overlay } from "../../src/render/view";
-import { Game, TICK, type PlacedPiece } from "../../src/sim/game";
+import { Game, PACK_STAGGER, TICK, type PlacedPiece } from "../../src/sim/game";
 import { growAt, type Tower } from "../../src/sim/towers";
 import type { Cell } from "../../src/sim/types";
 import type { MapDef } from "../../src/sim/world";
@@ -129,6 +129,25 @@ section("Packs",
 section("Gun",
   slider("Damage", 0.5, 10, 0.5, () => tune.towers.gun[0]!.damage, v => { tune.towers.gun[0]!.damage = v; tune.towers.gun[1]!.damage = v; }),
 );
+/** Send packs out of the cave now, on top of the raid under way (each pack at one speed, like the game's). */
+function spawnPacks(n: number): void {
+  if (game.phase === "planning") game.startWave();
+  const queue = (game as unknown as { packQueue: { at: Cell; delay: number; speed: number; kind: "grunt" }[] }).packQueue;
+  for (let p = 0; p < n; p++) {
+    const speed = look.speed * (1 + (Math.random() * 2 - 1) * tune.speedSpread);
+    for (let i = 0; i < look.pack; i++) queue.push({ at: map.spawners[0]!, delay: p * tune.packGap + i * PACK_STAGGER, speed, kind: "grunt" });
+  }
+}
+const spawnRow = document.createElement("div");
+spawnRow.className = "chips";
+for (const [label, n] of [["Spawn a pack", 1], ["Spawn 5 packs", 5]] as const) {
+  const b = document.createElement("button");
+  b.className = "chip";
+  b.textContent = label;
+  b.addEventListener("click", () => spawnPacks(n));
+  spawnRow.append(b);
+}
+panel.append(spawnRow);
 const clear = document.createElement("button");
 clear.className = "chip";
 clear.textContent = "Remove all Guns";
