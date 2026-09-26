@@ -5,6 +5,7 @@ import { WALL_DECK } from "../sim/world";
 import { cellBounds, pieceOutline, SIDES, type OutlineCell, type Side } from "./pieceShape";
 import { colonyOrange, COLONY_ORANGE } from "./palette";
 import { missileRackModel } from "./missileRack";
+import { radomeModel } from "./radome";
 import { shipModel } from "./ship";
 
 /**
@@ -205,6 +206,9 @@ export function createDefaultModels(mat: Materials): ModelLibrary {
   /** The explosive tower, the missile rack: three missiles at 1×1, six at 2×2. */
   lib.register("explosive1", () => missileRackModel(mat, false));
   lib.register("explosive2", () => missileRackModel(mat, true));
+  /** The support tower, the Radome: a turning dome on lattice legs. */
+  lib.register("support1", () => radomeModel(mat, false));
+  lib.register("support2", () => radomeModel(mat, true));
 
   return lib;
 }
@@ -275,6 +279,8 @@ export interface TurretRig {
   reload?: number;
   /** Which way missiles leave, in `yaw` space. */
   launch?: THREE.Vector3;
+  /** Turns steadily on its own (radians per second), like the Radome's dome. */
+  turn?: number;
 }
 
 function twinModel(mat: Materials, big: boolean): THREE.Object3D {

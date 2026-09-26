@@ -61,6 +61,8 @@ export interface Walker {
   pending: number;
   /** Practice walkers (calm, test walkers on): shootable, but do no damage (they vanish on reaching a target). */
   practice: boolean;
+  /** Seconds it stays Heavy (slowed): set while in a Radome's field, then running out. */
+  heavy?: number;
   /** The target cell it's clawing (it stands still meanwhile), or none while walking. */
   attacking?: string | null;
 }
@@ -1092,7 +1094,7 @@ export class Game {
         }
         w.attacking = null; // gone, or no longer in the way: walk on from here
       }
-      let budget = w.speed * dt;
+      let budget = w.speed * dt * (w.heavy ? 1 - this.tuning.heavySlow : 1);
       while (budget > 0) {
         const gx = w.tx + 0.5, gy = w.ty + 0.5, dx = gx - w.x, dy = gy - w.y, L = Math.hypot(dx, dy);
         if (L <= budget) {
@@ -1157,7 +1159,9 @@ export class Game {
       this.shots.push(shot);
       this.events.push({ type: "shot", shot });
     }
+    for (const w of this.walkers) if (w.heavy) w.heavy = Math.max(0, w.heavy - dt);
     for (const t of this.towers) {
+      if (TOWER_INFO[t.kind].shot === "field") { this.applyField(t, dt); continue; }
       t.cooldown = Math.max(0, t.cooldown - dt);
       const target = this.pickTarget(t);
       t.targetId = target?.id ?? null;
@@ -1170,6 +1174,16 @@ export class Game {
       target.pending += shot.damage;
       this.shots.push(shot);
       this.events.push({ type: "shot", shot });
+    }
+  }
+
+  /** A Radome's field: everything in range is Heavy, and stays so for the tower's `heavy` seconds after leaving. */
+  private applyField(t: Tower, dt: number): void {
+    const s = this.towerStats(t);
+    t.targetId = null;
+    for (const w of this.walkers) {
+      if (Math.hypot(w.x - t.cx, w.y - t.cy) > s.range) continue;
+      w.heavy = Math.max(w.heavy ?? 0, s.heavy + dt);
     }
   }
 

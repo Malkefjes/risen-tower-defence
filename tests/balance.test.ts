@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { alloyPerDps, dps, runRaid } from "../src/sim/balance";
 import { ENEMY_KINDS } from "../src/sim/enemies";
 import { Game } from "../src/sim/game";
-import { MAX_TOWER_SIZE, TOWER_KINDS } from "../src/sim/towers";
+import { MAX_TOWER_SIZE, TOWER_INFO, TOWER_KINDS } from "../src/sim/towers";
 import { defaultTuning, mergeTuning } from "../src/sim/tuning";
 import type { MapDef } from "../src/sim/world";
 import { metalWall } from "./helpers";
@@ -14,20 +14,24 @@ describe("the design's balance rules hold for the default numbers", () => {
     for (const kind of TOWER_KINDS) expect(t.towers[kind]).toHaveLength(MAX_TOWER_SIZE);
   });
 
+  /** Towers that deal damage (a Radome's field slows and deals none). */
+  const shooters = TOWER_KINDS.filter(k => TOWER_INFO[k].shot !== "field");
+
   it("bigger is investment, not a better deal: alloy per DPS stays within 25% of the 1×1's", () => {
-    for (const kind of TOWER_KINDS) {
+    for (const kind of shooters) {
       const base = alloyPerDps(t.towers[kind][0]!);
       for (const s of t.towers[kind]) expect(Math.abs(alloyPerDps(s) / base - 1)).toBeLessThanOrEqual(0.25);
     }
   });
 
-  it("bigger costs more, reaches further and hits harder per second", () => {
+  it("bigger costs more, reaches further and hits harder per second (or, for a field, holds enemies Heavy longer)", () => {
     for (const kind of TOWER_KINDS) {
       const sizes = t.towers[kind];
       for (let i = 1; i < sizes.length; i++) {
         expect(sizes[i]!.cost).toBeGreaterThan(sizes[i - 1]!.cost);
         expect(sizes[i]!.range).toBeGreaterThan(sizes[i - 1]!.range);
-        expect(dps(sizes[i]!)).toBeGreaterThan(dps(sizes[i - 1]!));
+        if (TOWER_INFO[kind].shot === "field") expect(sizes[i]!.heavy).toBeGreaterThan(sizes[i - 1]!.heavy);
+        else expect(dps(sizes[i]!)).toBeGreaterThan(dps(sizes[i - 1]!));
       }
     }
   });

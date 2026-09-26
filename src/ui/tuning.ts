@@ -43,7 +43,12 @@ const enemySections = (): Section[] => ENEMY_KINDS.map(kind => {
 const towerSections = (): Section[] => TOWER_KINDS.flatMap(kind =>
   Array.from({ length: TOWER_INFO[kind].maxSize }, (_, i): Section => {
     const pick = (t: Tuning): TowerStats => t.towers[kind][i]!;
-    return { title: `${TOWER_INFO[kind].name} ${i + 1}×${i + 1}`, knobs: gunKnobs(pick, 1000 * (i + 1) ** 2, TOWER_INFO[kind].shot === "missile"), derived: t => gunNumbers(pick(t)) };
+    const title = `${TOWER_INFO[kind].name} ${i + 1}×${i + 1}`;
+    if (TOWER_INFO[kind].shot === "field") return { title, knobs: [
+      stat(pick, "cost", "Alloy (total at this size)", 0, 1000 * (i + 1) ** 2, 10), stat(pick, "range", "Field range", 1, 12, 0.25),
+      stat(pick, "heavy", "Heavy lingers after leaving (s)", 0, 10, 0.25),
+    ] };
+    return { title, knobs: gunKnobs(pick, 1000 * (i + 1) ** 2, TOWER_INFO[kind].shot === "missile"), derived: t => gunNumbers(pick(t)) };
   }));
 
 const SECTIONS: Section[] = [
@@ -54,6 +59,7 @@ const SECTIONS: Section[] = [
     top("startMetal", "Starting raw metal", 0, 1000, 25),
     top("startAlloy", "Starting alloy", 0, 1000, 25),
     top("sellRefund", "Sell refund (what was spent before this calm)", 0, 1, 0.05, true),
+    top("heavySlow", "Heavy: speed lost in a Radome's field", 0, 0.9, 0.05, true),
   ] },
   { title: "Raids", knobs: [
     top("raidGrace", "Seconds before the first raid", 10, 900, 10),

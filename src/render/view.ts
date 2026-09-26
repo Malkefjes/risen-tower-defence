@@ -59,6 +59,10 @@ export interface ViewLooks {
 
 /** A kill bursts into grey stone chips. */
 const STONE_BURST = { color: "#5a5f70", count: 12, size: 2.2 };
+/** Heavy's brown: a Radome's field, and the tint of an enemy in it (over 1, so grey stone turns warm brown, not dark). */
+const HEAVY_BROWN = "#8a5a32";
+const HEAVY_TINT = new THREE.Color(1.5, 1.05, 0.62);
+const NO_TINT = new THREE.Color(1, 1, 1);
 
 /** Height of the wall deck, where towers stand. */
 const TOP = DECK_TOP;
@@ -67,7 +71,7 @@ const TOP = DECK_TOP;
 const wrap = (v: number, center: number, half: number) => ((((v - center + half) % (2 * half)) + 2 * half) % (2 * half)) + center - half;
 
 /** `reload`: per missile on a rack, seconds until it is back (below 0: how long since). */
-interface TowerView { obj: THREE.Object3D; size: number; rig: TurretRig; recoil: number[]; reload: number[]; gun: number; spin: number; drop: number }
+interface TowerView { obj: THREE.Object3D; size: number; rig: TurretRig; recoil: number[]; reload: number[]; gun: number; spin: number; drop: number; field?: THREE.Object3D }
 
 /** The model for a tower type at a size: "gun1", "gun2", ... */
 const towerModel = (kind: TowerKind, size: number) => `${kind}${size}`;
@@ -649,7 +653,11 @@ export class GameView {
         this.walkers.set(w.id, o);
       }
       const e = o.userData.enemy as Enemy;
-      o.userData.t += dt;
+      // Heavy: brown, and its stride slows with it.
+      const heavy = (w.heavy ?? 0) > 0;
+      o.userData.t += dt * (heavy ? 1 - this.game.tuning.heavySlow : 1);
+      const hk = o.userData.heavyK = ((o.userData.heavyK as number) ?? 0) + ((heavy ? 1 : 0) - ((o.userData.heavyK as number) ?? 0)) * Math.min(1, dt * 10);
+      if (hk > 0.001 || o.userData.mats) this.tintHeavy(o, hk);
       o.userData.flash = Math.max(0, ((o.userData.flash as number) ?? 0) - dt);
       e.flash((o.userData.flash as number) > 0 ? 1 : 0);
       // Clawing a building: it stands still, faces it and lunges; otherwise it walks.
@@ -807,16 +815,40 @@ export class GameView {
       const had = this.towers.get(t.id);
       if (had && had.size === t.size) continue;
       // A tower that grew gets its bigger model, facing where the old one did.
-      if (had) this.scene.remove(had.obj);
+      if (had) { this.scene.remove(had.obj); if (had.field) this.scene.remove(had.field); }
       const obj = this.models.create(towerModel(t.kind, t.size));
       obj.position.set(t.cx, TOP, t.cy);
       obj.rotation.y = Math.PI * 0.75;
       this.scene.add(obj);
       const rig = obj.userData.rig as TurretRig;
       if (had) rig.yaw.rotation.y = had.rig.yaw.rotation.y;
-      this.towers.set(t.id, { obj, size: t.size, rig, recoil: rig.guns.map(() => 0), reload: rig.guns.map(() => -1), gun: 0, spin: 0, drop: had ? 0.12 : 0 });
+      const field = TOWER_INFO[t.kind].shot === "field" ? this.fieldModel() : undefined;
+      if (field) { field.position.set(t.cx, 0.018, t.cy); this.scene.add(field); }
+      this.towers.set(t.id, { obj, size: t.size, rig, recoil: rig.guns.map(() => 0), reload: rig.guns.map(() => -1), gun: 0, spin: 0, drop: had ? 0.12 : 0, field });
     }
-    for (const [id, v] of this.towers) if (!alive.has(id)) { this.scene.remove(v.obj); this.towers.delete(id); }
+    for (const [id, v] of this.towers) if (!alive.has(id)) { this.scene.remove(v.obj); if (v.field) this.scene.remove(v.field); this.towers.delete(id); }
+  }
+
+  /**
+   * A Radome's field on the snow, radius 1 (scaled to its range): a faint brown disc,
+   * a firmer rim, and a sweep turning with the dome. Everything in it is Heavy.
+   */
+  private fieldMats: THREE.MeshBasicMaterial[] | null = null;
+  private fieldModel(): THREE.Object3D {
+    const [disc, rim, sweep] = this.fieldMats ??= [0.07, 0.35, 0.13].map(opacity =>
+      new THREE.MeshBasicMaterial({ color: HEAVY_BROWN, transparent: true, opacity, depthWrite: false }));
+    const g = new THREE.Group();
+    const flat = (geo: THREE.BufferGeometry, m: THREE.Material, y: number) => {
+      const o = new THREE.Mesh(geo.rotateX(-Math.PI / 2), m);
+      o.position.y = y;
+      o.renderOrder = 1;
+      g.add(o);
+      return o;
+    };
+    flat(new THREE.CircleGeometry(1, 48), disc!, 0);
+    flat(new THREE.RingGeometry(0.96, 1, 64), rim!, 0.002);
+    g.userData.sweep = flat(new THREE.CircleGeometry(0.98, 12, 0, 0.7), sweep!, 0.001);
+    return g;
   }
 
   /** Turn each turret toward its target; ease recoil and barrel spin. */
@@ -844,9 +876,28 @@ export class GameView {
         v.recoil[i] = Math.max(0, v.recoil[i]! - dt * 7);
         g.obj.position.z = g.rest - v.rig.kick * v.recoil[i]! ** 2;
       });
+      if (v.rig.turn) v.rig.yaw.rotation.y += dt * v.rig.turn;
+      if (v.field && t) {
+        v.field.scale.setScalar(this.game.towerStats(t).range);
+        (v.field.userData.sweep as THREE.Object3D).rotation.y = v.rig.yaw.rotation.y + v.obj.rotation.y;
+      }
       v.spin = Math.max(0, v.spin - dt * 1.5);
       if (v.rig.spinner) v.rig.spinner.rotation.z += dt * 28 * v.spin;
     }
+  }
+
+  /** Tint an enemy toward Heavy's brown by `k` (0 to 1). */
+  private tintHeavy(o: THREE.Object3D, k: number): void {
+    let mats = o.userData.mats as THREE.MeshStandardMaterial[] | undefined;
+    if (!mats) {
+      mats = [];
+      o.traverse(c => {
+        const m = (c as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+        if (m?.isMeshStandardMaterial && !mats!.includes(m)) mats!.push(m);
+      });
+      o.userData.mats = mats;
+    }
+    for (const m of mats) m.color.copy(NO_TINT).lerp(HEAVY_TINT, k);
   }
 
   private onShot(s: Shot): void {

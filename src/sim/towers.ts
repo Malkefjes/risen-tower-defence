@@ -5,8 +5,8 @@ import type { Cell } from "./types";
  * in place to 2×2 and 3×3: bigger is more investment (range, damage for its price,
  * later mod slots), not a different tower. Numbers per size live in `Tuning.towers`.
  */
-export type TowerKind = "gun" | "explosive";
-export const TOWER_KINDS: readonly TowerKind[] = ["gun", "explosive"];
+export type TowerKind = "gun" | "explosive" | "support";
+export const TOWER_KINDS: readonly TowerKind[] = ["gun", "explosive", "support"];
 
 /** The largest footprint any tower can grow to. */
 export const MAX_TOWER_SIZE = 3;
@@ -14,11 +14,13 @@ export const MAX_TOWER_SIZE = 3;
 /**
  * `maxSize`: the sizes on offer now (a size is offered once it has a model).
  * `shot`: bolts fly straight at `BOLT_SPEED`; missiles climb, turn and dive
- * (`missileTime`), following their target, and burst over `radius`.
+ * (`missileTime`), following their target, and burst over `radius`. A field tower
+ * fires nothing: every enemy within its range is Heavy (`Tuning.heavySlow`).
  */
-export const TOWER_INFO: Record<TowerKind, { name: string; maxSize: number; shot: "bolt" | "missile" }> = {
+export const TOWER_INFO: Record<TowerKind, { name: string; maxSize: number; shot: "bolt" | "missile" | "field" }> = {
   gun: { name: "Gun", maxSize: 2, shot: "bolt" },
   explosive: { name: "Missile rack", maxSize: 2, shot: "missile" },
+  support: { name: "Radome", maxSize: 2, shot: "field" },
 };
 
 /** How high a tower stands above its wall deck per size, in cells (the avatar can stand on it). */
@@ -34,6 +36,8 @@ export interface TowerStats {
   rate: number;
   /** Blast radius in cells: every enemy this close to where the shot lands is hit (0 = only its target). */
   radius: number;
+  /** Field towers: seconds an enemy stays Heavy after it leaves the field (0 for the rest). */
+  heavy: number;
 }
 
 export interface Tower {

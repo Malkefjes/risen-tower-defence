@@ -65,6 +65,8 @@ export interface Tuning {
   packGap: number;
   /** How far an enemy walks off its tile's centre line, in cells (looks only; the path is per tile). */
   laneSpread: number;
+  /** Heavy (brown): the share of its speed an enemy loses inside a Radome's field. Never stacks. */
+  heavySlow: number;
   /** Share of the price returned when selling a tower placed in an earlier phase. */
   sellRefund: number;
   /** Each enemy type's own numbers. */
@@ -111,6 +113,7 @@ export const defaultTuning = (): Tuning => ({
   packMax: 5,
   packGap: 4,
   laneSpread: 0.2,
+  heavySlow: 0.4,
   sellRefund: 0.75,
   enemies: {
     grunt: { hp: 6, speed: 1.475, damage: 2, pack: 0, gap: 0.25, cost: 1, share: 0 },
@@ -121,18 +124,24 @@ export const defaultTuning = (): Tuning => ({
   },
   towers: {
     gun: [
-      { cost: 200, damage: 1, range: 2.5, rate: 3, radius: 0 },
-      { cost: 500, damage: 1, range: 3.5, rate: 9, radius: 0 },
-      { cost: 1000, damage: 1, range: 4.5, rate: 18, radius: 0 },
+      { cost: 200, damage: 1, range: 2.5, rate: 3, radius: 0, heavy: 0 },
+      { cost: 500, damage: 1, range: 3.5, rate: 9, radius: 0, heavy: 0 },
+      { cost: 1000, damage: 1, range: 4.5, rate: 18, radius: 0, heavy: 0 },
     ],
     // The missile rack: worse than the Gun per alloy on one target, far better on a pack.
     explosive: [
-      { cost: 250, damage: 3, range: 4, rate: 1 / 1.5, radius: 0.9 },
-      { cost: 625, damage: 4, range: 5, rate: 1.25, radius: 1.2 },
-      { cost: 1250, damage: 5, range: 6, rate: 2, radius: 1.5 },
+      { cost: 250, damage: 3, range: 4, rate: 1 / 1.5, radius: 0.9, heavy: 0 },
+      { cost: 625, damage: 4, range: 5, rate: 1.25, radius: 1.2, heavy: 0 },
+      { cost: 1250, damage: 5, range: 6, rate: 2, radius: 1.5, heavy: 0 },
+    ],
+    // The Radome: no damage; everything in its field is Heavy, and stays so a little after.
+    support: [
+      { cost: 200, damage: 0, range: 2.5, rate: 0, radius: 0, heavy: 1 },
+      { cost: 500, damage: 0, range: 3.5, rate: 0, radius: 0, heavy: 2 },
+      { cost: 1000, damage: 0, range: 4.5, rate: 0, radius: 0, heavy: 3 },
     ],
   },
-  ship: { cost: 0, damage: 1, range: 5.5, rate: 1, radius: 0 },
+  ship: { cost: 0, damage: 1, range: 5.5, rate: 1, radius: 0, heavy: 0 },
 });
 
 /** Some of the numbers, at any depth (for tests and saved tuning). */

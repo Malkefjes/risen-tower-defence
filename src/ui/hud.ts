@@ -47,6 +47,10 @@ export function towerIcon(kind: TowerKind, size = 1): string {
     const a = (Math.PI / 3) * i + Math.PI / 6;
     return `${22 + Math.cos(a) * r},${24 + Math.sin(a) * r}`;
   }).join(" ");
+  if (kind === "support") {
+    // From above: the brown field, the orange band and the faceted white dome.
+    return `<svg viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="23" r="20" fill="#8a5a32" fill-opacity=".25" stroke="#8a5a32" stroke-width="1.5"/><polygon points="${hex(12)}" fill="#3d4457"/><circle cx="22" cy="23" r="${size === 1 ? 10 : 12}" fill="#d9573a"/><polygon points="${hex(size === 1 ? 8.5 : 10.5)}" fill="#dfe3ea" stroke="#b4bccd"/><path d="M22 ${size === 1 ? 15 : 13} L22 ${size === 1 ? 31 : 33} M15 19 L29 27 M15 27 L29 19" stroke="#b4bccd" stroke-width="1"/></svg>`;
+  }
   if (kind === "explosive") {
     const n = size === 1 ? 3 : 6, cols = size === 1 ? 3 : 3, w = 6.5;
     let missiles = "";
@@ -268,7 +272,7 @@ export class Hud {
     if (hpNow < this.lastHp && !g.shipDown) { const el = $("hp"); el.classList.remove("hurt"); void el.offsetWidth; el.classList.add("hurt"); }
     this.lastHp = hpNow;
     const sig = JSON.stringify([g.phase, g.round, sel.selectedTowerId, sel.selectedShip, g.waveRemaining, hpNow, g.shipDown, g.upkeepPaid,
-      g.tuning.towers, g.tuning.ship, g.tuning.sellRefund, tower?.size, tower?.paid, tower?.paidNow,
+      g.tuning.towers, g.tuning.ship, g.tuning.sellRefund, g.tuning.heavySlow, tower?.size, tower?.paid, tower?.paidNow,
       tower && tower.size < TOWER_INFO[tower.kind].maxSize && g.ore("alloy") >= g.growCost(tower)]);
     // Damage dealt ticks up during a raid: update just that number, so the buttons stay put.
     if (tower) { const dealt = document.getElementById("dealt"); if (dealt) dealt.textContent = String(Math.round(tower.dealt)); }
@@ -301,9 +305,12 @@ export class Hud {
       const info = TOWER_INFO[tower.kind], s = g.towerStats(tower), value = g.sellValue(tower), n = tower.size + 1;
       const grow = n <= info.maxSize
         ? `<button class="sell grow" id="growBtn"${g.ore("alloy") < g.growCost(tower) ? " disabled" : ""}>Grow ${n}×${n} <img alt="" src="${this.icons.alloy}">${g.growCost(tower)}</button>` : "";
+      const stats = info.shot === "field"
+        ? `<dt>Heavy</dt><dd>${Math.round(g.tuning.heavySlow * 100)}% slower</dd><dt>Lingers</dt><dd>${s.heavy} s</dd><dt>Range</dt><dd>${s.range}</dd>`
+        : `<dt>Damage</dt><dd>${s.damage}</dd><dt>Shots/s</dt><dd>${+s.rate.toFixed(2)}</dd><dt>Range</dt><dd>${s.range}</dd><dt>Dealt</dt><dd id="dealt">${Math.round(tower.dealt)}</dd>`;
       inspect.innerHTML = `
         <h3>${info.name} <span>${tower.size}×${tower.size}</span></h3>
-        <dl><dt>Damage</dt><dd>${s.damage}</dd><dt>Shots/s</dt><dd>${s.rate}</dd><dt>Range</dt><dd>${s.range}</dd><dt>Dealt</dt><dd id="dealt">${Math.round(tower.dealt)}</dd></dl>
+        <dl>${stats}</dl>
         <div class="acts">${grow}<button class="sell" id="sellBtn">Sell <img alt="" src="${this.icons.alloy}">${value}</button></div>`;
       $("sellBtn").addEventListener("click", () => this.h.sell());
       document.getElementById("growBtn")?.addEventListener("click", () => this.h.grow());

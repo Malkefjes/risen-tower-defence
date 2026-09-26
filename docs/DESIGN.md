@@ -113,7 +113,7 @@ Enemies and towers are the two deepest systems; everything else supports them. E
 
 **Statuses:**
 
-- **Heavy** (brown): slowed, from the support tower. Replaces frost.
+- **Heavy** (brown): slowed, from the support tower's field (40% slower while inside and for a moment after leaving; never stacks). Replaces frost. A Heavy enemy turns warm brown and its stride slows.
 - **Cracked:** armour lowered. Not needed yet; maybe later as a support mod.
 - **Burning:** from incendiary; resistances off, no healing.
 
@@ -151,7 +151,7 @@ The Titan shows the whole system: Heavy, then burning, then the laser cannon, in
 | **Explosive** | Explosive | Bursts on impact, short to medium range, area damage. Look: the missile rack (a tilted cradle of missiles that climb, turn and dive; 3 missiles at 1×1, 6 at 2×2, reloading visibly). Missiles home in on their target and burst where it is when they arrive | Single tough targets (armour counts on each hit) | Switchbacks and corners where packs bunch |
 | **Thermite mortar** | Incendiary | Lobs shells far with a **minimum range**; the ground burns for a few seconds (resistances off, no healing) | Anything on its own; it preps, it doesn't kill | Set back from the path, aimed where it doubles back |
 | **AA** | Piercing | Fast tracking, air only | Everything on the ground | Under the air lanes (straight lines from caves to targets) |
-| **Support** | None | Applies Heavy (slow) | Kills nothing | Early in the maze, before the killzone |
+| **Support** | None | Applies Heavy (slow) in a field around it; no pulse. Look: the **Radome** (decided 2026-09-26): a faceted white dome with an orange band on lattice legs, turning slowly; its field shows on the snow as a faint brown disc with a rim and a sweep. 1×1 range 2.5, Heavy lingers 1 s; 2×2 range 3.5, lingers 2 s | Kills nothing | Early in the maze, before the killzone |
 
 ### The avatar
 
