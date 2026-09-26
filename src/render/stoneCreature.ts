@@ -84,11 +84,10 @@ export interface Marks { outline: boolean; ring: boolean }
  * smoothed normals (so it hugs thin tails and ears as closely as broad backs; scaling
  * the part up instead shifts pieces far from its pivot off the body).
  */
-const hulls = new WeakMap<THREE.BufferGeometry, THREE.BufferGeometry>();
 function hullOf(g: THREE.BufferGeometry, width: number): THREE.BufferGeometry {
-  let h = hulls.get(g);
+  let h = g.userData.hull as THREE.BufferGeometry | undefined;
   if (h) return h;
-  const p = g.attributes.position!, n = new Map<string, THREE.Vector3>(), key = (i: number) => `${p.getX(i).toFixed(4)},${p.getY(i).toFixed(4)},${p.getZ(i).toFixed(4)}`;
+  const p = g.attributes.position!, n = new Map<string, THREE.Vector3>(), key = (i: number) => [p.getX(i), p.getY(i), p.getZ(i)].map(v => Math.round(v * 1e4)).join();
   const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
   for (let i = 0; i < p.count; i += 3) {
     a.fromBufferAttribute(p, i); b.fromBufferAttribute(p, i + 1); c.fromBufferAttribute(p, i + 2);
@@ -101,7 +100,7 @@ function hullOf(g: THREE.BufferGeometry, width: number): THREE.BufferGeometry {
     const d = n.get(key(i))!.clone().normalize().multiplyScalar(width);
     q.setXYZ(i, q.getX(i) + d.x, q.getY(i) + d.y, q.getZ(i) + d.z);
   }
-  hulls.set(g, h);
+  g.userData.hull = h;
   return h;
 }
 
