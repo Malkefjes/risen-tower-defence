@@ -85,7 +85,8 @@ const SECTIONS: Section[] = [
   ] },
   { title: "Enemies (all types)", knobs: [
     top("raidBase", "Raid 1 size per cave (in Grunts)", 1, 60, 0.5),
-    top("raidGrowth", "Raid size growth per raid", 1, 2, 0.01),
+    top("raidStep", "Raid size added each raid (per cave)", 0, 60, 0.5),
+    top("raidSpread", "Seconds a raid's packs are spread over", 5, 300, 5),
     top("enemyHpGrowth", "HP growth per raid", 1, 1.6, 0.01),
     top("speedSpread", "Speed variation between packs (±)", 0, 0.5, 0.01, true),
     top("packMin", "Smallest pack", 1, 12, 1),

@@ -242,13 +242,14 @@ export class Game {
   /** Enemies each active cave still has to send this wave. */
   /** The packs of this raid still to come (each is sent from every active cave). */
   private plan: RaidPack[] = [];
+  private planSize = 0;
   /** Seeds each raid's plan, so the warning shows the raid that then comes. */
   private planSeed: number;
   /** Enemies of packs already under way, each waiting to climb out of its cave. */
   private packQueue: { at: Cell; delay: number; speed: number; kind: EnemyKind }[] = [];
   private spawnTimer = 0;
   private waveSize: (round: number) => number;
-  /** Raid size per active cave, in Grunts: `raidBase` growing by `raidGrowth` a raid, unless a test gives its own. */
+  /** Raid size per active cave, in Grunts: `raidBase` plus `raidStep` a raid, unless a test gives its own. */
   private customWaveSize: ((round: number) => number) | undefined;
   /** cell key -> id of the tower standing on it */
   private towerCellsMap = new Map<string, number>();
@@ -258,7 +259,7 @@ export class Game {
     this.rng = new Rng(opts.seed ?? Date.now());
     this.planSeed = (opts.seed ?? Date.now()) >>> 0;
     this.customWaveSize = opts.waveSize;
-    this.waveSize = r => this.customWaveSize ? this.customWaveSize(r) : this.tuning.raidBase * this.tuning.raidGrowth ** (r - 1);
+    this.waveSize = r => this.customWaveSize ? this.customWaveSize(r) : this.tuning.raidBase + this.tuning.raidStep * (r - 1);
     this.tuning = mergeTuning(opts.tuning);
     this.supplyRule = opts.supply ?? false;
     this.nodes = (map.ore ?? []).map(o => ({ id: this.nextId++, kind: o.kind, x: o.x, y: o.y, amount: nodeMax(o.kind), max: nodeMax(o.kind) }));
@@ -450,7 +451,16 @@ export class Game {
   }
 
   /** How much of an item (stone, raw metal, alloy) is in the hotbar. */
-  ore(kind: ItemKind): number { return this.hotbar.count(kind); }
+  ore(kind: ItemKind): number { return this.god ? Infinity : this.hotbar.count(kind); }
+
+  /**
+   * God mode, for trying things out: building, plating, growing and repairing cost
+   * nothing, upkeep stops, and the next raid can be started at once (`startWave`).
+   */
+  god = false;
+
+  /** Take the price of something out of the hand (nothing in god mode); returns what was taken. */
+  private pay(kind: ItemKind, n: number): number { return this.god ? 0 : this.hotbar.remove(kind, n); }
 
   // ---------------------------------------------------------------- placement
 
@@ -477,7 +487,7 @@ export class Game {
   place(shape: ShapeId, rot: number, at: Cell): PlacementCheck & { piece?: PlacedPiece } {
     const check = this.checkPlacement(shape, rot, at);
     if (!check.ok) return check;
-    const paid = this.hotbar.remove("stone", this.wallCost(check.cells.length));
+    const paid = this.pay("stone", this.wallCost(check.cells.length));
     const piece: PlacedPiece = { id: this.nextId++, shape, rot, at, cells: check.cells, locked: this.phase === "wave", paid, metal: false, plated: 0 };
     this.pieces.push(piece);
     for (const [x, y] of piece.cells) this.world.walls.set(cellKey(x, y), piece.id);
@@ -524,7 +534,7 @@ export class Game {
   plate(pieceId: number): boolean {
     const piece = this.pieces.find(p => p.id === pieceId);
     if (!this.canPlate(piece)) return false;
-    piece.plated = this.hotbar.remove("alloy", this.tuning.platingCost);
+    piece.plated = this.pay("alloy", this.tuning.platingCost);
     // Plating toughens the whole piece, keeping its share of damage.
     this.world.pieceHp.set(piece.id, (this.world.pieceHp.get(piece.id) ?? this.tuning.wallHp) * this.tuning.platedHpMult);
     piece.metal = true;
@@ -569,7 +579,7 @@ export class Game {
   repair(pieceId: number): boolean {
     const piece = this.pieces.find(p => p.id === pieceId);
     if (!this.canRepair(piece)) return false;
-    this.hotbar.remove("stone", this.repairCost(piece));
+    this.pay("stone", this.repairCost(piece));
     this.world.pieceHp.set(piece.id, this.wallMaxHp(piece));
     this.refresh();
     this.events.push({ type: "repaired", piece });
@@ -723,6 +733,7 @@ export class Game {
    */
   private stepUpkeep(dt: number): void {
     if (!this.supplyRule) return;
+    if (this.god) { this.upkeepPaid = true; return; }
     const u = this.upkeepPerMinute();
     let paid = true;
     for (const kind of ["stone", "alloy"] as const) {
@@ -778,7 +789,7 @@ export class Game {
   buildSmelter(at: Cell): SmelterCheck & { smelter?: Smelter } {
     const check = this.checkSmelter(at);
     if (!check.ok) return check;
-    const paid = { stone: this.hotbar.remove("stone", this.tuning.smelterStone), metal: this.hotbar.remove("metal", this.tuning.smelterMetal) };
+    const paid = { stone: this.pay("stone", this.tuning.smelterStone), metal: this.pay("metal", this.tuning.smelterMetal) };
     const s = newSmelter(this.nextId++, at, paid, this.tuning.smelterHp);
     this.smelters.push(s);
     for (const [x, y] of s.cells) { this.world.buildings.set(cellKey(x, y), s.id); this.world.targets.add(cellKey(x, y)); }
@@ -906,12 +917,12 @@ export class Game {
   buildTower(kind: TowerKind, at: Cell): TowerCheck & { tower?: Tower } {
     const check = this.checkTower(kind, at);
     if (!check.ok) return check;
-    const cost = this.towerCost(kind);
+    const cost = this.god ? 0 : this.towerCost(kind);
     const tower: Tower = {
       id: this.nextId++, kind, size: 1, at: [at[0], at[1]], cells: check.cells, cx: at[0] + 0.5, cy: at[1] + 0.5,
       paid: cost, paidNow: this.phase === "planning" ? cost : 0, dealt: 0, cooldown: 0, targetId: null,
     };
-    this.hotbar.remove("alloy", cost);
+    this.pay("alloy", cost);
     this.towers.push(tower);
     for (const [x, y] of tower.cells) this.towerCellsMap.set(cellKey(x, y), tower.id);
     this.events.push({ type: "tower-built", tower });
@@ -938,8 +949,8 @@ export class Game {
   growTower(id: number, at: Cell): TowerCheck & { tower?: Tower } {
     const check = this.checkGrow(id, at);
     if (!check.ok) return check;
-    const t = this.towers.find(x => x.id === id)!, cost = this.growCost(t);
-    this.hotbar.remove("alloy", cost);
+    const t = this.towers.find(x => x.id === id)!, cost = this.god ? 0 : this.growCost(t);
+    this.pay("alloy", cost);
     t.paid += cost;
     if (this.phase === "planning") t.paidNow += cost;
     t.size += 1;
@@ -984,6 +995,7 @@ export class Game {
     this.walkers = [];
     this.shots = [];
     this.plan = this.raidPlan();
+    this.planSize = this.plan.length;
     this.packQueue = [];
     this.spawnTimer = 0;
     this.setPhase("wave");
@@ -1071,7 +1083,9 @@ export class Game {
       const speed = this.rollSpeed(kind);
       for (let i = 0; i < size; i++) this.packQueue.push({ at, delay: i * e.gap, speed, kind });
     }
-    this.spawnTimer = this.tuning.packGap + size * e.gap;
+    // The next pack follows after `packGap`, or sooner when the raid's packs must fit in `raidSpread`.
+    const t = this.tuning;
+    this.spawnTimer = Math.max(size * e.gap, Math.min(t.packGap + size * e.gap, t.raidSpread / Math.max(1, this.planSize)));
   }
 
   /**

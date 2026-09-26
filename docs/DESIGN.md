@@ -119,6 +119,20 @@ Enemies and towers are the two deepest systems; everything else supports them. E
 
 The Titan shows the whole system: Heavy, then burning, then the laser cannon, in that order along the maze.
 
+### Balance anchors (decided 2026-09-26)
+
+Every balance number is set against a few anchors, not guessed one by one.
+
+- **The unit: one Gun pass.** Damage a tower deals = its DPS × the time an enemy spends in its range (path in range ÷ speed). A **Gun pass** is what one 1×1 Gun deals to one enemy walking past it in a single-lane maze (its range covers about 8 path cells: about 16 damage to a Grunt). **A raid-1 Grunt takes one Gun pass to kill**; the other types are priced in Gun passes against it (the Runner, twice as fast, dies in one pass with 8 HP; a Swarm dies to one missile; the Brute takes many passes through its armour). The maze sits at the centre: more path in range is worth as much as more towers.
+- **The tower curve:** a competent player has 3–4 small towers by raid 1, about 10 (a couple grown) by raid 5, about 20 (several grown) by raid 10 (700 alloy of towers by raid 1, about 510 more each raid). The economy is set to pay for this, not the other way round.
+- **The margin: 80%.** A competent defence of the right towers needs about 80% of the curve's alloy to hold a raid: it holds with a little to spare and leaks when built worse, with room above for clever builds.
+- **The counter ratio: about 3×.** Answering a threat with the wrong towers takes about three times the alloy: the counter is felt, but a build from almost any tower stays possible.
+- **Raids grow with the curve,** in numbers and density (a raid's packs come within about 45 s), not in HP: each type keeps its identity. HP growth stays a knob for extra tension (default off). The end of a run comes from the Titan, not from numbers outrunning you.
+
+These are checked headless on the **standard maze** (`sim/balance.ts`: a walled single-lane serpentine of about 85 cells, towers in 2×2 slots on its columns), by the least alloy of given towers that holds a raid.
+
+**Found while calibrating (2026-09-26), open:** a slow can only add damage while towers would otherwise idle; in a busy maze Guns fire non-stop, so Heavy (the Radome) doesn't pay for itself against Runners, however big its field or long its linger. And the Brute's counter is far above 3× (armour plus the laser's reach make the Gun hopeless). Both need a design call before the numbers are set.
+
 ### Supply and upkeep (decided 2026-09-25)
 
 - **Supply** comes from the ship (later also hubs). A wall or building is supplied when it's **within the supply radius** (large: 40 cells from the ship's centre, so a big base fits) **and connected to the ship through walls or buildings** (touching counts, corners too, since diagonal walls form a closed seam).

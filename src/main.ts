@@ -32,6 +32,14 @@ btn("bWalkers").addEventListener("click", () => controller.toggleWalkers());
 btn("bSpeed").addEventListener("click", () => controller.toggleSpeed());
 btn("bPause").addEventListener("click", () => controller.togglePause());
 btn("bTune").addEventListener("click", () => tuning.toggle());
+// God mode, remembered in this browser: everything free, and raids start when you say.
+const GOD_KEY = "risen.god";
+try { game.god = localStorage.getItem(GOD_KEY) === "1"; } catch { /* storage off */ }
+btn("bGod").addEventListener("click", () => {
+  game.god = !game.god;
+  try { localStorage.setItem(GOD_KEY, game.god ? "1" : "0"); } catch { /* storage off */ }
+});
+btn("bStartRaid").addEventListener("click", () => { game.startWave(); });
 addEventListener("keydown", e => { if (e.key.toLowerCase() === "k" && !(e.target instanceof HTMLInputElement)) tuning.toggle(); });
 function syncTools(): void {
   btn("bPath").setAttribute("aria-pressed", String(controller.showPath));
@@ -45,6 +53,8 @@ function syncTools(): void {
   document.getElementById("app")!.classList.toggle("is-paused", controller.paused);
   document.getElementById("paused")!.hidden = !controller.paused;
   btn("bTune").setAttribute("aria-pressed", String(tuning.open));
+  btn("bGod").setAttribute("aria-pressed", String(game.god));
+  btn("bStartRaid").hidden = !game.god || game.phase !== "planning";
 }
 
 addEventListener("resize", () => view.resize());

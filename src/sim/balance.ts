@@ -80,7 +80,7 @@ export const MAZE_SLOTS: Cell[] = [
 
 export function standardMaze(o: { seed?: number; tuning?: TuningPatch; round?: number } = {}): Game {
   const g = new Game({ name: "standard maze", spawners: [[-2, 3], [-2, 6], [-2, 9]], ship: [MAZE_SHIP], rocks: [], trees: [] },
-    { seed: o.seed ?? 1, tuning: { startAlloy: 1e6, ...o.tuning } });
+    { seed: o.seed ?? 1, tuning: { startAlloy: 0, startStone: 0, ...o.tuning } });
   const span = (x0: number, x1: number, y: number) => Array.from({ length: x1 - x0 + 1 }, (_, i): Cell => [x0 + i, y]);
   // The box: top and bottom rows, and the right side.
   g.putWall(span(3, 23, -7));
@@ -105,21 +105,28 @@ export function buildInMaze(g: Game, towers: MazeTower[]): number {
   towers.forEach((t, i) => {
     const at = MAZE_SLOTS[i];
     if (!at) throw new Error("the standard maze has no more slots");
-    const built = g.buildTower(t.kind, at).tower;
-    if (!built) throw new Error(`can't build ${t.kind} at ${at}`);
+    // Each tower's alloy goes into the hand just before it's built (the hotbar only holds so much).
+    g.hotbar.add("alloy", g.towerCost(t.kind));
+    const r = g.buildTower(t.kind, at), built = r.tower;
+    if (!built) throw new Error(`can't build ${t.kind} at ${at}: ${r.ok ? "" : r.reason}`);
     alloy += g.towerCost(t.kind);
-    for (let size = 2; size <= (t.size ?? 1); size++) { alloy += g.growCost(built); g.growTower(built.id, at); }
+    for (let size = 2; size <= (t.size ?? 1); size++) { const c = g.growCost(built); alloy += c; g.hotbar.add("alloy", c); g.growTower(built.id, at); }
   });
   return alloy;
 }
 
 /**
- * Alloy of towers a player has built by a raid, if they keep smelting: 600 by the first,
- * growing about a third a raid (an assumption about the economy, to be checked in play).
- * Enemy HP grows at the same pace by default, so a defence of the right towers keeps up.
+ * The balance anchors (design doc, "Balance anchors"). Every number is set against these.
+ *
+ * - The tower curve: a competent player has 3–4 small towers by raid 1, about 10 (a couple
+ *   grown) by raid 5, about 20 (several grown) by raid 10: this much alloy in towers.
+ * - The margin: a competent defence of the right towers runs at 80% of what it could hold,
+ *   so it holds a raid 1.25 times as big, and leaks when built worse.
+ * - The counter ratio: answering a threat with the wrong towers takes about 3 times the alloy.
  */
-export const ECONOMY_GROWTH = 1.35;
-export const alloyByRaid = (round: number): number => Math.round(600 * ECONOMY_GROWTH ** (round - 1) / 50) * 50;
+export const alloyByRaid = (round: number): number => 700 + 510 * (round - 1);
+export const MARGIN = 0.8;
+export const COUNTER_RATIO = 3;
 
 /** Towers for a budget: as many of the list as fit, cycling through it, all 1×1; the rest grows them in turn. */
 export function towersFor(kinds: TowerKind[], budget: number, g: Game): MazeTower[] {
@@ -131,8 +138,9 @@ export function towersFor(kinds: TowerKind[], budget: number, g: Game): MazeTowe
     out.push({ kind, size: 1 });
     left -= cost;
   }
-  // Leftover alloy grows towers, first built first.
-  for (const t of out) {
+  // Leftover alloy grows towers, first built first; the ones that kill before a Radome.
+  const order = [...out.filter(t => TOWER_INFO[t.kind].shot !== "field"), ...out.filter(t => TOWER_INFO[t.kind].shot === "field")];
+  for (const t of order) {
     const grow = g.tuning.towers[t.kind][1]!.cost - g.towerCost(t.kind);
     if (grow <= left && TOWER_INFO[t.kind].maxSize >= 2) { t.size = 2; left -= grow; }
   }
@@ -140,13 +148,51 @@ export function towersFor(kinds: TowerKind[], budget: number, g: Game): MazeTowe
 }
 
 /** A raid on the standard maze: `round` sets the raid (its size, mix and HP); `only` limits the enemy types sent. */
-export function mazeRaid(o: { round: number; towers: TowerKind[]; budget?: number; only?: EnemyKind[]; tuning?: TuningPatch; seed?: number }): RaidReport & { alloy: number; sent: number } {
+export function mazeRaid(o: { round: number; towers: TowerKind[]; budget?: number; only?: EnemyKind[]; tuning?: TuningPatch; seed?: number; scale?: number }): RaidReport & { alloy: number; sent: number } {
   // `only`: the other types get no share, and these come in from raid 1 (over any tuning given).
   const given = o.tuning?.enemies ?? {};
   const enemies = Object.fromEntries(ENEMY_KINDS.map(k => [k, { ...given[k], ...(o.only ? o.only.includes(k) ? { from: 1 } : { share: 0 } : {}) }]));
   const g = standardMaze({ seed: o.seed, round: o.round, tuning: { ...o.tuning, enemies } });
   if (o.only) for (const k of o.only) if (g.tuning.enemies[k].share === 0) g.tuning.enemies[k].share = 1;
+  // `scale`: a raid this many times the size the tuning gives (to find what a defence can hold).
+  if (o.scale) { g.tuning.raidBase *= o.scale; g.tuning.raidStep *= o.scale; }
   const alloy = buildInMaze(g, towersFor(o.towers, o.budget ?? alloyByRaid(o.round), g));
   const sent = g.raidMix().reduce((a, m) => a + m.count, 0);
   return { ...runRaid(g), alloy, sent };
+}
+
+/**
+ * What a defence can hold: the biggest raid, as a multiple of the tuned size, that it
+ * holds with the ship losing at most `leak` of its HP (averaged over a few seeds).
+ * 1.25 means it holds a raid a quarter bigger than the tuned one: the anchors' margin.
+ */
+export function capacity(o: { round: number; towers: TowerKind[]; budget?: number; only?: EnemyKind[]; tuning?: TuningPatch; seeds?: number[]; leak?: number }): number {
+  const seeds = o.seeds ?? [1, 2], leak = o.leak ?? 0.05;
+  const holds = (scale: number) => {
+    let dmg = 0, hp = 0;
+    for (const seed of seeds) {
+      const r = mazeRaid({ ...o, seed, scale });
+      dmg += r.shipDamage; hp += standardMaze({ tuning: o.tuning }).tuning.startHp;
+    }
+    return dmg <= leak * hp;
+  };
+  let lo = 0, hi = 0.25;
+  while (holds(hi) && hi < 64) { lo = hi; hi *= 2; }
+  for (let i = 0; i < 6; i++) { const mid = (lo + hi) / 2; if (holds(mid)) lo = mid; else hi = mid; }
+  return lo;
+}
+
+/**
+ * The least alloy of these towers (built as `towersFor` does) that holds the raid, with the
+ * ship losing at most `leak` of its HP averaged over a few seeds: the anchors' yardstick.
+ * The counter ratio is this for the wrong towers over this for the right ones.
+ */
+export function holdBudget(o: { round: number; towers: TowerKind[]; only?: EnemyKind[]; tuning?: TuningPatch; seeds?: number[]; leak?: number; max?: number }): number {
+  const seeds = o.seeds ?? [1, 2], leak = o.leak ?? 0.05, max = o.max ?? 20000;
+  const hp = standardMaze({ tuning: o.tuning }).tuning.startHp;
+  const holds = (budget: number) => seeds.reduce((a, seed) => a + mazeRaid({ ...o, seed, budget }).shipDamage, 0) <= leak * hp * seeds.length;
+  let lo = 0, hi = 400;
+  while (!holds(hi)) { lo = hi; hi *= 2; if (hi > max) return Infinity; }
+  while (hi - lo > 50) { const mid = Math.round((lo + hi) / 100) * 50; if (mid <= lo || mid >= hi) break; if (holds(mid)) hi = mid; else lo = mid; }
+  return hi;
 }

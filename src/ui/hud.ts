@@ -1,4 +1,5 @@
 import type { Game, GameEvent } from "../sim/game";
+import { ENEMY_INFO } from "../sim/enemies";
 import { STACK_MAX } from "../sim/inventory";
 import type { OreNode } from "../sim/ore";
 import { itemIcons } from "../render/icons";
@@ -248,7 +249,7 @@ export class Hud {
     // enemies left while a raid is on.
     const clock = $("raidClock");
     const secs = Math.max(0, Math.ceil(g.raidIn)), clockText = g.phase === "planning"
-      ? `Raid in <b>${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}</b>`
+      ? `Raid in <b>${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}</b>${g.raidWarned || g.god ? this.mixText() : ""}`
       : g.phase === "wave" ? `Raid <b>${g.waveRemaining} left</b>` : "";
     if (clock.innerHTML !== clockText) clock.innerHTML = clockText;
     clock.className = `raidclock${g.raidWarned ? " warned" : ""}${g.phase === "wave" ? " raiding" : ""}`;
@@ -267,6 +268,18 @@ export class Hud {
     }
     el.style.opacity = String(a);
 
+  }
+
+  /** What the coming raid brings, from its plan: shown with the warning (and always in god mode). */
+  private mixKey = "";
+  private mixHtml = "";
+  private mixText(): string {
+    const g = this.game, key = `${g.round}|${g.activeSpawners().length}|${JSON.stringify(g.tuning.enemies)}|${g.tuning.raidBase}|${g.tuning.raidStep}`;
+    if (key !== this.mixKey) {
+      this.mixKey = key;
+      this.mixHtml = `<span class="mix">${g.raidMix().map(m => `${ENEMY_INFO[m.kind].name} ${m.count}`).join(" · ")}</span>`;
+    }
+    return this.mixHtml;
   }
 
   update(sel: HudSelection): void {

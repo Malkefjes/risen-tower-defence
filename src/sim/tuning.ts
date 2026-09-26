@@ -55,9 +55,15 @@ export interface Tuning {
   wallHp: number;
   platedHpMult: number;
   wallClawers: number;
-  /** Raid size (in Grunts; each type takes its `cost`) sent from each active cave in raid 1, and its growth per raid after that. */
+  /**
+   * Raid size (in Grunts; each type takes its `cost`) sent from each active cave in raid 1,
+   * and what each raid after adds. Raids grow in a straight line, like the towers a player
+   * can afford (the balance anchors in the design doc), not by making enemies tougher.
+   */
   raidBase: number;
-  raidGrowth: number;
+  raidStep: number;
+  /** Seconds a raid's packs are spread over: a bigger raid comes denser, not longer. Packs never come closer than one after another. */
+  raidSpread: number;
   /** Enemy HP multiplier per raid after the first (all types). */
   enemyHpGrowth: number;
   /** Each pack's speed varies by up to this share either way (0.12 = ±12%); a pack moves as one. */
@@ -111,7 +117,8 @@ export const defaultTuning = (): Tuning => ({
   platedHpMult: 3,
   wallClawers: 2,
   raidBase: 8,
-  raidGrowth: 1.25,
+  raidStep: 6,
+  raidSpread: 45,
   enemyHpGrowth: 1.15,
   speedSpread: 0.12,
   packMin: 3,
