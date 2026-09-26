@@ -5,8 +5,8 @@
  * shares. The Swarm was dropped (2026-09-26): with Erik's detailed golem for every type,
  * endless small bodies were never feasible. Pure data, no graphics.
  */
-export type EnemyKind = "grunt" | "runner" | "brute";
-export const ENEMY_KINDS: readonly EnemyKind[] = ["grunt", "runner", "brute"];
+export type EnemyKind = "grunt" | "runner" | "brute" | "elite";
+export const ENEMY_KINDS: readonly EnemyKind[] = ["grunt", "runner", "brute", "elite"];
 
 /**
  * `length`: how long one is along its path, in cells (its look, nose to tail): a pack
@@ -17,6 +17,7 @@ export const ENEMY_INFO: Record<EnemyKind, { name: string; length: number }> = {
   grunt: { name: "Grunt", length: 0.7 },
   runner: { name: "Runner", length: 0.95 },
   brute: { name: "Brute", length: 1.3 },
+  elite: { name: "Elite", length: 0.8 },
 };
 
 export interface EnemyStats {

@@ -60,7 +60,7 @@ resize();
 
 // ------------------------------------------------------------------ the golem
 
-const TYPES: [EnemyKind, string][] = [["grunt", "Grunt"], ["runner", "Runner"], ["brute", "Brute"]];
+const TYPES: [EnemyKind, string][] = [["grunt", "Grunt"], ["runner", "Runner"], ["brute", "Brute"], ["elite", "Elite"]];
 const CLIP_LABEL: Record<GolemClip, string> = { stand: "Stand", walk: "Walk", walk2: "Walk 2", run: "Run" };
 const speeds = defaultTuning().enemies;
 let kind: EnemyKind = "grunt", clipOverride: GolemClip | null = null, speed = speeds.grunt.speed;

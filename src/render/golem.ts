@@ -1,8 +1,9 @@
 import * as THREE from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import type { EnemyKind } from "../sim/enemies";
-import { GLB } from "./golemData";
+import { GLB as COLOSSUS } from "./golemData";
 import { loopable, parseGlb } from "./skinned";
+import { GLB as TITAN } from "./titanData";
 
 /**
  * Every enemy is Erik's Stonebound Colossus, a rigged golem (the same Meshy rig and clips as
@@ -20,7 +21,13 @@ const CLIP_NAME: Record<GolemClip, string> = { stand: "restpose", walk: "Walking
 /** Ground covered by one cycle of each clip, per cell of height (the Sentinel's clips, which these are, scaled by his height). */
 const CYCLE: Record<GolemClip, number> = { stand: 1, walk: 0.62, walk2: 0.72, run: 1.16 };
 
+/** Erik's models on the golem rig: the Stonebound Colossus (Grunt, Runner, Brute) and the Frost Titan (Elite). */
+export type GolemModel = "colossus" | "titan";
+const MODEL_GLB: Record<GolemModel, string> = { colossus: COLOSSUS, titan: TITAN };
+
 export interface GolemLook {
+  /** Which model. */
+  model: GolemModel;
   /** Height in cells. */
   height: number;
   /** How it moves. */
@@ -36,9 +43,11 @@ export interface GolemLook {
 /** How each enemy type looks. */
 export const GOLEM_LOOKS: Record<EnemyKind, GolemLook> = {
   // Erik (2026-09-26): a Grunt as tall as the player, a Runner 1.4 times, the Brute bigger still.
-  grunt: { height: 1.35, clip: "walk", bar: 0.5, stride: 0.2, ice: "#b9dff0" },
-  runner: { height: 1.86, clip: "run", bar: 0.6, stride: 0.4, ice: "#7cb9d8" },
-  brute: { height: 2.5, clip: "walk2", bar: 1, stride: 0.5, ice: "#5689b0" },
+  grunt: { model: "colossus", height: 1.35, clip: "walk", bar: 0.5, stride: 0.2, ice: "#b9dff0" },
+  runner: { model: "colossus", height: 1.86, clip: "run", bar: 0.6, stride: 0.4, ice: "#7cb9d8" },
+  brute: { model: "colossus", height: 2.5, clip: "walk2", bar: 1, stride: 0.5, ice: "#5689b0" },
+  // The Elite: Erik's Frost Titan, between the Grunt and the Runner in size, in violet ice so it stands out.
+  elite: { model: "titan", height: 1.6, clip: "walk", bar: 0.7, stride: 0.3, ice: "#8f86c9" },
 };
 
 /** One enemy's model, driven by the view: how it moves each frame and how it flashes when hit. */
@@ -58,10 +67,11 @@ interface Template {
   geometry: THREE.BufferGeometry;
 }
 
-let template: Promise<Template> | undefined;
+const templates = new Map<GolemModel, Promise<Template>>();
 /** Loaded once, on first use. */
-function golemTemplate(): Promise<Template> {
-  return template ??= parseGlb(GLB).then(gltf => {
+function golemTemplate(model: GolemModel): Promise<Template> {
+  let t = templates.get(model);
+  if (!t) templates.set(model, t = parseGlb(MODEL_GLB[model]).then(gltf => {
     let mesh: THREE.SkinnedMesh | undefined;
     gltf.scene.traverse(o => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) mesh = o as THREE.SkinnedMesh; });
     separateArmsFromLegs(mesh!);
@@ -69,7 +79,8 @@ function golemTemplate(): Promise<Template> {
     gltf.scene.updateMatrixWorld(true);
     const height = new THREE.Box3().setFromObject(gltf.scene).getSize(new THREE.Vector3()).y;
     return { scene: gltf.scene, height, clips, geometry: mesh!.geometry };
-  });
+  }));
+  return t;
 }
 
 /**
@@ -159,8 +170,9 @@ const grain = (f: number, k = 7919) => ((f * k) % 97) / 97;
  * its own small shift in shade; white frost on the faces that look up, deep ice on the rest,
  * and about one face in fourteen sent to a second group, drawn lit from inside.
  */
-function frostGeometry(src: THREE.BufferGeometry, color: string): THREE.BufferGeometry {
-  let g = coloured.get(color);
+function frostGeometry(model: GolemModel, src: THREE.BufferGeometry, color: string): THREE.BufferGeometry {
+  const key = `${model}|${color}`;
+  let g = coloured.get(key);
   if (g) return g;
   g = src.index ? src.toNonIndexed() : src.clone();
   g.deleteAttribute("uv");
@@ -188,7 +200,7 @@ function frostGeometry(src: THREE.BufferGeometry, color: string): THREE.BufferGe
   }
   re.addGroup(0, first * 3, 0);
   re.addGroup(first * 3, (n - first) * 3, 1);
-  coloured.set(color, re);
+  coloured.set(key, re);
   return re;
 }
 
@@ -209,13 +221,13 @@ export function golemEnemy(look: GolemLook, speed: number): Enemy {
   const object = new THREE.Group();
   const mats = frostMaterials();
   let mixer: THREE.AnimationMixer | null = null, action: THREE.AnimationAction | null = null, last: number | null = null, rate = 1;
-  golemTemplate().then(tpl => {
+  golemTemplate(look.model).then(tpl => {
     const model = cloneSkinned(tpl.scene);
     model.scale.setScalar(look.height / tpl.height);
     model.traverse(o => {
       const m = o as THREE.SkinnedMesh;
       if (!m.isSkinnedMesh) return;
-      m.geometry = frostGeometry(tpl.geometry, look.ice);
+      m.geometry = frostGeometry(look.model, tpl.geometry, look.ice);
       m.material = mats;
       m.castShadow = true;
       m.frustumCulled = false;

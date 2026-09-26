@@ -145,6 +145,8 @@ export const defaultTuning = (): Tuning => ({
     // The pack: dies to one missile in raid 1 and comes six at a time, half a cell apart, so a
     // burst catches several (the Swarm's threat per raid size, in fewer, bigger bodies).
     grunt: { hp: 8, speed: 1.5, damage: 2, pack: 6, gap: 0.15, cost: 0.5, share: 4, from: 1, armour: 0 },
+    // The Elite (Erik's Frost Titan): a look only for now, not sent (share 0) until its numbers are agreed.
+    elite: { hp: 40, speed: 1.3, damage: 4, pack: 3, gap: 0.6, cost: 5, share: 0, from: 6, armour: 0.25 },
     // Few and tough: three Gun passes at full speed, so it outruns a short killzone unless it's Heavy.
     runner: { hp: 24, speed: 3, damage: 1, pack: 3, gap: 1.2, cost: 6, share: 14, from: 2, armour: 0 },
     // Armoured: the Gun's rounds do half; the laser cannon's go through.
