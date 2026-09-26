@@ -117,7 +117,7 @@ export const defaultTuning = (): Tuning => ({
   platedHpMult: 3,
   wallClawers: 2,
   raidBase: 8,
-  raidStep: 6,
+  raidStep: 2,
   raidSpread: 45,
   enemyHpGrowth: 1.15,
   speedSpread: 0.12,
