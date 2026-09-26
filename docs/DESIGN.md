@@ -88,6 +88,10 @@ Enemies and towers are the two deepest systems; everything else supports them. E
 | **Boss** | Big, armoured, resistant | One damage source | Variety, prepped with support |
 | **Titan** | Heavy armour, heavy resistances; comes from special far spawners and becomes inevitable the longer a run goes, announced long ahead | The whole defence | A prep zone (Heavy, burning) before the killzone |
 
+**The Brute (look and numbers locked 2026-09-26):** Erik's Stonebound Colossus, a 705-triangle rock golem, in the grey of the stone you mine (matte, no snow). Size 2 (about 1.6 cells tall), speed 1 cell per second, 80 HP, comes alone (3 s apart when several come), with a thin red outline and its HP bar always shown so it reads as an enemy. Tried in the playground (`mockups/playground`); in the game it will be drawn in bulk, five parts per type. Its armour and fast wall breaking come with it when the Brute is built.
+
+**Enemy looks in general:** enemies are made of simple faceted shapes Erik models (or has generated) at game budget, cut into a few moving parts (body, arms, legs): Swarm 100–200 triangles, Grunt 400–800, Brute 1,000–2,500, Boss 3,000–8,000. Detailed models are design sheets that get rebuilt at budget.
+
 **Damage types** (sci-fi, no melee, no frost):
 
 - **Piercing:** rounds, rapid fire. The workhorse; flat armour hurts it most.
