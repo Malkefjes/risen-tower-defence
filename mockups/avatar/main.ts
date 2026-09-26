@@ -3,11 +3,12 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { EVENING } from "../../src/render/models";
 import { colonyOrange } from "../../src/render/palette";
 import { createRig } from "../../src/render/rig";
+import { BLASTER } from "./blasterData";
 import { GLB } from "./sentinelData";
 
 // Erik's new avatar, the Neon Star Sentinel (a skinned model with walk and run clips),
 // running circles on the snow in the game's evening light.
-// Stand, walk, run and sprint play his clips; jump and the raised tool are added in
+// Stand, walk, run and sprint play his clips; jump and aiming the gun are added in
 // code on top of them; the colours are the rig's palette, put on by rule.
 
 THREE.ColorManagement.enabled = false;
@@ -144,16 +145,52 @@ function colourByRule(): { coloured: THREE.Material[]; plain: THREE.Material } {
 const mats = colourByRule();
 mesh.material = mats.coloured;
 
-// The multitool, in the right hand: a dark block with a cyan tip.
-const tool = new THREE.Group();
-const toolBody = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.2, 0.07), new THREE.MeshStandardMaterial({ color: "#2c3142", roughness: 0.6 }));
-toolBody.position.y = 0.1;
-const toolTip = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.03, 0.035), new THREE.MeshStandardMaterial({ color: "#7ff5e6", emissive: "#4fdcca", emissiveIntensity: 1 }));
-toolTip.position.y = 0.215;
-tool.add(toolBody, toolTip);
-tool.traverse(o => { (o as THREE.Mesh).castShadow = true; });
-tool.scale.setScalar(1 / k);
-bone("RightHand").add(tool);
+// The gun, Erik's Starforge Blaster: in the right hand, its barrel along the forearm (so it
+// points ahead when the arm is raised). Its muzzle is the model's -x end, its top +y.
+const gun = new THREE.Group();
+scene.add(gun);
+const GUN_LENGTH = 0.36 * rigHeight, GRIP = new THREE.Vector3(0.55, -0.3, 0);
+let gunScale = 1;
+{
+  const g = await new Promise<import("three/examples/jsm/loaders/GLTFLoader.js").GLTF>((ok, fail) =>
+    new GLTFLoader().parse(Uint8Array.from(atob(BLASTER), c => c.charCodeAt(0)).buffer, "", ok, fail));
+  g.scene.updateMatrixWorld(true);
+  const src = g.scene.getObjectByProperty("isMesh", true) as THREE.Mesh;
+  const geo = (src.geometry.index ? src.geometry.toNonIndexed() : src.geometry.clone()).applyMatrix4(src.matrixWorld);
+  geo.deleteAttribute("normal");
+  geo.computeVertexNormals();
+  const box = new THREE.Box3().setFromBufferAttribute(geo.attributes.position as THREE.BufferAttribute);
+  gunScale = GUN_LENGTH / (box.max.x - box.min.x);
+  // Colours by rule: a cyan muzzle, a white top shell, a steel body, a dark grip with an orange cap.
+  const pos = geo.attributes.position!, n = pos.count / 3, col = new Float32Array(pos.count * 3), glow: boolean[] = [];
+  const white = new THREE.Color("#eef1f6"), steel = new THREE.Color("#3d4457"), dark = new THREE.Color("#2c3142"), orange = colonyOrange().color.clone();
+  for (let f = 0; f < n; f++) {
+    let x = 0, y = 0;
+    for (let v = f * 3; v < f * 3 + 3; v++) { x += pos.getX(v) / 3; y += pos.getY(v) / 3; }
+    const muzzle = x < box.min.x + 0.2;
+    const c = y > 0.5 ? white : y > 0.2 ? steel : y < -0.55 && x > 0.3 ? orange : dark;
+    glow.push(muzzle);
+    for (let v = f * 3; v < f * 3 + 3; v++) col.set([c.r, c.g, c.b], v * 3);
+  }
+  geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  // Muzzle faces in their own group, drawn glowing.
+  const order = [...Array(n).keys()].sort((a, b) => Number(glow[a]) - Number(glow[b])), first = order.findIndex(f => glow[f]);
+  const re = new THREE.BufferGeometry();
+  for (const [key, attr] of Object.entries(geo.attributes)) {
+    const a = attr as THREE.BufferAttribute, out = new Float32Array(a.array.length), is = a.itemSize * 3;
+    order.forEach((f, i) => out.set((a.array as Float32Array).subarray(f * is, f * is + is), i * is));
+    re.setAttribute(key, new THREE.BufferAttribute(out, a.itemSize));
+  }
+  re.addGroup(0, (first < 0 ? n : first) * 3, 0);
+  if (first >= 0) re.addGroup(first * 3, (n - first) * 3, 1);
+  const body = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.55, metalness: 0.1 });
+  const tip = new THREE.MeshStandardMaterial({ color: "#7ff5e6", emissive: "#4fdcca", emissiveIntensity: 1, flatShading: true });
+  const m = new THREE.Mesh(re, [body, tip]);
+  m.castShadow = true;
+  m.scale.setScalar(gunScale);
+  m.position.copy(GRIP).multiplyScalar(-gunScale);
+  gun.add(m);
+}
 
 // Clips.
 const mixer = new THREE.AnimationMixer(model);
@@ -181,7 +218,7 @@ const button = (label: string, on: () => boolean, click: () => void) => {
 const syncs: (() => void)[] = [];
 for (const m of ["stand", "walk", "run", "sprint"] as Mode[]) button(m[0]!.toUpperCase() + m.slice(1), () => mode === m, () => { mode = m; });
 button("Jump", () => false, () => { if (grounded) { vz = 4.2; grounded = false; } });
-button("Tool", () => toolUp, () => { toolUp = !toolUp; });
+button("Aim", () => toolUp, () => { toolUp = !toolUp; });
 button("Close-up", () => close, () => { close = !close; resize(); });
 button("Plain grey", () => !coloured, () => { coloured = !coloured; mesh.material = coloured ? mats.coloured : mats.plain; });
 const sl = document.createElement("label");
@@ -233,7 +270,7 @@ function frame(now: number): void {
   if (weights.stand > 0.5) bone("Spine2").rotateX(Math.sin(now / 900) * 0.03 * weights.stand);
   // In the air: knees up.
   if (!grounded) for (const s of ["LeftUpLeg", "RightUpLeg"]) bone(s).rotateX(-0.6);
-  // The tool: the right arm points ahead and a little down, the forearm straight.
+  // Aiming: the right arm points ahead and a little down, the forearm straight.
   if (toolUp) {
     sentinel.updateMatrixWorld(true);
     const arm = bone("RightArm"), fore = bone("RightForeArm");
@@ -245,6 +282,16 @@ function frame(now: number): void {
     const parentQ = arm.parent!.getWorldQuaternion(new THREE.Quaternion()), worldQ = arm.getWorldQuaternion(new THREE.Quaternion());
     arm.quaternion.copy(parentQ.invert().multiply(delta.multiply(worldQ)));
   }
+
+  // The gun: grip in the hand, barrel along the forearm, its top toward the sky and ahead.
+  sentinel.updateMatrixWorld(true);
+  const hand = bone("RightHand").getWorldPosition(new THREE.Vector3()), elbow = bone("RightForeArm").getWorldPosition(new THREE.Vector3());
+  const dir = hand.clone().sub(elbow).normalize();
+  const ahead = new THREE.Vector3(0, 0, 1).applyQuaternion(sentinel.quaternion);
+  const up = new THREE.Vector3(0, 1, 0).add(ahead).addScaledVector(dir, -(dir.y + dir.dot(ahead))).normalize();
+  const xAxis = dir.clone().negate(), zAxis = new THREE.Vector3().crossVectors(xAxis, up);
+  gun.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, up, zAxis));
+  gun.position.copy(hand).addScaledVector(dir, 0.02 * rigHeight);
 
   look.lerp(close ? sentinel.position.clone().setY(0.5) : new THREE.Vector3(0, 0.4, 0), Math.min(1, dt * 10));
   camera.position.copy(CAM_DIR).multiplyScalar(40).add(look);
