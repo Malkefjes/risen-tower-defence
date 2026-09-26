@@ -55,6 +55,9 @@ export interface Tuning {
   wallHp: number;
   platedHpMult: number;
   wallClawers: number;
+  /** Raid size (in Grunts; each type takes its `cost`) sent from each active cave in raid 1, and its growth per raid after that. */
+  raidBase: number;
+  raidGrowth: number;
   /** Enemy HP multiplier per raid after the first (all types). */
   enemyHpGrowth: number;
   /** Each pack's speed varies by up to this share either way (0.12 = ±12%); a pack moves as one. */
@@ -107,6 +110,8 @@ export const defaultTuning = (): Tuning => ({
   wallHp: 600,
   platedHpMult: 3,
   wallClawers: 2,
+  raidBase: 8,
+  raidGrowth: 1.25,
   enemyHpGrowth: 1.15,
   speedSpread: 0.12,
   packMin: 3,
@@ -116,12 +121,12 @@ export const defaultTuning = (): Tuning => ({
   heavySlow: 0.4,
   sellRefund: 0.75,
   enemies: {
-    grunt: { hp: 6, speed: 1.475, damage: 2, pack: 0, gap: 0.25, cost: 1, share: 0, armour: 0 },
+    grunt: { hp: 6, speed: 1.475, damage: 2, pack: 0, gap: 0.25, cost: 1, share: 0, from: 1, armour: 0 },
     // From the playground (2026-09-26); HP still to be tuned.
-    swarm: { hp: 2, speed: 1.5, damage: 1, pack: 12, gap: 0.15, cost: 0.35, share: 4, armour: 0 },
-    runner: { hp: 4, speed: 3, damage: 1, pack: 5, gap: 0.65, cost: 1, share: 3, armour: 0 },
+    swarm: { hp: 2, speed: 1.5, damage: 1, pack: 12, gap: 0.15, cost: 0.35, share: 4, from: 1, armour: 0 },
+    runner: { hp: 4, speed: 3, damage: 1, pack: 5, gap: 0.65, cost: 1, share: 3, from: 2, armour: 0 },
     // Armoured: the Gun's small hits do a quarter; the laser cannon's go straight through.
-    brute: { hp: 80, speed: 1, damage: 4, pack: 1, gap: 3, cost: 6, share: 1, armour: 0.75 },
+    brute: { hp: 80, speed: 1, damage: 4, pack: 1, gap: 3, cost: 6, share: 1, from: 3, armour: 0.75 },
   },
   towers: {
     gun: [

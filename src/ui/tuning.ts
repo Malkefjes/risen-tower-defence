@@ -36,6 +36,7 @@ const enemySections = (): Section[] => ENEMY_KINDS.map(kind => {
       stat(pick, "cost", "Raid size one takes (a Grunt is 1)", 0.05, 20, 0.05),
       stat(pick, "share", "Share of raid packs (0 = never)", 0, 10, 1),
       stat(pick, "armour", "Armour (taken off every hit)", 0, 10, 0.05),
+      stat(pick, "from", "First raid it comes in", 1, 20, 1),
     ],
   };
 });
@@ -83,6 +84,8 @@ const SECTIONS: Section[] = [
     top("sprint", "Sprint (× run speed)", 1, 2.5, 0.05),
   ] },
   { title: "Enemies (all types)", knobs: [
+    top("raidBase", "Raid 1 size per cave (in Grunts)", 1, 60, 0.5),
+    top("raidGrowth", "Raid size growth per raid", 1, 2, 0.01),
     top("enemyHpGrowth", "HP growth per raid", 1, 1.6, 0.01),
     top("speedSpread", "Speed variation between packs (±)", 0, 0.5, 0.01, true),
     top("packMin", "Smallest pack", 1, 12, 1),

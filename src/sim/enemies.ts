@@ -30,6 +30,8 @@ export interface EnemyStats {
   cost: number;
   /** How often a pack is this type, against the other types' shares (0: never in raids). */
   share: number;
+  /** The first raid this type comes in (the raid schedule brings in one new threat at a time). */
+  from: number;
   /** Flat armour: taken off every hit, down to `ARMOUR_FLOOR` of it. Many small hits do little; big hits go through. */
   armour: number;
 }

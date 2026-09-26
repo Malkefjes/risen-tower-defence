@@ -165,6 +165,9 @@ export const TOWER_REASON_TEXT: Record<TowerBlockReason, string> = {
   "max-size": "It can't grow any bigger",
 };
 
+/** One pack of a raid: `size` enemies of a type, sent from every active cave. */
+export interface RaidPack { kind: EnemyKind; size: number }
+
 export interface GameOptions {
   seed?: number;
   waveSize?: (round: number) => number;
@@ -237,18 +240,25 @@ export class Game {
 
   private nextId = 1;
   /** Enemies each active cave still has to send this wave. */
-  private waveLeft = 0;
+  /** The packs of this raid still to come (each is sent from every active cave). */
+  private plan: RaidPack[] = [];
+  /** Seeds each raid's plan, so the warning shows the raid that then comes. */
+  private planSeed: number;
   /** Enemies of packs already under way, each waiting to climb out of its cave. */
   private packQueue: { at: Cell; delay: number; speed: number; kind: EnemyKind }[] = [];
   private spawnTimer = 0;
   private waveSize: (round: number) => number;
+  /** Raid size per active cave, in Grunts: `raidBase` growing by `raidGrowth` a raid, unless a test gives its own. */
+  private customWaveSize: ((round: number) => number) | undefined;
   /** cell key -> id of the tower standing on it */
   private towerCellsMap = new Map<string, number>();
 
   constructor(map: MapDef, opts: GameOptions = {}) {
     this.world = new World(map);
     this.rng = new Rng(opts.seed ?? Date.now());
-    this.waveSize = opts.waveSize ?? (r => 6 + r * 2);
+    this.planSeed = (opts.seed ?? Date.now()) >>> 0;
+    this.customWaveSize = opts.waveSize;
+    this.waveSize = r => this.customWaveSize ? this.customWaveSize(r) : this.tuning.raidBase * this.tuning.raidGrowth ** (r - 1);
     this.tuning = mergeTuning(opts.tuning);
     this.supplyRule = opts.supply ?? false;
     this.nodes = (map.ore ?? []).map(o => ({ id: this.nextId++, kind: o.kind, x: o.x, y: o.y, amount: nodeMax(o.kind), max: nodeMax(o.kind) }));
@@ -354,7 +364,7 @@ export class Game {
     this.pieces = []; this.towers = []; this.walkers = []; this.shots = [];
     this.round = 1;
     this.phase = "planning";
-    this.waveLeft = 0; this.spawnTimer = 0; this.packQueue = [];
+    this.plan = []; this.spawnTimer = 0; this.packQueue = [];
     const [sx, sy] = this.world.map.start ?? this.world.map.spawners[0]!;
     this.avatar.place(sx + 0.5, sy + 0.5);
     for (const n of this.nodes) n.amount = n.max;
@@ -524,6 +534,19 @@ export class Game {
   }
 
   /** Full HP of a piece: stone, or plated (tougher). */
+  /**
+   * A wall piece of any shape, free and at once (no hand, no stone, no supply check),
+   * locked like a piece from an earlier calm: for the balance maze and tests.
+   */
+  putWall(cells: Cell[], plated = true): PlacedPiece {
+    const piece: PlacedPiece = { id: this.nextId++, shape: "O", rot: 0, at: cells[0]!, cells, locked: true, paid: 0, metal: plated, plated: 0 };
+    this.pieces.push(piece);
+    for (const [x, y] of cells) this.world.walls.set(cellKey(x, y), piece.id);
+    this.world.pieceHp.set(piece.id, this.wallMaxHp(piece));
+    this.refresh();
+    return piece;
+  }
+
   wallMaxHp(piece: PlacedPiece): number { return this.tuning.wallHp * (piece.metal ? this.tuning.platedHpMult : 1); }
 
   /** HP left in a piece and its full HP. */
@@ -960,14 +983,44 @@ export class Game {
     for (const t of this.towers) t.paidNow = 0;
     this.walkers = [];
     this.shots = [];
-    this.waveLeft = this.waveSize(this.round);
+    this.plan = this.raidPlan();
     this.packQueue = [];
     this.spawnTimer = 0;
     this.setPhase("wave");
     return true;
   }
 
-  get waveRemaining(): number { return Math.ceil(this.waveLeft) * this.activeSpawners().length + this.packQueue.length + this.walkers.length; }
+  /** Enemies of this raid not yet killed or gone: to come, climbing out, and about. */
+  get waveRemaining(): number {
+    return this.plan.reduce((a, p) => a + p.size, 0) * this.activeSpawners().length + this.packQueue.length + this.walkers.length;
+  }
+
+  /**
+   * A raid's packs, planned ahead (the same plan every time for a raid of this run), so
+   * the warning can show what's coming. Types come in from their `from` raid; packs are
+   * picked by share among the types that still fit in what's left of the raid's size.
+   */
+  raidPlan(round = this.round): RaidPack[] {
+    const t = this.tuning, rng = new Rng((this.planSeed * 31 + round * 7919) >>> 0), out: RaidPack[] = [];
+    let left = this.waveSize(round);
+    const lo = Math.max(1, Math.round(Math.min(t.packMin, t.packMax))), hi = Math.max(lo, Math.round(t.packMax));
+    for (let guard = 0; left > 1e-9 && guard < 500; guard++) {
+      const kind = this.packKind(left, round, rng), e = this.enemyStats(kind), cost = Math.max(0.01, e.cost);
+      const full = e.pack > 0 ? Math.round(e.pack) : lo + rng.int(hi - lo + 1);
+      // As many as what's left of the raid pays for, and at least one.
+      const size = Math.max(1, Math.min(full, Math.floor(left / cost + 1e-9)));
+      out.push({ kind, size });
+      left = Math.max(0, left - size * cost);
+    }
+    return out;
+  }
+
+  /** The coming raid's mix: how many of each type, from all active caves together. */
+  raidMix(round = this.round): { kind: EnemyKind; count: number }[] {
+    const caves = this.activeSpawners().length, counts = new Map<EnemyKind, number>();
+    for (const p of this.raidPlan(round)) counts.set(p.kind, (counts.get(p.kind) ?? 0) + p.size * caves);
+    return ENEMY_KINDS.filter(k => counts.has(k)).map(kind => ({ kind, count: counts.get(kind)! }));
+  }
 
   /** An enemy type's numbers. */
   enemyStats(kind: EnemyKind): EnemyStats { return this.tuning.enemies[kind]; }
@@ -981,12 +1034,15 @@ export class Game {
    * What the next pack is: picked by the types' shares among those that still fit in
    * what's left of the raid (the cheapest when none fits). Grunts when no type has a share.
    */
-  private packKind(): EnemyKind {
-    const kinds = ENEMY_KINDS.filter(k => this.enemyStats(k).share > 0);
-    if (!kinds.length) return "grunt";
-    const fits = kinds.filter(k => this.enemyStats(k).cost <= this.waveLeft + 1e-9);
+  private packKind(left: number, round: number, rng: Rng): EnemyKind {
+    const shared = ENEMY_KINDS.filter(k => this.enemyStats(k).share > 0);
+    if (!shared.length) return "grunt";
+    // Only the types that have come in by this raid (all of them, if none has yet).
+    const due = shared.filter(k => this.enemyStats(k).from <= round);
+    const kinds = due.length ? due : shared;
+    const fits = kinds.filter(k => this.enemyStats(k).cost <= left + 1e-9);
     const pool = fits.length ? fits : [kinds.reduce((a, b) => this.enemyStats(a).cost <= this.enemyStats(b).cost ? a : b)];
-    let r = this.rng.next() * pool.reduce((a, k) => a + this.enemyStats(k).share, 0);
+    let r = rng.next() * pool.reduce((a, k) => a + this.enemyStats(k).share, 0);
     for (const k of pool) if ((r -= this.enemyStats(k).share) < 0) return k;
     return pool[pool.length - 1]!;
   }
@@ -1008,17 +1064,14 @@ export class Game {
 
   /** Send the next pack from every active cave: its enemies climb out one after another. */
   private sendPack(): void {
-    const t = this.tuning, kind = this.packKind(), e = this.enemyStats(kind);
-    const lo = Math.max(1, Math.round(Math.min(t.packMin, t.packMax))), hi = Math.max(lo, Math.round(t.packMax));
-    const full = e.pack > 0 ? Math.round(e.pack) : lo + this.rng.int(hi - lo + 1), cost = Math.max(0.01, e.cost);
-    // As many as what's left of the raid pays for, and at least one.
-    const size = Math.max(1, Math.min(full, Math.floor(this.waveLeft / cost + 1e-9)));
+    const pack = this.plan.shift();
+    if (!pack) return;
+    const { kind, size } = pack, e = this.enemyStats(kind);
     for (const at of this.activeSpawners()) {
       const speed = this.rollSpeed(kind);
       for (let i = 0; i < size; i++) this.packQueue.push({ at, delay: i * e.gap, speed, kind });
     }
-    this.waveLeft = Math.max(0, this.waveLeft - size * cost);
-    this.spawnTimer = t.packGap + size * e.gap;
+    this.spawnTimer = this.tuning.packGap + size * e.gap;
   }
 
   /**
@@ -1041,7 +1094,7 @@ export class Game {
     this.syncWallWeights();
     if (this.phase === "wave") {
       this.spawnTimer -= dt;
-      if (this.waveLeft > 0 && this.spawnTimer <= 0) this.sendPack();
+      if (this.plan.length && this.spawnTimer <= 0) this.sendPack();
       for (const q of this.packQueue) if ((q.delay -= dt) <= 0) this.spawnWalker(q.at, false, q.kind, q.speed);
       this.packQueue = this.packQueue.filter(q => q.delay > 0);
     } else if (this.phase === "planning") {
@@ -1061,7 +1114,7 @@ export class Game {
     this.stepUpkeep(dt);
     this.updateTowers(dt);
     this.updateShots(dt);
-    if (this.phase === "wave" && this.waveLeft === 0 && this.packQueue.length === 0 && this.walkers.length === 0) {
+    if (this.phase === "wave" && !this.plan.length && this.packQueue.length === 0 && this.walkers.length === 0) {
       this.round++;
       this.setPhase("planning");
       this.raidIn = this.tuning.raidInterval;
