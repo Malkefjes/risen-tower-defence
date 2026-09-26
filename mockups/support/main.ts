@@ -5,7 +5,8 @@ import { wolfModel } from "../../src/render/wolf";
 import type { Cell } from "../../src/sim/types";
 import "./style.css";
 
-// The support tower, three looks: A piston, B gravity ring, C resonator. Each stands
+// The support tower as a high-tech radar, three looks: A dish radar, B phased array,
+// C radome (after the resonator Erik liked). Each stands
 // at 1×1 and grown to 2×2 on a plated wall and sends out a pulse that makes every
 // enemy in range Heavy (brown, 40% slower) for a few seconds. A Runner pack of stone
 // wolves runs past all three.
@@ -30,104 +31,170 @@ function mount(root: THREE.Group, k: number): number {
   return 0.2 * k;
 }
 
-/** A support tower: `anim(u)` poses it `u` of the way through its cycle; the pulse goes off at u = 0. */
-interface Design { root: THREE.Group; anim(u: number): void }
+/** A support tower: `anim(u, dt)` poses it `u` of the way through its cycle; the pulse goes off at u = 0. */
+interface Design { root: THREE.Group; anim(u: number, dt: number): void }
 
-const ease = (x: number) => x * x * (3 - 2 * x);
+/** How hard the pulse still rings, 1 at the pulse and fading to 0 by `len` of the cycle. */
+const thump = (u: number, len = 0.14) => Math.max(0, 1 - u / len);
 
-/** A: a heavy hammer on a piston that climbs slowly between guide posts and slams onto an anvil. */
-function piston(big: boolean): Design {
+/** A: a dish on a turntable, sweeping round; at the pulse it nods down at the ground. */
+function dishRadar(big: boolean): Design {
   const k = big ? 1.8 : 1, root = new THREE.Group(), base = mount(root, k);
-  const housing = new THREE.Group();
-  housing.position.y = base;
-  root.add(housing);
-  housing.add(m(roundedBox(0.4 * k, 0.2 * k, 0.4 * k, 0.03 * k), mat.accent, 0, 0.1 * k, 0));
-  housing.add(m(new THREE.BoxGeometry(0.3 * k, 0.03 * k, 0.3 * k), mat.gunDark, 0, 0.215 * k, 0));
-  const posts = big ? [[-1, -1], [1, -1], [-1, 1], [1, 1]] : [[-1, -1], [1, 1]];
-  for (const [sx, sz] of posts) housing.add(m(cyl(0.022 * k, 0.022 * k, 0.55 * k, 6), mat.gunDark, sx! * 0.16 * k, 0.47 * k, sz! * 0.16 * k));
-  housing.add(m(roundedBox(0.4 * k, 0.03 * k, 0.4 * k, 0.01 * k), mat.gun, 0, 0.76 * k, 0));
-  const hammer = new THREE.Group();
-  housing.add(hammer);
-  hammer.add(m(roundedBox(0.28 * k, 0.14 * k, 0.28 * k, 0.02 * k), mat.gun, 0, 0.07 * k, 0));
-  hammer.add(m(new THREE.BoxGeometry(0.29 * k, 0.03 * k, 0.29 * k), mat.accent, 0, 0.1 * k, 0));
-  hammer.add(m(cyl(0.045 * k, 0.045 * k, 0.5 * k, 6), mat.plate, 0, 0.35 * k, 0));
-  const low = 0.23 * k, high = 0.5 * k;
-  return {
-    root,
-    anim(u) {
-      // Slam at 0, then a slow climb, a hold at the top, and the drop.
-      const h = u < 0.12 ? 0 : u < 0.8 ? ease((u - 0.12) / 0.68) : u < 0.94 ? 1 : 1 - ((u - 0.94) / 0.06) ** 2;
-      hammer.position.y = low + (high - low) * h;
-      housing.scale.y = 1 - 0.07 * Math.max(0, 1 - u / 0.08);
-    },
-  };
-}
-
-/** B: a heavy ring climbs a mast, hangs, and drops onto the collar at its foot. */
-function gravityRing(big: boolean): Design {
-  const k = big ? 1.8 : 1, root = new THREE.Group(), base = mount(root, k);
-  root.add(m(cyl(0.2 * k, 0.24 * k, 0.1 * k), mat.accent, 0, base + 0.05 * k, 0));
-  root.add(m(cyl(0.035 * k, 0.05 * k, 0.8 * k, 6), mat.gunDark, 0, base + 0.4 * k, 0));
-  root.add(m(new THREE.ConeGeometry(0.07 * k, 0.1 * k, 6), mat.accent, 0, base + 0.83 * k, 0));
-  const rings: { g: THREE.Group; lag: number }[] = [];
-  const make = (r: number, lag: number) => {
-    const g = new THREE.Group();
-    const t = new THREE.TorusGeometry(r * k, 0.05 * k, 4, 6);
-    t.rotateX(Math.PI / 2);
-    g.add(m(t, mat.plate));
-    const band = new THREE.TorusGeometry(r * k, 0.02 * k, 4, 6);
-    band.rotateX(Math.PI / 2);
-    band.translate(0, 0.04 * k, 0);
-    g.add(m(band, mat.accent));
-    root.add(g);
-    rings.push({ g, lag });
-  };
-  make(0.17, 0);
-  if (big) make(0.12, 0.05);
-  const low = base + 0.13 * k, high = base + 0.68 * k;
-  return {
-    root,
-    anim(u) {
-      for (const r of rings) {
-        const v = (u - r.lag + 1) % 1;
-        const h = v < 0.7 ? ease(v / 0.7) : v < 0.86 ? 1 : 1 - ((v - 0.86) / 0.14) ** 2;
-        r.g.position.y = low + (high - low) * h + (r.lag ? 0.05 * k : 0);
-        r.g.rotation.y = v < 0.7 ? v * 5 : 3.5;
-      }
-    },
-  };
-}
-
-/** C: a squat dome that hums, then thumps down and throws its fins open. */
-function resonator(big: boolean): Design {
-  const k = big ? 1.8 : 1, root = new THREE.Group(), base = mount(root, k);
-  const body = new THREE.Group();
-  body.position.y = base;
-  root.add(body);
-  const domeGeo = new THREE.SphereGeometry(0.26 * k, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2);
-  const dome = m(domeGeo, mat.accent, 0, 0.04 * k, 0);
-  body.add(dome);
-  body.add(m(cyl(0.27 * k, 0.28 * k, 0.06 * k, 8), mat.gunDark, 0, 0.03 * k, 0));
-  body.add(m(cyl(0.08 * k, 0.1 * k, 0.05 * k, 8), mat.plate, 0, 0.31 * k, 0));
-  body.add(m(cyl(0.012 * k, 0.012 * k, 0.22 * k, 5), mat.gunDark, 0.05 * k, 0.42 * k, 0));
-  if (big) body.add(m(cyl(0.012 * k, 0.012 * k, 0.16 * k, 5), mat.gunDark, -0.05 * k, 0.39 * k, 0.03 * k));
-  const fins: THREE.Group[] = [];
-  const n = big ? 6 : 4;
-  for (let i = 0; i < n; i++) {
-    const a = (i / n) * Math.PI * 2 + Math.PI / n;
-    const hinge = new THREE.Group();
-    hinge.position.set(Math.sin(a) * 0.27 * k, 0.04 * k, Math.cos(a) * 0.27 * k);
-    hinge.rotation.y = a;
-    hinge.add(m(new THREE.BoxGeometry(0.12 * k, 0.2 * k, 0.025 * k), mat.gun, 0, 0.1 * k, 0.012 * k));
-    body.add(hinge);
-    fins.push(hinge);
+  const yaw = new THREE.Group();
+  yaw.position.y = base;
+  root.add(yaw);
+  yaw.add(m(cyl(0.18 * k, 0.2 * k, 0.05 * k), mat.gunDark, 0, 0.025 * k, 0));
+  yaw.add(m(new THREE.BoxGeometry(0.12 * k, 0.2 * k, 0.12 * k), mat.gun, 0, 0.14 * k, -0.02 * k));
+  yaw.add(m(new THREE.BoxGeometry(0.14 * k, 0.04 * k, 0.14 * k), mat.accent, 0, 0.2 * k, -0.02 * k));
+  const tilt = new THREE.Group();
+  tilt.position.set(0, 0.27 * k, 0);
+  yaw.add(tilt);
+  const R = 0.28 * k;
+  const dish = new THREE.CylinderGeometry(R, R * 0.35, 0.09 * k, 12);
+  dish.rotateX(Math.PI / 2);
+  tilt.add(m(dish, mat.plate, 0, 0, 0.02 * k));
+  // A white bowl with a dark hub, so it reads as a dish from any side.
+  const bowl = new THREE.CircleGeometry(R * 0.9, 12);
+  const bowlMat = mat.plate.clone();
+  bowlMat.color.set("#dfe3ea");
+  tilt.add(m(bowl, bowlMat, 0, 0, 0.068 * k));
+  tilt.add(m(new THREE.CircleGeometry(R * 0.22, 8), mat.gunDark, 0, 0, 0.07 * k));
+  // The feed: three struts from the rim to a horn in front of the dish.
+  const tip = new THREE.Vector3(0, 0, 0.3 * k);
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 + Math.PI / 2, from = new THREE.Vector3(Math.cos(a) * R * 0.85, Math.sin(a) * R * 0.85, 0.07 * k);
+    const len = from.distanceTo(tip), strut = m(cyl(0.008 * k, 0.008 * k, len, 4), mat.gunDark);
+    strut.position.copy(from).lerp(tip, 0.5);
+    strut.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tip.clone().sub(from).normalize());
+    tilt.add(strut);
+  }
+  tilt.add(m(new THREE.ConeGeometry(0.035 * k, 0.07 * k, 6).rotateX(-Math.PI / 2), mat.accent, 0, 0, 0.31 * k));
+  tilt.add(m(roundedBox(0.16 * k, 0.12 * k, 0.08 * k, 0.015 * k), mat.accent, 0, 0, -0.06 * k));
+  let second: THREE.Group | undefined;
+  if (big) {
+    // A little second dish on a mast at the back, sweeping the other way.
+    yaw.add(m(cyl(0.012 * k, 0.012 * k, 0.3 * k, 5), mat.gunDark, 0.14 * k, 0.3 * k, -0.14 * k));
+    second = new THREE.Group();
+    second.position.set(0.14 * k, 0.46 * k, -0.14 * k);
+    const d2 = new THREE.CylinderGeometry(0.08 * k, 0.03 * k, 0.03 * k, 10);
+    d2.rotateX(Math.PI / 2);
+    second.add(m(d2, mat.plate), m(new THREE.CircleGeometry(0.073 * k, 10), mat.gunDark, 0, 0, 0.016 * k));
+    yaw.add(second);
   }
   return {
     root,
-    anim(u) {
-      const hit = Math.max(0, 1 - u / 0.14);
-      dome.scale.y = 1 - 0.28 * hit + (u > 0.14 ? Math.sin(u * 60) * 0.015 * u : 0);
-      for (const f of fins) f.rotation.x = 0.15 + 0.75 * hit ** 0.6;
+    anim(u, dt) {
+      const h = thump(u, 0.2);
+      yaw.rotation.y += dt * (1.3 - 1.1 * h);
+      tilt.rotation.x = -0.45 + 0.75 * h ** 0.7;
+      if (second) second.rotation.y -= dt * 3;
+    },
+  };
+}
+
+/** B: flat phased-array panels on a block; their tiles light up at the pulse. One panel sweeps at 1×1, three fixed faces at 2×2. */
+function phasedArray(big: boolean): Design {
+  const k = big ? 1.8 : 1, root = new THREE.Group(), base = mount(root, k);
+  const tiles = mat.power.clone();
+  const body = new THREE.Group();
+  body.position.y = base;
+  root.add(body);
+  const blockH = big ? 0.24 * k : 0.16 * k;
+  body.add(m(roundedBox(0.3 * k, blockH, 0.3 * k, 0.02 * k), mat.gun, 0, blockH / 2, 0));
+  body.add(m(new THREE.BoxGeometry(0.31 * k, 0.035 * k, 0.31 * k), mat.accent, 0, blockH * 0.75, 0));
+  const panel = (w: number, h: number) => {
+    const g = new THREE.Group();
+    g.add(m(roundedBox(w, h, 0.045 * k, 0.012 * k), mat.plate));
+    g.add(m(new THREE.BoxGeometry(w * 0.86, h * 0.84, 0.01), mat.gunDark, 0, 0, 0.024 * k));
+    const n = 4, rows = 3;
+    for (let r = 0; r < rows; r++) for (let c = 0; c < n; c++) {
+      g.add(m(new THREE.BoxGeometry(w * 0.14, h * 0.18, 0.01), tiles, ((c + 0.5) / n - 0.5) * w * 0.78, ((r + 0.5) / rows - 0.5) * h * 0.74, 0.03 * k));
+    }
+    return g;
+  };
+  let sweep: THREE.Group | undefined;
+  const faces: THREE.Group[] = [];
+  if (!big) {
+    sweep = new THREE.Group();
+    sweep.position.y = blockH;
+    body.add(sweep);
+    sweep.add(m(cyl(0.05 * k, 0.06 * k, 0.1 * k, 6), mat.gunDark, 0, 0.05 * k, 0));
+    const p = panel(0.4 * k, 0.3 * k);
+    p.position.set(0, 0.24 * k, 0.03 * k);
+    p.rotation.x = -0.3;
+    sweep.add(p);
+    faces.push(p);
+  } else {
+    // Three fixed faces round a taller block (each looks a third of the way round), and a mast on top.
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2, p = panel(0.3 * k, 0.26 * k);
+      p.position.set(Math.sin(a) * 0.17 * k, blockH * 0.5, Math.cos(a) * 0.17 * k);
+      p.rotation.set(0, a, 0);
+      p.rotateX(-0.3);
+      body.add(p);
+      faces.push(p);
+    }
+    body.add(m(cyl(0.012 * k, 0.015 * k, 0.28 * k, 5), mat.gunDark, 0, blockH + 0.14 * k, 0));
+    body.add(m(new THREE.BoxGeometry(0.16 * k, 0.012 * k, 0.012 * k), mat.accent, 0, blockH + 0.22 * k, 0));
+  }
+  let swing = 0;
+  return {
+    root,
+    anim(u, dt) {
+      const h = thump(u, 0.25);
+      swing += dt;
+      if (sweep) sweep.rotation.y = Math.sin(swing * 0.9) * 1.1;
+      tiles.emissiveIntensity = 0.4 + 2.2 * h;
+      for (const f of faces) f.scale.setScalar(1 + 0.05 * h);
+    },
+  };
+}
+
+/** C: a faceted radome on lattice legs, turning slowly; at the pulse it thumps and its vents flip open. */
+function radome(big: boolean): Design {
+  const k = big ? 1.8 : 1, root = new THREE.Group(), base = mount(root, k);
+  const legH = big ? 0.36 * k : 0.24 * k;
+  const legs = big ? 4 : 3;
+  for (let i = 0; i < legs; i++) {
+    const a = (i / legs) * Math.PI * 2 + 0.4;
+    const foot = new THREE.Vector3(Math.cos(a) * 0.2 * k, base, Math.sin(a) * 0.2 * k);
+    const top = new THREE.Vector3(Math.cos(a) * 0.11 * k, base + legH, Math.sin(a) * 0.11 * k);
+    const leg = m(cyl(0.018 * k, 0.022 * k, foot.distanceTo(top), 5), mat.gunDark);
+    leg.position.copy(foot).lerp(top, 0.5);
+    leg.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), top.clone().sub(foot).normalize());
+    root.add(leg);
+  }
+  root.add(m(cyl(0.12 * k, 0.12 * k, 0.02 * k, 6), mat.gun, 0, base + legH * 0.45, 0));
+  const head = new THREE.Group();
+  head.position.y = base + legH;
+  root.add(head);
+  head.add(m(cyl(0.2 * k, 0.17 * k, 0.06 * k, 8), mat.accent, 0, 0.03 * k, 0));
+  const shell = mat.plate.clone();
+  shell.flatShading = true;
+  shell.color.set("#dfe3ea");
+  const dome = m(new THREE.IcosahedronGeometry(0.2 * k, 1), shell, 0, 0.2 * k, 0);
+  head.add(dome);
+  head.add(m(cyl(0.205 * k, 0.205 * k, 0.03 * k, 12), mat.accent, 0, 0.16 * k, 0));
+  const vents: THREE.Group[] = [];
+  const n = big ? 6 : 4;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    const hinge = new THREE.Group();
+    hinge.position.set(Math.sin(a) * 0.2 * k, 0.06 * k, Math.cos(a) * 0.2 * k);
+    hinge.rotation.y = a;
+    hinge.add(m(new THREE.BoxGeometry(0.08 * k, 0.12 * k, 0.02 * k), mat.gun, 0, 0.06 * k, 0.01 * k));
+    head.add(hinge);
+    vents.push(hinge);
+  }
+  if (big) for (const sx of [-1, 1]) head.add(m(cyl(0.008 * k, 0.008 * k, 0.3 * k, 4), mat.gunDark, sx * 0.1 * k, 0.45 * k, -0.05 * k));
+  return {
+    root,
+    anim(u, dt) {
+      const h = thump(u);
+      dome.rotation.y += dt * 0.5;
+      dome.scale.set(1 + 0.08 * h, 1 - 0.18 * h, 1 + 0.08 * h);
+      dome.position.y = (0.2 - 0.03 * h) * k;
+      for (const v of vents) v.rotation.x = 0.1 + 0.8 * h ** 0.6;
     },
   };
 }
@@ -181,9 +248,9 @@ const towers: Tower[] = [];
 const groups: { c: THREE.Vector3; tag: HTMLElement }[] = [];
 const tagsEl = document.getElementById("tags")!;
 const LOOKS: { name: string; make: (big: boolean) => Design }[] = [
-  { name: "Piston", make: piston },
-  { name: "Gravity ring", make: gravityRing },
-  { name: "Resonator", make: resonator },
+  { name: "Dish radar", make: dishRadar },
+  { name: "Phased array", make: phasedArray },
+  { name: "Radome", make: radome },
 ];
 LOOKS.forEach((look, i) => {
   const ox = (i - 1) * 4, oz = -(i - 1) * 4;
@@ -315,7 +382,7 @@ function frame(now: number): void {
     const every = SIZES[t.big ? 1 : 0]!.every;
     t.t += dt;
     if (t.t >= every) { t.t -= every; pulse(t); }
-    t.d.anim(t.t / every);
+    t.d.anim(t.t / every, dt);
   }
 
   for (const r of runners) {
