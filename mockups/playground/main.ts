@@ -1,7 +1,5 @@
 import * as THREE from "three";
-import { COLOSSUS_HEIGHT, colossusModel } from "../../src/render/colossus";
-import { GRUMTOOTH_HEIGHT, grumtoothModel } from "../../src/render/grumtooth";
-import { wolfModel } from "../../src/render/wolf";
+import { GOLEM_LOOKS, golemEnemy } from "../../src/render/golem";
 import { GameView, type Overlay } from "../../src/render/view";
 import { Game, TICK, type PlacedPiece } from "../../src/sim/game";
 import { growAt, type Tower } from "../../src/sim/towers";
@@ -45,12 +43,11 @@ const map: MapDef = {
 
 // ------------------------------------------------------------------ settings
 
-/** Each enemy type's size and numbers, from the panel. The Brute's are locked. */
-const brute = { size: 2, hp: 80, speed: 1, gap: 3 };
-const runner = { size: 1.7, hp: 4, speed: 3, pack: 5 };
-const swarm = { size: 1.7, hp: 2, speed: 1.5, pack: 12 };
-/** How enemies are marked as enemies; switched live from the panel. */
-const marks = { outline: false, ring: false };
+/** Each enemy type's height (cells) and numbers, from the panel. */
+const brute = { height: GOLEM_LOOKS.brute.height, hp: 80, speed: 1, gap: 3 };
+const runner = { height: GOLEM_LOOKS.runner.height, hp: 4, speed: 3, pack: 5 };
+const swarm = { height: GOLEM_LOOKS.swarm.height, hp: 2, speed: 1.5, pack: 12 };
+const cfg = (kind: string) => kind === "runner" ? runner : kind === "swarm" ? swarm : brute;
 
 const game = new Game(map, {
   seed: 7,
@@ -73,13 +70,10 @@ WALLS.forEach((cells, i) => {
 (game as unknown as { refresh(): void }).refresh();
 
 const view = new GameView(document.getElementById("view")!, game, undefined, {
-  // Strides keep pace with the ground covered; a bigger body takes longer strides.
-  enemy: w => w.kind === "runner" ? wolfModel({ scale: runner.size, strideRate: (runner.speed * 1.1) / runner.size, marks })
-    : w.kind === "swarm" ? grumtoothModel({ scale: swarm.size, strideRate: (swarm.speed * 1.6) / swarm.size, marks })
-    : colossusModel({ scale: brute.size, strideRate: (brute.speed * 0.75) / brute.size, marks }),
-  barY: w => w.kind === "runner" ? 0.45 * runner.size + 0.1 : w.kind === "swarm" ? GRUMTOOTH_HEIGHT * swarm.size + 0.08 : COLOSSUS_HEIGHT * brute.size + 0.08,
-  // A wolf gets a small bar, so a pack doesn't turn into a wall of red.
-  barScale: w => w.kind === "runner" ? 0.5 : w.kind === "swarm" ? 0.35 : 1,
+  // The golem at the height from the panel; strides keep pace with the ground covered.
+  enemy: w => golemEnemy({ ...GOLEM_LOOKS[w.kind], height: cfg(w.kind).height }, cfg(w.kind).speed),
+  barY: w => cfg(w.kind).height + 0.08,
+  barScale: w => GOLEM_LOOKS[w.kind].bar,
   burst: { color: "#5a5f70", count: 12, size: 2.2 },
   alwaysBars: true,
 });
@@ -125,14 +119,14 @@ function buttons(...list: [string, () => void][]): HTMLElement {
 }
 // The Brute comes alone: "Spawn 5" sends five, one after another.
 section("Brute",
-  slider("Size (1 = 0.8 cells tall)", 0.5, 3.5, 0.05, () => brute.size, v => { brute.size = v; }),
+  slider("Height (cells)", 0.3, 2.5, 0.05, () => brute.height, v => { brute.height = v; }),
   slider("Speed (cells per second)", 0.3, 4, 0.05, () => brute.speed, v => { brute.speed = v; tune.enemies.brute.speed = v; }),
   slider("HP", 1, 300, 1, () => brute.hp, v => { brute.hp = v; tune.enemies.brute.hp = v; }),
   slider("Seconds between Brutes", 0.5, 12, 0.5, () => brute.gap, v => { brute.gap = v; }),
   buttons(["Spawn 1", () => spawn("brute", 1, 0)], ["Spawn 5", () => spawn("brute", 5, brute.gap)]),
 );
 section("Runner",
-  slider("Size (1 = one cell long)", 0.3, 3, 0.05, () => runner.size, v => { runner.size = v; }),
+  slider("Height (cells)", 0.3, 2.5, 0.05, () => runner.height, v => { runner.height = v; }),
   slider("Speed (cells per second)", 0.3, 6, 0.05, () => runner.speed, v => { runner.speed = v; tune.enemies.runner.speed = v; }),
   slider("HP", 1, 60, 1, () => runner.hp, v => { runner.hp = v; tune.enemies.runner.hp = v; }),
   slider("Wolves per pack", 1, 30, 1, () => runner.pack, v => { runner.pack = v; }),
@@ -141,29 +135,18 @@ section("Runner",
 );
 // A swarm pours out of the cave in a stream.
 section("Swarm",
-  slider("Size (1 = half a cell tall)", 0.4, 3, 0.05, () => swarm.size, v => { swarm.size = v; }),
+  slider("Height (cells)", 0.3, 2.5, 0.05, () => swarm.height, v => { swarm.height = v; }),
   slider("Speed (cells per second)", 0.3, 5, 0.05, () => swarm.speed, v => { swarm.speed = v; tune.enemies.swarm.speed = v; }),
   slider("HP", 1, 30, 1, () => swarm.hp, v => { swarm.hp = v; tune.enemies.swarm.hp = v; }),
   slider("Per swarm", 1, 60, 1, () => swarm.pack, v => { swarm.pack = v; }),
   buttons(["Spawn 1", () => spawn("swarm", 1, 0)], ["Spawn a swarm", () => spawn("swarm", swarm.pack, game.packSpacing("swarm", swarm.speed))]),
 );
-const markRow = document.createElement("div");
-markRow.className = "chips";
-const drawMarks = () => {
-  markRow.innerHTML = [["outline", "Red outline", marks.outline], ["ring", "Red ring", marks.ring], ["bars", "HP bar always", !!view.looks.alwaysBars]]
-    .map(([k, label, on]) => `<button class="chip" data-k="${k}" aria-pressed="${on}">${label}</button>`).join("");
-};
-markRow.addEventListener("click", e => {
-  const b = (e.target as HTMLElement).closest("button");
-  if (!b) return;
-  const k = b.dataset.k;
-  if (k === "outline") marks.outline = !marks.outline;
-  else if (k === "ring") marks.ring = !marks.ring;
-  else view.looks.alwaysBars = !view.looks.alwaysBars;
-  drawMarks();
-});
-drawMarks();
-section("Marked as enemy", markRow);
+const barRow = document.createElement("div");
+barRow.className = "chips";
+const drawBars = () => { barRow.innerHTML = `<button class="chip" aria-pressed="${!!view.looks.alwaysBars}">HP bar always</button>`; };
+barRow.addEventListener("click", () => { view.looks.alwaysBars = !view.looks.alwaysBars; drawBars(); });
+drawBars();
+section("HP bars", barRow);
 section("Gun",
   slider("Damage", 0.5, 10, 0.5, () => tune.towers.gun[0]!.damage, v => { tune.towers.gun[0]!.damage = v; tune.towers.gun[1]!.damage = v; }),
 );

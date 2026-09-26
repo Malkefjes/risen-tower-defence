@@ -1,8 +1,9 @@
 import * as THREE from "three";
-import { GLTFLoader, type GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
+import type { GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { BLASTER } from "./blasterData";
 import { colonyOrange } from "./palette";
 import { GLB } from "./sentinelData";
+import { bytes, loopable, parseGlb } from "./skinned";
 
 /**
  * The player's avatar: Erik's Neon Star Sentinel, a skinned model with stand, walk, run and
@@ -44,8 +45,6 @@ const GUARDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 19, 20
  * chest piece and the right shoulder under its pad stay dark.
  */
 const CHEST = [490, 500, 511, 521, 522, 533, 538, 542, 548, 553, 560, 562, 566, 568, 571, 575, 577, 578, 579, 583, 584, 587, 590, 593, 595, 596, 598, 599, 602, 607, 609, 611, 612, 615, 616, 618, 623, 627, 628, 637, 638, 639, 640, 641, 643, 644, 655, 658, 661, 671, 672, 675, 677, 681, 684, 687, 688, 692, 695, 698, 703, 704, 712, 713, 714, 715, 726, 727, 730, 732, 734, 738, 740, 742, 747, 748, 749, 759, 762, 763, 769, 771, 772, 773, 774, 779, 781, 782, 789, 790, 792, 796, 798, 799, 806, 810, 811, 812, 823, 830, 838, 850, 857, 861, 871, 882, 886, 893, 916, 926, 943, 962, 987, 1016, 1052, 1059, 1060, 1062, 1063, 1093, 1118, 1141, 1154, 1189, 1228, 1312, 1330, 1375, 1393, 1428, 1456, 1464, 1488, 1491, 1551, 1561, 1604, 1623, 1634, 1647, 1683, 1802, 1821, 1836, 1852, 1859, 1875, 1884, 1895, 1900, 1902, 1909, 1921, 1936, 1937, 1960, 1962, 1993, 2012, 2030, 2059, 2071, 2080, 2109, 2147, 2159, 2165, 2176, 2177, 2197, 2199, 2201, 2216, 2223, 2233, 2240, 2241, 2243, 2250, 2252, 2254, 2256, 2259, 2265, 2267, 2270, 2272, 2277, 2281, 2282, 2286, 2288, 2289, 2291, 2295, 2306, 2310, 2311, 2313, 2316, 2319, 2321, 2322, 2323, 2325, 2327, 2328, 2335, 2339, 2340, 2341, 2343, 2345, 2347, 2348, 2351, 2352, 2353, 2362, 2364, 2365, 2373, 2374, 2379, 2381, 2383, 2390, 2391, 2393, 2397, 2399, 2410, 2412, 2413, 2416, 2421, 2427, 2431, 2435, 2436, 2442, 2443, 2444, 2449, 2452, 2453, 2454, 2457, 2458, 2462, 2469, 2474, 2479, 2481, 2482, 2484, 2487, 2490];
-
-const bytes = (b64: string) => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
 
 interface Mats { steel: THREE.MeshStandardMaterial; visor: THREE.MeshStandardMaterial; orange: THREE.MeshStandardMaterial }
 let MATS: Mats | undefined;
@@ -154,7 +153,7 @@ export class Sentinel {
     // The muzzle sits in his hand until the model is in.
     this.muzzle.position.set(0, AVATAR_HEIGHT * 0.5, 0.3);
     this.object.add(this.muzzle);
-    new GLTFLoader().parse(bytes(GLB).buffer, "", gltf => this.build(gltf), e => console.error("avatar", e));
+    parseGlb(GLB).then(gltf => this.build(gltf), e => console.error("avatar", e));
   }
 
   private build(gltf: GLTF): void {
@@ -282,44 +281,6 @@ export class Sentinel {
     turn("RightUpLeg", -0.6);
     turn("RightLeg", 1.5);
   }
-}
-
-/**
- * The file's clips don't loop cleanly: rotations are keyed at 30 fps from 0.067 s, positions at
- * 24 fps from 0.042 s, so played as they are each loop held a pose for a moment (a brief freeze
- * every stride). Every track is resampled at 30 fps over one period (the rotation keys' span
- * plus a frame), its keys taken as repeating, so the last frame leads straight into the first.
- */
-function loopable(clip: THREE.AnimationClip): THREE.AnimationClip {
-  const FPS = 30;
-  const main = clip.tracks.reduce((best, t) => (t.times.length > best.times.length ? t : best)).times;
-  const t0 = main[0]!, period = main[main.length - 1]! - t0 + 1 / FPS, frames = Math.round(period * FPS);
-  const tracks = clip.tracks.map(track => {
-    const n = track.times.length, size = track.getValueSize(), quat = track instanceof THREE.QuaternionKeyframeTrack;
-    // Keys on the loop: times from t0, wrapped into [0, period), in order.
-    const keys = [...Array(n).keys()].map(i => ({ t: ((track.times[i]! - t0) % period + period) % period, i })).sort((x, y) => x.t - y.t);
-    const times = new Float32Array(frames + 1), values = new Float32Array((frames + 1) * size);
-    const qa = new THREE.Quaternion(), qb = new THREE.Quaternion();
-    for (let f = 0; f <= frames; f++) {
-      const t = (f / FPS) % period;
-      let k = keys.findIndex(key => key.t > t);
-      if (k < 0) k = keys.length;
-      const next = keys[k % keys.length]!, prev = keys[(k - 1 + keys.length) % keys.length]!;
-      const span = ((next.t - prev.t) % period + period) % period || period;
-      const u = (((t - prev.t) % period + period) % period) / span;
-      times[f] = f / FPS;
-      if (quat) {
-        qa.fromArray(track.values, prev.i * 4).slerp(qb.fromArray(track.values, next.i * 4), u).toArray(values, f * 4);
-      } else {
-        for (let c = 0; c < size; c++) values[f * size + c] = track.values[prev.i * size + c]! * (1 - u) + track.values[next.i * size + c]! * u;
-      }
-    }
-    // The last frame is the first again: a seamless loop.
-    values.copyWithin(frames * size, 0, size);
-    const Track = track.constructor as new (name: string, times: Float32Array, values: Float32Array) => THREE.KeyframeTrack;
-    return new Track(track.name, times, values);
-  });
-  return new THREE.AnimationClip(clip.name, period, tracks);
 }
 
 /** Turn a bone by a rotation given in world space. */

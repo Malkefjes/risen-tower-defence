@@ -2,8 +2,7 @@ import * as THREE from "three";
 import { SHIP_SHOOTER, type Game, type GameEvent, type PlacedPiece, type Shot, type Walker } from "../sim/game";
 import type { GeneratedWorld } from "../sim/worldgen";
 import { caveModel } from "./cave";
-import { ENEMY_LOOKS, enemyBarHeight, enemyModel } from "./enemies";
-import type { Enemy, Marks } from "./stoneCreature";
+import { enemyBarHeight, enemyBarWidth, enemyModel, type Enemy } from "./enemies";
 import { MiningView } from "./mining";
 import { smelterModel, type SmelterView } from "./smelterModel";
 import { buildScenery } from "./scenery";
@@ -53,8 +52,6 @@ export interface ViewLooks {
   barScale?: (w: Walker) => number;
   /** Show enemy HP bars at full health too (normally only once hurt). */
   alwaysBars?: boolean;
-  /** Enemy marks: a red outline and a red ground ring (both off unless switched on). */
-  marks?: Marks;
   burst?: { color: string; count: number; size: number };
 }
 
@@ -677,7 +674,7 @@ export class GameView {
   }
 
   /**
-   * Enemies are Erik's stone creatures: they climb up out of the cave mouth, walk with their stride, flash when hit.
+   * Enemies are Erik's stone golems: they climb up out of the cave mouth, walk with their stride, flash when hit.
    * Drawn between the last two ticks (`alpha`) and animated on the world's clock every frame
    * (`dt`, 0 while paused), so they move smoothly at any refresh rate.
    */
@@ -687,7 +684,7 @@ export class GameView {
       alive.add(w.id);
       let o = this.walkers.get(w.id);
       if (!o) {
-        const e = this.looks.enemy ? this.looks.enemy(w) : enemyModel(w, this.looks.marks ??= { outline: false, ring: false });
+        const e = this.looks.enemy ? this.looks.enemy(w) : enemyModel(w);
         o = e.object;
         o.userData.enemy = e;
         o.userData.t = Math.random() * 10;
@@ -719,7 +716,7 @@ export class GameView {
       const side = (w.lane ?? 0) * this.game.tuning.laneSpread, r = o.rotation.y;
       const cx = (w.px ?? w.x) + (w.x - (w.px ?? w.x)) * alpha, cy = (w.py ?? w.y) + (w.y - (w.py ?? w.y)) * alpha;
       const x = cx + Math.cos(r) * side, y = cy - Math.sin(r) * side;
-      this.syncBar(w.id, x, y, w.hp / w.maxHp, this.looks.barY?.(w) ?? enemyBarHeight(w), this.looks.barScale?.(w) ?? ENEMY_LOOKS[w.kind].bar);
+      this.syncBar(w.id, x, y, w.hp / w.maxHp, this.looks.barY?.(w) ?? enemyBarHeight(w), this.looks.barScale?.(w) ?? enemyBarWidth(w));
       // Climbing out: below the snow at the mouth, up on it half a cell out.
       const [fx, fy] = o.userData.from as [number, number], out = Math.hypot(cx - fx, cy - fy);
       o.position.set(x, -0.25 * Math.max(0, 1 - out / 0.5), y);

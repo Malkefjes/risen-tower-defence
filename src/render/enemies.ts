@@ -1,34 +1,19 @@
-import type { EnemyKind } from "../sim/enemies";
 import type { Walker } from "../sim/game";
-import { COLOSSUS_HEIGHT, colossusModel } from "./colossus";
-import { GRUMTOOTH_HEIGHT, grumtoothModel } from "./grumtooth";
-import type { Enemy, Marks } from "./stoneCreature";
-import { wolfModel } from "./wolf";
+import { GOLEM_LOOKS, golemEnemy, type Enemy } from "./golem";
 
-/**
- * How each enemy type looks in the game: Erik's stone creatures, sized from the
- * playground. The Grunt has no look of its own yet and borrows the Grumtooth.
- */
-export const ENEMY_LOOKS: Record<EnemyKind, { model: "colossus" | "wolf" | "grumtooth"; size: number; bar: number }> = {
-  grunt: { model: "grumtooth", size: 1.3, bar: 0.5 },
-  swarm: { model: "grumtooth", size: 1.7, bar: 0.35 },
-  runner: { model: "wolf", size: 1.7, bar: 0.5 },
-  brute: { model: "colossus", size: 2, bar: 1 },
-};
+export type { Enemy } from "./golem";
 
-/** A new model for a walker. Strides keep pace with its speed; bigger bodies take longer strides. */
-export function enemyModel(w: Walker, marks: Marks): Enemy {
-  const look = ENEMY_LOOKS[w.kind], scale = look.size;
-  switch (look.model) {
-    case "colossus": return colossusModel({ scale, strideRate: (w.speed * 0.75) / scale, marks });
-    case "wolf": return wolfModel({ scale, strideRate: (w.speed * 1.1) / scale, marks });
-    case "grumtooth": return grumtoothModel({ scale, strideRate: (w.speed * 1.6) / scale, marks });
-  }
+/** A new model for a walker: the golem in its type's size and colour, striding at its speed. */
+export function enemyModel(w: Walker): Enemy {
+  return golemEnemy(GOLEM_LOOKS[w.kind], w.speed);
 }
 
 /** Height of a walker's HP bar: just over its head. */
 export function enemyBarHeight(w: Walker): number {
-  const look = ENEMY_LOOKS[w.kind];
-  const tall = look.model === "colossus" ? COLOSSUS_HEIGHT : look.model === "wolf" ? 0.45 : GRUMTOOTH_HEIGHT;
-  return tall * look.size + 0.08;
+  return GOLEM_LOOKS[w.kind].height + 0.08;
+}
+
+/** Width of a walker's HP bar (1 = the normal half-cell bar). */
+export function enemyBarWidth(w: Walker): number {
+  return GOLEM_LOOKS[w.kind].bar;
 }

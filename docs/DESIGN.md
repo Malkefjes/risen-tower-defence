@@ -88,15 +88,13 @@ Enemies and towers are the two deepest systems; everything else supports them. E
 | **Boss** | Big, armoured, resistant | One damage source | Variety, prepped with support |
 | **Titan** | Heavy armour, heavy resistances; comes from special far spawners and becomes inevitable the longer a run goes, announced long ahead | The whole defence | A prep zone (Heavy, burning) before the killzone |
 
-**The Brute (look and numbers locked 2026-09-26):** Erik's Stonebound Colossus, a 705-triangle rock golem, in the grey of the stone you mine (matte, no snow). Size 2 (about 1.6 cells tall), speed 1 cell per second, 80 HP, comes alone (3 s apart when several come), with a thin red outline and its HP bar always shown so it reads as an enemy. Tried in the playground (`mockups/playground`); in the game it will be drawn in bulk, five parts per type. Its armour and fast wall breaking come with it when the Brute is built.
+**Enemy look (decided 2026-09-26, replacing the Colossus, the wolf and the Grumtooth):** every enemy type is Erik's rigged **Stonebound Colossus** golem (3,010 triangles, the Sentinel's rig and clips), matte faceted stone. The types differ by size, colour and gait: Swarm 0.6 cells tall, light grey, walking; Runner 0.95 tall, slate blue-grey, running; Brute 1.7 tall, dark stone grey, the heavier second walk; Grunt 1.0 tall, grey, walking (not sent yet). Each plays its clip at the rate that keeps its feet on the ground at its speed. HP bar always shown; no outline or ring. Tried alone in `mockups/golem`, on a maze in `mockups/playground`.
 
-**The Runner (look and numbers locked 2026-09-26):** Erik's Shadowfang Wolf, a 201-triangle stone wolf in the same mined-stone grey as the Brute, trotting (diagonal legs together). Size 1.5 (a cell and a half nose to tail), speed 3 cells per second, in packs running nose to tail (numbers since the balance pass: 24 HP, packs of 3, few of them), with the red outline and a half-width HP bar.
 
-**The Swarm (in the game 2026-09-26):** Erik's Grumtooth, a 189-triangle hunched little stone brute with long arms, in the same stone, size 1.7 (about 0.85 cells tall), in swarms of 12, 1.5 cells per second (since the balance pass: 5 HP, one missile kills one). The Runner is size 1.7 in the game.
 
 **In the game (2026-09-26):** the leaper is gone. Raids send packs of Swarms, Runners and Brutes, each type by its share of the packs and taking its cost of the raid's size (a Grunt is 1: Swarm 0.35, Runner 1, Brute 6). HP bars always show; the red outline stays in the code, off, for a later option.
 
-**Enemy looks in general:** enemies are made of simple faceted shapes Erik models (or has generated) at game budget, cut into a few moving parts (body, arms, legs): Swarm 100–200 triangles, Grunt 400–800, Brute 1,000–2,500, Boss 3,000–8,000. Detailed models are design sheets that get rebuilt at budget.
+**Enemy looks in general:** one rigged model for all types for now (see above), told apart by size, colour and gait; a Boss or new types may get their own. At about 3,000 triangles a golem, a raid of 170 is about a million triangles with shadows: if that proves heavy, the Swarm gets a lighter version.
 
 **Damage types** (sci-fi, no melee, no frost):
 
