@@ -90,17 +90,13 @@ const GREY = new THREE.MeshStandardMaterial({ color: "#2c3142", flatShading: tru
 // by their shape in the file), in the colony's cyan power colour.
 const VISOR = [1115, 1233, 1642, 1651, 1689, 1779, 1809];
 const VISOR_MAT = new THREE.MeshStandardMaterial({ color: "#7ff5e6", emissive: "#4fdcca", emissiveIntensity: 0.8, roughness: 0.4, flatShading: true });
-// The shoulder pads, in colony orange: the blocks over his upper arms, outside the torso
-// (|x| > 0.26), above the arm (y > 1.04) and in front of the backpack (z > -0.1).
-const isPad = (c: THREE.Vector3) => Math.abs(c.x) > 0.26 && c.y > 1.04 && c.z > -0.1;
+// The shoulder pads, in colony orange: each grown from its big outer face across the
+// outward folds of the block, stopping where it folds in against the arm and torso
+// (65 faces a side).
+const PADS = new Set([37, 42, 52, 65, 69, 77, 81, 96, 100, 101, 106, 109, 114, 116, 120, 122, 124, 131, 137, 140, 141, 151, 154, 159, 166, 169, 182, 194, 204, 215, 220, 222, 233, 250, 282, 286, 311, 319, 321, 333, 335, 336, 339, 342, 349, 368, 371, 386, 401, 408, 409, 418, 420, 426, 433, 435, 438, 448, 453, 464, 473, 477, 481, 483, 498, 2544, 2550, 2551, 2556, 2561, 2564, 2565, 2571, 2577, 2586, 2590, 2614, 2615, 2618, 2621, 2627, 2635, 2647, 2648, 2651, 2662, 2667, 2674, 2691, 2693, 2706, 2707, 2709, 2739, 2746, 2772, 2812, 2817, 2820, 2825, 2846, 2851, 2870, 2872, 2884, 2886, 2894, 2897, 2904, 2909, 2916, 2921, 2929, 2932, 2934, 2940, 2943, 2947, 2950, 2952, 2953, 2957, 2960, 2972, 2981, 2991, 2992, 2999, 3005, 3012]);
 {
-  const index = mesh.geometry.index!, pos = mesh.geometry.attributes.position!, tris = index.count / 3, isVisor = new Set(VISOR);
-  const c = new THREE.Vector3(), part = (f: number) => {
-    if (isVisor.has(f)) return 1;
-    c.set(0, 0, 0);
-    for (let k = 0; k < 3; k++) { const v = index.getX(f * 3 + k); c.x += pos.getX(v) / 3; c.y += pos.getY(v) / 3; c.z += pos.getZ(v) / 3; }
-    return isPad(c) ? 2 : 0;
-  };
+  const index = mesh.geometry.index!, tris = index.count / 3, isVisor = new Set(VISOR);
+  const part = (f: number) => (isVisor.has(f) ? 1 : PADS.has(f) ? 2 : 0);
   const parts = [...Array(tris).keys()].map(part);
   const order = [0, 1, 2].flatMap(g => [...Array(tris).keys()].filter(f => parts[f] === g));
   const out = new (index.array.constructor as Uint32ArrayConstructor)(index.count);
