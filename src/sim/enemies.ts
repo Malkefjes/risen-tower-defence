@@ -30,4 +30,12 @@ export interface EnemyStats {
   cost: number;
   /** How often a pack is this type, against the other types' shares (0: never in raids). */
   share: number;
+  /** Flat armour: taken off every hit, down to `ARMOUR_FLOOR` of it. Many small hits do little; big hits go through. */
+  armour: number;
 }
+
+/** However thick the armour, a hit always does at least this share of its damage (never immune). */
+export const ARMOUR_FLOOR = 0.1;
+
+/** What a hit of `damage` does through `armour`. */
+export const throughArmour = (damage: number, armour: number): number => Math.max(damage * ARMOUR_FLOOR, damage - armour);

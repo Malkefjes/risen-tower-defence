@@ -6,6 +6,7 @@ import { cellBounds, pieceOutline, SIDES, type OutlineCell, type Side } from "./
 import { colonyOrange, COLONY_ORANGE } from "./palette";
 import { missileRackModel } from "./missileRack";
 import { radomeModel } from "./radome";
+import { railLanceModel } from "./railLance";
 import { shipModel } from "./ship";
 
 /**
@@ -206,6 +207,9 @@ export function createDefaultModels(mat: Materials): ModelLibrary {
   /** The explosive tower, the missile rack: three missiles at 1×1, six at 2×2. */
   lib.register("explosive1", () => missileRackModel(mat, false));
   lib.register("explosive2", () => missileRackModel(mat, true));
+  /** The laser cannon, the rail lance: rails with charging coils, firing a glowing slug. */
+  lib.register("laser1", () => railLanceModel(mat, false));
+  lib.register("laser2", () => railLanceModel(mat, true));
   /** The support tower, the Radome: a turning dome on lattice legs. */
   lib.register("support1", () => radomeModel(mat, false));
   lib.register("support2", () => radomeModel(mat, true));
@@ -281,6 +285,10 @@ export interface TurretRig {
   launch?: THREE.Vector3;
   /** Turns steadily on its own (radians per second), like the Radome's dome. */
   turn?: number;
+  /** The tower's own cyan, which charges up before each shot (the laser cannon's coils). */
+  charge?: THREE.MeshStandardMaterial;
+  /** Where heat steams off after a shot, in `yaw` space. */
+  vent?: THREE.Vector3;
 }
 
 function twinModel(mat: Materials, big: boolean): THREE.Object3D {

@@ -35,6 +35,7 @@ const enemySections = (): Section[] => ENEMY_KINDS.map(kind => {
       stat(pick, "gap", "Seconds between them in a pack", 0.05, 5, 0.05),
       stat(pick, "cost", "Raid size one takes (a Grunt is 1)", 0.05, 20, 0.05),
       stat(pick, "share", "Share of raid packs (0 = never)", 0, 10, 1),
+      stat(pick, "armour", "Armour (taken off every hit)", 0, 10, 0.05),
     ],
   };
 });

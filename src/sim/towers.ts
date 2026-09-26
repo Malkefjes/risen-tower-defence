@@ -5,21 +5,22 @@ import type { Cell } from "./types";
  * in place to 2×2 and 3×3: bigger is more investment (range, damage for its price,
  * later mod slots), not a different tower. Numbers per size live in `Tuning.towers`.
  */
-export type TowerKind = "gun" | "explosive" | "support";
-export const TOWER_KINDS: readonly TowerKind[] = ["gun", "explosive", "support"];
+export type TowerKind = "gun" | "explosive" | "laser" | "support";
+export const TOWER_KINDS: readonly TowerKind[] = ["gun", "explosive", "laser", "support"];
 
 /** The largest footprint any tower can grow to. */
 export const MAX_TOWER_SIZE = 3;
 
 /**
  * `maxSize`: the sizes on offer now (a size is offered once it has a model).
- * `shot`: bolts fly straight at `BOLT_SPEED`; missiles climb, turn and dive
+ * `shot`: bolts fly straight at `BOLT_SPEED`, laser slugs at `SLUG_SPEED`; missiles climb, turn and dive
  * (`missileTime`), following their target, and burst over `radius`. A field tower
  * fires nothing: every enemy within its range is Heavy (`Tuning.heavySlow`).
  */
-export const TOWER_INFO: Record<TowerKind, { name: string; maxSize: number; shot: "bolt" | "missile" | "field" }> = {
+export const TOWER_INFO: Record<TowerKind, { name: string; maxSize: number; shot: "bolt" | "slug" | "missile" | "field" }> = {
   gun: { name: "Gun", maxSize: 2, shot: "bolt" },
   explosive: { name: "Missile rack", maxSize: 2, shot: "missile" },
+  laser: { name: "Laser cannon", maxSize: 2, shot: "slug" },
   support: { name: "Radome", maxSize: 2, shot: "field" },
 };
 
@@ -76,6 +77,8 @@ export function growAt(t: Pick<Tower, "at" | "cx" | "cy">, x: number, y: number)
 
 /** Bolt speed in cells per second; hits land after the bolt's travel time. */
 export const BOLT_SPEED = 14;
+/** The laser cannon's slug: slower than a bolt, so the big glowing shot is seen crossing the maze. */
+export const SLUG_SPEED = 12;
 
 /** A missile's flight in seconds over `dist` cells: the climb and dive take most of it, so it is slow even close by. */
 export const missileTime = (dist: number): number => 1.05 + dist * 0.09;

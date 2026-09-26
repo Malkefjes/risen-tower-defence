@@ -5,8 +5,8 @@ import { nodeArea, nodeCellTop, nodeFootprint, nodeMax, ORE_STAGES, stagesLeft, 
 import { computeField, keysOf, type FlowField } from "./pathfinding";
 import { pieceCells, type ShapeId } from "./pieces";
 import { Rng } from "./rng";
-import { ENEMY_KINDS, type EnemyKind, type EnemyStats } from "./enemies";
-import { BOLT_SPEED, footprint, missileTime, TOWER_INFO, TOWER_TOP, type Tower, type TowerKind, type TowerStats } from "./towers";
+import { ENEMY_KINDS, throughArmour, type EnemyKind, type EnemyStats } from "./enemies";
+import { BOLT_SPEED, footprint, missileTime, SLUG_SPEED, TOWER_INFO, TOWER_TOP, type Tower, type TowerKind, type TowerStats } from "./towers";
 import { mergeTuning, type Tuning, type TuningPatch } from "./tuning";
 import { cellKey, parseKey, type Cell } from "./types";
 import { WALL_DECK, World, type MapDef } from "./world";
@@ -1155,7 +1155,7 @@ export class Game {
     if (st && gun.cooldown <= 0) {
       gun.cooldown = 1 / s.rate;
       const shot: Shot = { id: this.nextId++, towerId: SHIP_SHOOTER, targetId: st.id, damage: s.damage, t: 0, dur: Math.hypot(st.x - c.x, st.y - c.y) / BOLT_SPEED, radius: 0, x: st.x, y: st.y };
-      st.pending += shot.damage;
+      st.pending += this.hitFor(st, shot.damage);
       this.shots.push(shot);
       this.events.push({ type: "shot", shot });
     }
@@ -1169,9 +1169,10 @@ export class Game {
       const s = this.towerStats(t);
       t.cooldown = 1 / s.rate;
       const dist = Math.hypot(target.x - t.cx, target.y - t.cy);
-      const dur = TOWER_INFO[t.kind].shot === "missile" ? missileTime(dist) : dist / BOLT_SPEED;
+      const kind = TOWER_INFO[t.kind].shot;
+      const dur = kind === "missile" ? missileTime(dist) : dist / (kind === "slug" ? SLUG_SPEED : BOLT_SPEED);
       const shot: Shot = { id: this.nextId++, towerId: t.id, targetId: target.id, damage: s.damage, t: 0, dur, radius: s.radius, x: target.x, y: target.y };
-      target.pending += shot.damage;
+      target.pending += this.hitFor(target, shot.damage);
       this.shots.push(shot);
       this.events.push({ type: "shot", shot });
     }
@@ -1200,7 +1201,7 @@ export class Game {
     this.shots = this.shots.filter(s => !landed.includes(s));
     for (const s of landed) {
       const target = this.walkers.find(x => x.id === s.targetId);
-      if (target) target.pending -= s.damage;
+      if (target) target.pending = Math.max(0, target.pending - this.hitFor(target, s.damage));
       const tower = s.towerId === SHIP_SHOOTER ? undefined : this.towers.find(t => t.id === s.towerId);
       if (s.radius > 0) this.events.push({ type: "blast", x: s.x, y: s.y, radius: s.radius, towerId: s.towerId });
       // A blast hits everything in its radius (its target too, wherever it has got to).
@@ -1211,7 +1212,11 @@ export class Game {
     }
   }
 
-  private damage(w: Walker, amount: number, tower: Tower | undefined): void {
+  /** What a hit of `damage` really does to this enemy, through its armour. */
+  hitFor(w: Walker, damage: number): number { return throughArmour(damage, this.enemyStats(w.kind).armour); }
+
+  private damage(w: Walker, raw: number, tower: Tower | undefined): void {
+    const amount = this.hitFor(w, raw);
     if (tower && !w.practice) tower.dealt += Math.min(amount, w.hp);
     w.hp -= amount;
     if (w.hp > 0) { this.events.push({ type: "hit", walker: w }); return; }

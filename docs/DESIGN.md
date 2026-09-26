@@ -107,7 +107,7 @@ Enemies and towers are the two deepest systems; everything else supports them. E
 
 **Armour and resistances:**
 
-- **Armour** is a flat reduction per hit: many small hits do little, big hits go through.
+- **Armour** is a flat reduction per hit: many small hits do little, big hits go through. A hit always does at least 10% of its damage. The Brute has armour 0.75 (the Gun's 1-damage rounds do a quarter).
 - **Resistances** are per damage type: half damage, never immune. Only Elites, Bosses and the Titan have them (at most one or two each), they are visible on the model and shown in the raid warning, and burning strips them. They exist so late-game builds have a problem to solve.
 - **Cold does nothing to them** (they live here). The one immunity, and it teaches the world.
 
@@ -147,7 +147,7 @@ The Titan shows the whole system: Heavy, then burning, then the laser cannon, in
 | Tower | Damage | What it does | Weak against | Where it wants to be |
 | --- | --- | --- | --- | --- |
 | **Gun** | Piercing | Rapid, cheap, medium range; the workhorse (today's Twin and Gatling) | Armour (Brutes, Bosses) | Anywhere; many small ones spread along the path |
-| **Laser cannon** | Laser | Long range, slow, one huge hit | Swarms (overkill, slow to switch) | Long straight lines of sight down the maze |
+| **Laser cannon** | Laser | Long range, slow, one huge hit. Look: the **rail lance** (decided 2026-09-26): two long rails with cyan coils on a low orange turret; the coils charge up before each shot and it fires one big glowing slug (a laser bullet, not a beam) | Swarms (overkill, slow to switch) | Long straight lines of sight down the maze |
 | **Explosive** | Explosive | Bursts on impact, short to medium range, area damage. Look: the missile rack (a tilted cradle of missiles that climb, turn and dive; 3 missiles at 1×1, 6 at 2×2, reloading visibly). Missiles home in on their target and burst where it is when they arrive | Single tough targets (armour counts on each hit) | Switchbacks and corners where packs bunch |
 | **Thermite mortar** | Incendiary | Lobs shells far with a **minimum range**; the ground burns for a few seconds (resistances off, no healing) | Anything on its own; it preps, it doesn't kill | Set back from the path, aimed where it doubles back |
 | **AA** | Piercing | Fast tracking, air only | Everything on the ground | Under the air lanes (straight lines from caves to targets) |

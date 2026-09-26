@@ -90,6 +90,11 @@ export class MissileFx {
     this.smoke.add(from, { size: 0.04, life: 0.6, grow: 0.08, v: fwd.clone().multiplyScalar(-0.3).setY(0.25) });
   }
 
+  /** A puff of steam or smoke rising from `at`. */
+  steam(at: THREE.Vector3, size: number): void {
+    this.smoke.add(at, { size, life: 0.9, grow: size * 1.2, v: new THREE.Vector3((Math.random() - 0.5) * 0.2, 0.4, (Math.random() - 0.5) * 0.2) });
+  }
+
   /** The blast where the simulation says damage landed; the ring ends at its radius. */
   blast(x: number, z: number, radius: number): void {
     const r = radius, at = new THREE.Vector3(x, 0.02, z);

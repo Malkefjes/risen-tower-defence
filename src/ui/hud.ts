@@ -47,6 +47,11 @@ export function towerIcon(kind: TowerKind, size = 1): string {
     const a = (Math.PI / 3) * i + Math.PI / 6;
     return `${22 + Math.cos(a) * r},${24 + Math.sin(a) * r}`;
   }).join(" ");
+  if (kind === "laser") {
+    // From above: the orange turret and two long rails with cyan coils between them.
+    const coils = [10, 15, 20].map(y => `<rect x="19" y="${y}" width="6" height="2.5" rx="1" fill="#7ff5e6"/>`).join("");
+    return `<svg viewBox="0 0 44 44" aria-hidden="true"><polygon points="${hex(16)}" fill="#3d4457"/><rect x="13" y="22" width="18" height="16" rx="3" fill="#d9573a" stroke="#f08a66"/><rect x="16" y="3" width="3" height="26" fill="#2c3142"/><rect x="25" y="3" width="3" height="26" fill="#2c3142"/>${coils}<rect x="15" y="2" width="5" height="3" fill="#b4bccd"/><rect x="24" y="2" width="5" height="3" fill="#b4bccd"/></svg>`;
+  }
   if (kind === "support") {
     // From above: the brown field, the orange band and the faceted white dome.
     return `<svg viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="23" r="20" fill="#8a5a32" fill-opacity=".25" stroke="#8a5a32" stroke-width="1.5"/><polygon points="${hex(12)}" fill="#3d4457"/><circle cx="22" cy="23" r="${size === 1 ? 10 : 12}" fill="#d9573a"/><polygon points="${hex(size === 1 ? 8.5 : 10.5)}" fill="#dfe3ea" stroke="#b4bccd"/><path d="M22 ${size === 1 ? 15 : 13} L22 ${size === 1 ? 31 : 33} M15 19 L29 27 M15 27 L29 19" stroke="#b4bccd" stroke-width="1"/></svg>`;

@@ -61,6 +61,8 @@ export interface ViewLooks {
 const STONE_BURST = { color: "#5a5f70", count: 12, size: 2.2 };
 /** Heavy's brown: a Radome's field, and the tint of an enemy in it (over 1, so grey stone turns warm brown, not dark). */
 const HEAVY_BROWN = "#8a5a32";
+/** Seconds before the laser cannon can fire that its coils start to glow. */
+const LASER_CHARGE = 0.8;
 const HEAVY_TINT = new THREE.Color(1.5, 1.05, 0.62);
 const NO_TINT = new THREE.Color(1, 1, 1);
 
@@ -75,7 +77,7 @@ interface TowerView { obj: THREE.Object3D; size: number; rig: TurretRig; recoil:
 
 /** The model for a tower type at a size: "gun1", "gun2", ... */
 const towerModel = (kind: TowerKind, size: number) => `${kind}${size}`;
-interface Bolt { mesh: THREE.Mesh; from: THREE.Vector3; to: THREE.Vector3; walkerId: number; t: number; dur: number }
+interface Bolt { mesh: THREE.Object3D; from: THREE.Vector3; to: THREE.Vector3; walkerId: number; t: number; dur: number }
 interface Flash { sprite: THREE.Sprite; life: number; max: number; size: number }
 
 /** Smelters turn their window to face the camera. */
@@ -877,6 +879,11 @@ export class GameView {
         g.obj.position.z = g.rest - v.rig.kick * v.recoil[i]! ** 2;
       });
       if (v.rig.turn) v.rig.yaw.rotation.y += dt * v.rig.turn;
+      // The laser cannon's coils charge up over the last moments before it can fire.
+      if (v.rig.charge && t) {
+        const c = Math.max(0, Math.min(1, 1 - t.cooldown / LASER_CHARGE));
+        v.rig.charge.emissiveIntensity = 0.3 + 3 * c * c;
+      }
       if (v.field && t) {
         v.field.scale.setScalar(this.game.towerStats(t).range);
         (v.field.userData.sweep as THREE.Object3D).rotation.y = v.rig.yaw.rotation.y + v.obj.rotation.y;
@@ -922,6 +929,7 @@ export class GameView {
     v.spin = 1;
     v.obj.updateMatrixWorld(true);
     const from = v.rig.yaw.localToWorld(g.muzzle.clone());
+    if (v.rig.charge) { this.fireSlug(s, v, from, target); return; }
     this.addFlash(from, this.glows.muzzle, v.rig.spinner ? 0.45 : 0.32, 0.07);
     const mesh = new THREE.Mesh(this.boltGeo, this.boltMat);
     mesh.position.copy(from);
@@ -948,14 +956,48 @@ export class GameView {
     this.missileFx.launch(from, fwd, s.dur, v.size, () => this.walkers.get(s.targetId)?.position ?? null);
   }
 
+  /** The laser cannon's shot: a big glowing slug with a halo, and steam off the back. */
+  private slugGeo = new THREE.SphereGeometry(1, 10, 6);
+  private slugCore = new THREE.MeshBasicMaterial({ color: "#effffc" });
+  private slugHalo = new THREE.MeshBasicMaterial({ color: "#4fdcca", transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false });
+  private fireSlug(s: Shot, v: TowerView, from: THREE.Vector3, target: THREE.Object3D | undefined): void {
+    const k = v.size > 1 ? 1.45 : 1, slug = new THREE.Group();
+    const core = new THREE.Mesh(this.slugGeo, this.slugCore);
+    core.scale.set(0.06 * k, 0.06 * k, 0.22 * k);
+    const halo = new THREE.Mesh(this.slugGeo, this.slugHalo);
+    halo.scale.set(0.11 * k, 0.11 * k, 0.34 * k);
+    const glow = new THREE.Sprite(this.glows.cyan);
+    glow.scale.setScalar(0.7 * k);
+    slug.add(core, halo, glow);
+    slug.userData.slug = k;
+    slug.position.copy(from);
+    this.scene.add(slug);
+    const to = target ? target.position.clone().setY(0.45) : from.clone();
+    slug.lookAt(to);
+    this.bolts.push({ mesh: slug, from, to, walkerId: s.targetId, t: 0, dur: Math.max(0.02, s.dur) });
+    this.addFlash(from, this.glows.cyan, 0.9 * k, 0.15);
+    if (v.rig.vent) {
+      const vent = v.rig.yaw.localToWorld(v.rig.vent.clone());
+      for (let i = 0; i < 3; i++) this.missileFx.steam(vent.clone().add(new THREE.Vector3(0, i * 0.05, 0)), 0.04 * k);
+    }
+  }
+
   private updateBolts(dt: number): void {
     for (const b of this.bolts) {
       b.t += dt;
       const w = this.walkers.get(b.walkerId);
-      if (w) b.to.set(w.position.x, 0.25, w.position.z);
+      if (w) b.to.set(w.position.x, b.mesh.userData.slug ? 0.45 : 0.25, w.position.z);
       b.mesh.position.lerpVectors(b.from, b.to, Math.min(1, b.t / b.dur));
+      if (b.mesh.userData.slug && b.t < b.dur) b.mesh.lookAt(b.to);
     }
-    this.bolts = this.bolts.filter(b => { if (b.t < b.dur) return true; this.scene.remove(b.mesh); return false; });
+    this.bolts = this.bolts.filter(b => {
+      if (b.t < b.dur) return true;
+      this.scene.remove(b.mesh);
+      // A slug lands with a cyan burst.
+      const k = b.mesh.userData.slug as number | undefined;
+      if (k) { this.addFlash(b.to, this.glows.cyan, 1.3 * k, 0.25); this.addFlash(b.to, this.glows.muzzle, 0.6 * k, 0.15); }
+      return false;
+    });
     for (const f of this.flashes) {
       f.life -= dt;
       f.sprite.scale.setScalar(f.size * Math.max(0.01, f.life / f.max));
