@@ -45,13 +45,14 @@ scene.add(grid);
 
 const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
 let zoom = 1;
+const lookAt = new THREE.Vector3(0, 0.5, 0);
 function resize(): void {
   const w = container.clientWidth, h = container.clientHeight, aspect = w / h;
   renderer.setSize(w, h);
   const half = Math.max(3, 3.4 / aspect) / (zoom * 2.2);
   camera.left = -half * aspect; camera.right = half * aspect; camera.top = half; camera.bottom = -half;
-  camera.position.copy(CAM_DIR).multiplyScalar(40).add(new THREE.Vector3(0, 0.5, 0));
-  camera.lookAt(0, 0.5, 0);
+  camera.position.copy(CAM_DIR).multiplyScalar(40).add(lookAt);
+  camera.lookAt(lookAt);
   camera.updateProjectionMatrix();
 }
 addEventListener("resize", resize);
@@ -86,12 +87,15 @@ model.scale.setScalar(k);
 const GREY = new THREE.MeshStandardMaterial({ color: "#2c3142", flatShading: true, roughness: 0.6, metalness: 0.05 });
 mesh.material = GREY;
 
-// The gun, Erik's Starforge Blaster: in the right hand, its barrel along the forearm (so it
-// points ahead when the arm is raised). Its muzzle is the model's -x end, its top +y.
+// The gun, Erik's Starforge Blaster, held in the right fist: fixed to the hand bone, so it
+// follows the wrist. Set up once in the bind pose (arms out, palms down): the grip at the
+// middle of the hand, the barrel along the arm, the top toward his front (the thumb side).
+// The model's muzzle is its -x end, its top +y.
+const GUN_LENGTH = 0.3 * rigHeight, GRIP = new THREE.Vector3(0.58, -0.52, 0);
+// The wrist: carried, the barrel points ahead and a little down; aimed, along the arm.
+const gunTune = { along: 0, up: 0, side: 0, roll: 0, carry: -1.35, aimed: 0 };
 const gun = new THREE.Group();
-scene.add(gun);
-const GUN_LENGTH = 0.36 * rigHeight, GRIP = new THREE.Vector3(0.55, -0.3, 0);
-let gunScale = 1;
+let placeGun = (_pitch: number) => {};
 {
   const g = await new Promise<import("three/examples/jsm/loaders/GLTFLoader.js").GLTF>((ok, fail) =>
     new GLTFLoader().parse(Uint8Array.from(atob(BLASTER), c => c.charCodeAt(0)).buffer, "", ok, fail));
@@ -101,13 +105,47 @@ let gunScale = 1;
   geo.deleteAttribute("normal");
   geo.computeVertexNormals();
   const box = new THREE.Box3().setFromBufferAttribute(geo.attributes.position as THREE.BufferAttribute);
-  gunScale = GUN_LENGTH / (box.max.x - box.min.x);
-  const m = new THREE.Mesh(geo, GREY);
+  const m = new THREE.Mesh(geo, GREY.clone());
   m.castShadow = true;
-  m.scale.setScalar(gunScale);
-  m.position.copy(GRIP).multiplyScalar(-gunScale);
   gun.add(m);
+  (window as unknown as { gunMesh: THREE.Mesh }).gunMesh = m;
+
+  // All in the mesh's bind space (where the vertices are): +y up, +z his front.
+  model.updateMatrixWorld(true);
+  const meshScale = mesh.getWorldScale(new THREE.Vector3()).x;
+  const hi = bones.indexOf(bone("RightHand")), fi = bones.indexOf(bone("RightForeArm"));
+  const bindOf = (i: number) => mesh.skeleton.boneInverses[i]!.clone().invert();
+  const handAt = new THREE.Vector3().setFromMatrixPosition(bindOf(hi)), elbowAt = new THREE.Vector3().setFromMatrixPosition(bindOf(fi));
+  // The middle of the hand: vertices moved mostly by the hand or its fingers.
+  const pos = mesh.geometry.attributes.position!, si = mesh.geometry.attributes.skinIndex!, sw = mesh.geometry.attributes.skinWeight!;
+  const palm = new THREE.Vector3(); let count = 0;
+  for (let v = 0; v < pos.count; v++) {
+    let best = 0, bi = -1;
+    for (let q = 0; q < 4; q++) if (sw.getComponent(v, q) > best) { best = sw.getComponent(v, q); bi = si.getComponent(v, q); }
+    if (bi >= 0 && bones[bi]!.name.toLowerCase().includes("righthand")) { palm.x += pos.getX(v); palm.y += pos.getY(v); palm.z += pos.getZ(v); count++; }
+  }
+  if (count) palm.divideScalar(count); else palm.copy(handAt);
+  placeGun = (pitch: number) => {
+    const along = handAt.clone().sub(elbowAt).normalize();
+    const top = new THREE.Vector3(0, 0, 1).addScaledVector(along, -along.z).normalize();
+    const x = along.clone().negate(), z = new THREE.Vector3().crossVectors(x, top);
+    const rot = new THREE.Matrix4().makeBasis(x, top, z)
+      .multiply(new THREE.Matrix4().makeRotationX(gunTune.roll)).multiply(new THREE.Matrix4().makeRotationZ(pitch));
+    const scale = GUN_LENGTH / meshScale / (box.max.x - box.min.x);
+    const at = palm.clone().addScaledVector(along, gunTune.along * rigHeight / meshScale)
+      .addScaledVector(top, gunTune.up * rigHeight / meshScale).addScaledVector(z, gunTune.side * rigHeight / meshScale);
+    const inBind = new THREE.Matrix4().compose(new THREE.Vector3(), new THREE.Quaternion().setFromRotationMatrix(rot), new THREE.Vector3(scale, scale, scale));
+    const grip = GRIP.clone().applyMatrix4(inBind);
+    inBind.setPosition(at.clone().sub(grip));
+    // Hand space = the bone's inverse bind times bind space.
+    const local = mesh.skeleton.boneInverses[hi]!.clone().multiply(inBind);
+    local.decompose(gun.position, gun.quaternion, gun.scale);
+  };
+  placeGun(gunTune.carry);
+  bone("RightHand").add(gun);
 }
+(window as unknown as { gunTune: typeof gunTune }).gunTune = gunTune;
+(window as unknown as { gripAt: () => number[] }).gripAt = () => gun.localToWorld(GRIP.clone()).toArray();
 
 // Clips.
 const mixer = new THREE.AnimationMixer(model);
@@ -153,6 +191,8 @@ const slide = new THREE.Vector2();
 renderer.domElement.addEventListener("pointerdown", e => { if (e.button === 0) { dragX = e.clientX; renderer.domElement.setPointerCapture(e.pointerId); } });
 renderer.domElement.addEventListener("pointermove", e => { if (dragX !== null) { heading += (e.clientX - dragX) * 0.012; dragX = e.clientX; } });
 renderer.domElement.addEventListener("pointerup", () => { dragX = null; });
+// Test hooks (headless checks): face a heading, zoom on a point.
+(window as unknown as { mockCam: (h: number, z: number, at: number[]) => void }).mockCam = (h, z, at) => { heading = h; zoom = z; lookAt.fromArray(at); resize(); };
 const weights = { stand: 0, walk: 0, run: 1, sprint: 0 };
 const q = new THREE.Quaternion(), v = new THREE.Vector3(), fwd = new THREE.Vector3();
 const restFore = bone("RightForeArm").quaternion.clone();
@@ -189,6 +229,7 @@ function frame(now: number): void {
   // In the air: knees up.
   if (!grounded) for (const s of ["LeftUpLeg", "RightUpLeg"]) bone(s).rotateX(-0.6);
   // Aiming: the right arm points ahead and a little down, the forearm straight.
+  placeGun(toolUp ? gunTune.aimed : gunTune.carry);
   if (toolUp) {
     sentinel.updateMatrixWorld(true);
     const arm = bone("RightArm"), fore = bone("RightForeArm");
@@ -200,16 +241,6 @@ function frame(now: number): void {
     const parentQ = arm.parent!.getWorldQuaternion(new THREE.Quaternion()), worldQ = arm.getWorldQuaternion(new THREE.Quaternion());
     arm.quaternion.copy(parentQ.invert().multiply(delta.multiply(worldQ)));
   }
-
-  // The gun: grip in the hand, barrel along the forearm, its top toward the sky and ahead.
-  sentinel.updateMatrixWorld(true);
-  const hand = bone("RightHand").getWorldPosition(new THREE.Vector3()), elbow = bone("RightForeArm").getWorldPosition(new THREE.Vector3());
-  const dir = hand.clone().sub(elbow).normalize();
-  const ahead = new THREE.Vector3(0, 0, 1).applyQuaternion(sentinel.quaternion);
-  const up = new THREE.Vector3(0, 1, 0).add(ahead).addScaledVector(dir, -(dir.y + dir.dot(ahead))).normalize();
-  const xAxis = dir.clone().negate(), zAxis = new THREE.Vector3().crossVectors(xAxis, up);
-  gun.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, up, zAxis));
-  gun.position.copy(hand).addScaledVector(dir, 0.02 * rigHeight);
 
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
