@@ -285,7 +285,7 @@ export class GameView {
     }
     const sg = new THREE.BufferGeometry();
     sg.setAttribute("position", new THREE.BufferAttribute(this.snowPos, 3));
-    this.snow = new THREE.Points(sg, new THREE.PointsMaterial({ color: "#ffffff", size: 3, sizeAttenuation: false, transparent: true, opacity: 0.9 }));
+    this.snow = new THREE.Points(sg, new THREE.PointsMaterial({ color: this.lighting.look.flakes, size: 3, sizeAttenuation: false, transparent: true, opacity: 0.9 }));
     this.snow.frustumCulled = false;
     this.scene.add(this.snow);
 

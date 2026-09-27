@@ -22,11 +22,9 @@ export interface LightLook {
   sky: { zenith: string; horizon: string; ground: string; intensity: number } | null;
   hemi: { sky: string; ground: string; intensity: number } | null;
   sun: { color: string; intensity: number };
-  /**
-   * Bloom on what glows (visors, cracks, windows, missiles); null for none. With bloom the
-   * lights are halved and the exposure doubled: the picture stays the same, but lit snow
-   * stays under the threshold and only glowing parts (which no light dims) go over it.
-   */
+  /** Falling snowflakes' colour: under the bloom threshold, so they never glow. */
+  flakes: string;
+  /** Bloom on what glows (visors, cracks, windows, missiles): only what is brighter than `threshold`; null for none. */
   bloom: { strength: number; radius: number; threshold: number } | null;
 }
 
@@ -38,42 +36,44 @@ export const LOOKS: Record<LookName, LightLook> = {
     sky: null,
     hemi: { sky: "#b3acd9", ground: "#4a4769", intensity: 0.6 * Math.PI * 0.62 },
     sun: { color: "#ff9a62", intensity: 0.9 * Math.PI * 0.8 },
+    flakes: "#ffffff",
     bloom: null,
   },
-  // A: clear evening. True colours (neutral tone mapping), light from the whole sky, no bloom.
+  // Three dusks on the old pipeline (Erik: the old look beats the modern one), each later than Now.
+  // A: late evening. Now with the sun lower and rosier and a lilac sky light. No bloom.
   A: {
-    label: "A Clear",
-    colorManaged: true, toneMapping: THREE.NeutralToneMapping, exposure: 1.05,
-    background: "#6c6b98",
-    sky: { zenith: "#8a93d0", horizon: "#eadbe2", ground: "#f2f2f8", intensity: 1.0 },
-    hemi: null,
-    sun: { color: "#ffc09a", intensity: 2.2 },
+    label: "A Late",
+    colorManaged: false, toneMapping: THREE.NoToneMapping, exposure: 1,
+    background: "#62588f",
+    sky: null,
+    hemi: { sky: "#bba6e2", ground: "#4a3f6a", intensity: 0.6 * Math.PI * 0.62 },
+    sun: { color: "#ff7858", intensity: 0.78 * Math.PI * 0.8 },
+    flakes: "#eef0fa",
     bloom: null,
   },
-  // B: golden hour. Filmic (ACES), a stronger low warm sun, cool sky in the shadows, soft bloom.
+  // B: violet dusk. Darker than A, and what glows (visors, cracks, windows, shots) softly blooms.
   B: {
-    label: "B Golden",
-    colorManaged: true, toneMapping: THREE.ACESFilmicToneMapping, exposure: 1.0,
-    background: "#6a6597",
-    sky: { zenith: "#7280c8", horizon: "#f0d2c6", ground: "#ecebf5", intensity: 0.8 },
-    hemi: null,
-    sun: { color: "#ffa468", intensity: 3.0 },
-    bloom: { strength: 0.35, radius: 0.5, threshold: 0.9 },
+    label: "B Violet",
+    colorManaged: false, toneMapping: THREE.NoToneMapping, exposure: 1,
+    background: "#545488",
+    sky: null,
+    hemi: { sky: "#9488dc", ground: "#34305a", intensity: 0.52 * Math.PI * 0.62 },
+    sun: { color: "#ff6a50", intensity: 0.5 * Math.PI * 0.8 },
+    flakes: "#dfe2f2",
+    bloom: { strength: 0.45, radius: 0.45, threshold: 0.93 },
   },
-  // C: dusk. The sun nearly gone, a deep blue sky light, and the colony's glows carry the scene.
+  // C: blue dusk. The sun a faint rose rim, a deep blue sky light, the colony's glows strongest.
   C: {
-    label: "C Dusk",
-    colorManaged: true, toneMapping: THREE.NeutralToneMapping, exposure: 1.0,
-    background: "#3f4570",
-    sky: { zenith: "#4a66b4", horizon: "#9fb0d4", ground: "#c4cfe4", intensity: 0.75 },
-    hemi: null,
-    sun: { color: "#ff9a58", intensity: 1.4 },
-    bloom: { strength: 0.7, radius: 0.6, threshold: 0.9 },
+    label: "C Blue",
+    colorManaged: false, toneMapping: THREE.NoToneMapping, exposure: 1,
+    background: "#3a4a82",
+    sky: null,
+    hemi: { sky: "#7a98ec", ground: "#28345c", intensity: 0.55 * Math.PI * 0.62 },
+    sun: { color: "#ffa878", intensity: 0.32 * Math.PI * 0.8 },
+    flakes: "#cfdaf2",
+    bloom: { strength: 0.7, radius: 0.55, threshold: 0.9 },
   },
 };
-
-/** Light scale under bloom (see `LightLook.bloom`). */
-const BLOOM_LIGHT = 0.5;
 
 let current: LookName = "now";
 THREE.ColorManagement.enabled = LOOKS[current].colorManaged;
@@ -118,15 +118,14 @@ export class Lighting {
   constructor(private renderer: THREE.WebGLRenderer, private scene: THREE.Scene, camera: THREE.Camera) {
     const L = this.look;
     renderer.toneMapping = L.toneMapping;
-    const k = L.bloom ? BLOOM_LIGHT : 1;
-    renderer.toneMappingExposure = L.exposure / k;
+    renderer.toneMappingExposure = L.exposure;
     scene.background = new THREE.Color(L.background);
     if (L.sky) {
       scene.environment = skyEnvironment(renderer, L.sky);
-      scene.environmentIntensity = L.sky.intensity * k;
+      scene.environmentIntensity = L.sky.intensity;
     }
     if (L.hemi) scene.add(new THREE.HemisphereLight(L.hemi.sky, L.hemi.ground, L.hemi.intensity));
-    this.sun = new THREE.DirectionalLight(L.sun.color, L.sun.intensity * k);
+    this.sun = new THREE.DirectionalLight(L.sun.color, L.sun.intensity);
     if (L.bloom) {
       const size = renderer.getSize(new THREE.Vector2());
       const target = new THREE.WebGLRenderTarget(Math.max(1, size.x), Math.max(1, size.y), { type: THREE.HalfFloatType, samples: 4 });
