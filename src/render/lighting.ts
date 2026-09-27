@@ -39,40 +39,38 @@ export const LOOKS: Record<LookName, LightLook> = {
     flakes: "#ffffff",
     bloom: null,
   },
-  // Three dusks on the modern pipeline. Lit snow and snowflakes stay under the bloom threshold,
-  // so only what really glows (visors, the core, cracks, shots) blooms.
-  // A: dusk. The sun nearly gone, a blue sky light, soft bloom.
+  // Three cozy evenings on the modern pipeline (Erik: the new handling, but less contrast than
+  // the dusks). Now's evening colours; each step softer: more light from the whole sky and
+  // bounced off the snow, less from the sun, so shadows stay light and colours stay gentle.
   A: {
-    label: "A Dusk",
+    label: "A Cozy",
     colorManaged: true, toneMapping: THREE.NeutralToneMapping, exposure: 1.0,
-    background: "#3f4570",
-    sky: { zenith: "#4a66b4", horizon: "#9fb0d4", ground: "#c4cfe4", intensity: 0.75 },
-    hemi: null,
-    sun: { color: "#ff9a58", intensity: 1.4 },
-    flakes: "#d0d8ea",
-    bloom: { strength: 0.5, radius: 0.5, threshold: 0.75 },
+    background: "#6c6b98",
+    sky: { zenith: "#9a9ad8", horizon: "#f0d0d0", ground: "#e8e4f2", intensity: 0.9 },
+    hemi: { sky: "#b3acd9", ground: "#8a86b0", intensity: 0.5 },
+    sun: { color: "#ff9a62", intensity: 1.7 },
+    flakes: "#f2f3fa",
+    bloom: null,
   },
-  // B: rose dusk. A warmer, pinker sky and a stronger low sun.
   B: {
-    label: "B Rose",
-    colorManaged: true, toneMapping: THREE.NeutralToneMapping, exposure: 1.0,
-    background: "#4a4478",
-    sky: { zenith: "#5a5aa8", horizon: "#d9a8b8", ground: "#d0c8e0", intensity: 0.8 },
-    hemi: null,
-    sun: { color: "#ff7a5a", intensity: 1.6 },
-    flakes: "#dcd6ea",
-    bloom: { strength: 0.5, radius: 0.5, threshold: 0.75 },
+    label: "B Cozier",
+    colorManaged: true, toneMapping: THREE.NeutralToneMapping, exposure: 0.96,
+    background: "#6c6b98",
+    sky: { zenith: "#9a9ad8", horizon: "#f0d0d0", ground: "#e8e4f2", intensity: 1.1 },
+    hemi: { sky: "#b3acd9", ground: "#9a96c0", intensity: 0.7 },
+    sun: { color: "#ff9a62", intensity: 1.35 },
+    flakes: "#f2f3fa",
+    bloom: null,
   },
-  // C: deep dusk. Darker and bluer, the sun a faint rim, the colony's glows strongest.
   C: {
-    label: "C Deep",
-    colorManaged: true, toneMapping: THREE.NeutralToneMapping, exposure: 1.0,
-    background: "#323c66",
-    sky: { zenith: "#334a96", horizon: "#7f90c0", ground: "#a8b4d4", intensity: 0.6 },
-    hemi: null,
-    sun: { color: "#ffb070", intensity: 0.8 },
-    flakes: "#b8c4e0",
-    bloom: { strength: 0.8, radius: 0.55, threshold: 0.65 },
+    label: "C Softest",
+    colorManaged: true, toneMapping: THREE.NeutralToneMapping, exposure: 0.9,
+    background: "#6c6b98",
+    sky: { zenith: "#9a9ad8", horizon: "#f0d0d0", ground: "#e8e4f2", intensity: 1.3 },
+    hemi: { sky: "#b3acd9", ground: "#aaa6cc", intensity: 0.9 },
+    sun: { color: "#ff9a62", intensity: 1.05 },
+    flakes: "#f2f3fa",
+    bloom: null,
   },
 };
 
