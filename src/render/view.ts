@@ -12,11 +12,11 @@ import { MAX_TOWER_SIZE, TOWER_INFO, TOWER_KINDS, type Tower, type TowerKind } f
 import type { Cell } from "../sim/types";
 import { MissileFx } from "./blast";
 import type { BakedPart } from "./bake";
+import { Lighting } from "./lighting";
 import { createDefaultModels, createGlows, createMaterials, DECK_TOP, EVENING, type Glows, type Materials, type ModelLibrary, type TurretRig } from "./models";
 import { Sentinel } from "./sentinel";
 
 // Author colors as plain hex, with legacy-like light intensities.
-THREE.ColorManagement.enabled = false;
 
 /** What the input layer wants drawn on top of the game state this frame. */
 export interface Overlay {
@@ -126,6 +126,7 @@ export class GameView {
   private mat: Materials;
   private models: ModelLibrary;
   private sun: THREE.DirectionalLight;
+  private lighting: Lighting;
   private pieces = new Map<number, PieceView>();
   private wallSig = "";
   private walkers = new Map<number, THREE.Object3D>();
@@ -207,10 +208,8 @@ export class GameView {
     this.models = createDefaultModels(this.mat);
     this.missileFx = new MissileFx(this.scene, this.mat, glows.muzzle);
 
-    const P = EVENING;
-    this.scene.background = new THREE.Color(P.background);
-    this.scene.add(new THREE.HemisphereLight(P.sky, P.ground, P.hemi * Math.PI * 0.62));
-    this.sun = new THREE.DirectionalLight(P.sun, P.sunIntensity * Math.PI * 0.8);
+    this.lighting = new Lighting(this.renderer, this.scene, this.camera);
+    this.sun = this.lighting.sun;
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
     Object.assign(this.sun.shadow.camera, { left: -16, right: 16, top: 16, bottom: -16, near: 0.5, far: 60 });
@@ -378,6 +377,7 @@ export class GameView {
   resize(): void {
     const w = this.container.clientWidth, h = this.container.clientHeight;
     this.renderer.setSize(w, h);
+    this.lighting.resize(w, h);
     this.applyZoom();
   }
 
@@ -569,7 +569,7 @@ export class GameView {
     const snapped = p.set(0, 0, 0).addScaledVector(LIGHT_RIGHT, u).addScaledVector(LIGHT_UP, v).addScaledVector(LIGHT_DIR, w);
     this.sun.target.position.copy(snapped);
     this.sun.position.copy(snapped).addScaledVector(LIGHT_DIR, -LIGHT_DIST);
-    this.renderer.render(this.scene, this.camera);
+    this.lighting.render(this.camera);
   }
 
   /**
