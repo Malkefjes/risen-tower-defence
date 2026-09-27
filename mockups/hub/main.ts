@@ -3,9 +3,10 @@ import { EVENING } from "../../src/render/models";
 import { colonyOrange } from "../../src/render/palette";
 import { Sentinel } from "../../src/render/sentinel";
 
-// The hub, the base's core (it replaces the ship; the ship becomes a drop pad): three looks,
-// A beacon dome, B power spire, C command module, each on its 3×3 cells, in the game's evening
-// light, with the Sentinel for scale. Drag to turn, wheel to zoom.
+// The hub, the base's core (it replaces the ship; the ship becomes a drop pad): three command
+// modules on the ground, A bunker, B twin hangar, C stepped command, each on its 3×3 cells, in
+// the colony's dark steel, orange and cyan (no white), in the game's evening light, with the
+// Sentinel for scale. Drag to turn, wheel to zoom.
 
 THREE.ColorManagement.enabled = false;
 
@@ -59,7 +60,6 @@ resize();
 
 const std = (color: string, o: THREE.MeshStandardMaterialParameters = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.6, metalness: 0.05, flatShading: true, ...o });
 const M = {
-  white: std("#eef1f6", { roughness: 0.5 }),
   steel: std("#3d4457", { roughness: 0.55 }),
   dark: std("#2c3142", { roughness: 0.6 }),
   deck: std("#4a5266", { roughness: 0.65 }),
@@ -82,131 +82,125 @@ const cyl = (rt: number, rb: number, h: number, m: THREE.Material, x = 0, y = 0,
 /** Each look: its model and what moves on it every frame. */
 type Hub = { object: THREE.Group; update: (t: number) => void };
 
-// ------------------------------------------------------------------ A · beacon dome
+const CORNERS = [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const;
 
-function beaconDome(): Hub {
+// ------------------------------------------------------------------ A · bunker
+
+function bunker(): Hub {
   const g = new THREE.Group();
-  // An eight-sided steel platform filling the 3×3 cells, an orange trim, a low deck on it.
-  g.add(cyl(1.5, 1.55, 0.22, M.steel, 0, 0, 0, 8));
-  g.add(cyl(1.47, 1.47, 0.06, M.orange, 0, 0.22, 0, 8));
-  g.add(cyl(1.3, 1.35, 0.1, M.deck, 0, 0.28, 0, 8));
-  // The dome: faceted white, a flat-bottomed half of a low-poly ball.
-  const dome = new THREE.SphereGeometry(1.05, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2);
-  g.add(mesh(dome, M.white, 0, 0.38, 0));
-  // The cyan power ring round its foot, which breathes.
-  const ringMat = M.power.clone(), ring = mesh(new THREE.TorusGeometry(1.08, 0.05, 6, 24).rotateX(Math.PI / 2), ringMat, 0, 0.42, 0);
-  g.add(ring);
-  // A door frame toward the front.
-  g.add(box(0.46, 0.55, 0.12, M.orange, 0, 0.38, 0.98));
-  g.add(box(0.34, 0.47, 0.13, M.dark, 0, 0.38, 1.0));
-  // Four cargo pods on the corners.
-  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
-    const pod = new THREE.Group();
-    pod.add(box(0.46, 0.34, 0.46, M.white, 0, 0, 0));
-    pod.add(box(0.48, 0.06, 0.48, M.orange, 0, 0.12, 0));
-    pod.position.set(sx * 1.05, 0.28, sz * 1.05);
-    pod.rotation.y = Math.PI / 4;
-    g.add(pod);
+  // A low armoured block on the ground, its sides sloping in: a frustum with four faces.
+  const body = mesh(new THREE.CylinderGeometry(1.1, 1.5 * Math.SQRT2 * 0.95, 0.9, 4, 1).rotateY(Math.PI / 4), M.steel, 0, 0.45, 0);
+  g.add(body);
+  // Where the slopes are: half the width at the foot and at the top, and their lean.
+  const FOOT = 1.425, TOP = 0.78, H = 0.9, LEAN = Math.atan((FOOT - TOP) / H);
+  const at = (y: number) => FOOT - (FOOT - TOP) * (y / H);
+  // Orange armour plates on the sides and back, lying on the slopes, a cyan light slit above each.
+  for (let i = 1; i < 4; i++) {
+    const side = new THREE.Group();
+    const plate = mesh(new THREE.BoxGeometry(1.6, 0.42, 0.06), M.orange, 0, 0.34, at(0.34) + 0.03);
+    plate.rotation.x = -LEAN;
+    side.add(plate);
+    const slit = mesh(new THREE.BoxGeometry(1.0, 0.05, 0.04), M.power, 0, 0.72, at(0.72) + 0.02);
+    slit.rotation.x = -LEAN;
+    side.add(slit);
+    side.rotation.y = (i * Math.PI) / 2;
+    g.add(side);
   }
-  // A comms mast off the top, a cyan light at its tip.
-  g.add(cyl(0.035, 0.05, 0.9, M.dark, 0.35, 1.3, -0.2, 6));
-  const tip = mesh(new THREE.SphereGeometry(0.07, 8, 6), M.lit.clone(), 0.35, 2.24, -0.2);
+  // The front: an entrance porch out of the slope, its blast door framed in cyan.
+  g.add(box(0.95, 0.72, 0.6, M.dark, 0, 0, 1.2));
+  g.add(box(1.0, 0.08, 0.64, M.orange, 0, 0.72, 1.2));
+  g.add(box(0.72, 0.6, 0.04, M.power, 0, 0, 1.5));
+  g.add(box(0.62, 0.54, 0.05, M.deck, 0, 0, 1.51));
+  g.add(box(0.04, 0.54, 0.06, M.dark, 0, 0, 1.515));
+  // Roof: a flat deck, a hatch, a comms mast with a blinking tip.
+  g.add(box(1.5, 0.08, 1.5, M.deck, 0, 0.9, 0));
+  g.add(cyl(0.22, 0.25, 0.1, M.orange, -0.35, 0.98, -0.3, 8));
+  g.add(cyl(0.035, 0.05, 1.0, M.dark, 0.4, 0.98, -0.35, 6));
+  const tip = mesh(new THREE.SphereGeometry(0.07, 8, 6), M.lit.clone(), 0.4, 2.02, -0.35);
   g.add(tip);
   return {
     object: g,
-    update: t => {
-      ringMat.emissiveIntensity = 0.45 + 0.35 * (0.5 + 0.5 * Math.sin(t * 1.6));
-      (tip.material as THREE.MeshStandardMaterial).emissiveIntensity = Math.sin(t * 3) > 0.6 ? 1.6 : 0.5;
-    },
+    update: t => { (tip.material as THREE.MeshStandardMaterial).emissiveIntensity = Math.sin(t * 3) > 0.6 ? 1.8 : 0.4; },
   };
 }
 
-// ------------------------------------------------------------------ B · power spire
+// ------------------------------------------------------------------ B · twin hangar
 
-function powerSpire(): Hub {
+function twinHangar(): Hub {
   const g = new THREE.Group();
-  // A square steel plinth on the 3×3 cells, orange pillars on its corners.
-  g.add(box(2.9, 0.3, 2.9, M.steel));
-  g.add(box(2.5, 0.12, 2.5, M.deck, 0, 0.3));
-  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) g.add(box(0.36, 0.7, 0.36, M.orange, sx * 1.2, 0.3, sz * 1.2));
-  // Conduits out to all four sides, where the walls connect: the hub feeds the network.
-  for (let i = 0; i < 4; i++) {
-    const c = new THREE.Group();
-    c.add(box(0.9, 0.14, 0.22, M.dark, 0.95, 0.42, 0));
-    c.add(box(0.5, 0.05, 0.08, M.power, 1.05, 0.56, 0));
-    c.rotation.y = (i * Math.PI) / 2;
-    g.add(c);
+  const ridges: THREE.MeshStandardMaterial[] = [];
+  // Two ribbed half-round halls on the ground, side by side, running front to back.
+  for (const sx of [-1, 1]) {
+    const hall = new THREE.Group();
+    hall.position.x = sx * 0.78;
+    hall.add(mesh(new THREE.CylinderGeometry(0.68, 0.68, 2.8, 8, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).rotateY(Math.PI / 2), M.steel, 0, 0, 0));
+    // Ribs across the roof.
+    for (let i = -2; i <= 2; i++) hall.add(mesh(new THREE.TorusGeometry(0.69, 0.035, 4, 8, Math.PI), M.dark, 0, 0, i * 0.6));
+    // Orange doors on both ends, a cyan strip along the ridge.
+    for (const sz of [-1, 1]) hall.add(mesh(new THREE.CircleGeometry(0.64, 8, 0, Math.PI).rotateY(sz > 0 ? 0 : Math.PI), M.orange, 0, 0.001, sz * 1.41));
+    const strip = M.power.clone();
+    ridges.push(strip);
+    hall.add(mesh(new THREE.BoxGeometry(0.08, 0.04, 2.5), strip, 0, 0.69, 0));
+    g.add(hall);
   }
-  // The core: a white column rising in three tiers, cyan bands between them that pulse upward.
-  const bands: THREE.Mesh[] = [];
-  let y = 0.42;
-  for (const [r, h] of [[0.72, 0.6], [0.58, 0.55], [0.45, 0.5]] as const) {
-    g.add(cyl(r * 0.92, r, h, M.white, 0, y, 0, 10));
-    y += h;
-    const band = mesh(new THREE.CylinderGeometry(r * 0.94, r * 0.94, 0.1, 10), M.power.clone(), 0, y + 0.05, 0);
-    g.add(band);
-    bands.push(band);
-    y += 0.1;
-  }
-  // A radar dish on top, turning slowly.
+  // The control tower joining them in the middle, a dish turning on top.
+  g.add(box(0.5, 1.15, 0.8, M.dark, 0, 0, 0));
+  g.add(box(0.54, 0.14, 0.84, M.orange, 0, 1.15, 0));
+  g.add(box(0.52, 0.1, 0.5, M.lit, 0, 0.85, 0.2));
   const head = new THREE.Group();
-  head.position.y = y;
-  head.add(cyl(0.08, 0.1, 0.25, M.dark, 0, 0, 0, 8));
-  const dish = mesh(new THREE.SphereGeometry(0.42, 12, 4, 0, Math.PI * 2, 0, Math.PI / 3).rotateX(-Math.PI / 2 - 0.5), M.white, 0, 0.35, 0);
-  head.add(dish);
-  head.add(mesh(new THREE.SphereGeometry(0.05, 8, 6), M.lit, 0, 0.42, 0.2));
+  head.position.y = 1.29;
+  head.add(cyl(0.05, 0.07, 0.25, M.steel, 0, 0, 0, 8));
+  head.add(mesh(new THREE.SphereGeometry(0.34, 12, 4, 0, Math.PI * 2, 0, Math.PI / 3).rotateX(-Math.PI / 2 - 0.6), M.steel, 0, 0.32, 0));
+  head.add(mesh(new THREE.SphereGeometry(0.045, 8, 6), M.lit, 0, 0.36, 0.16));
   g.add(head);
   return {
     object: g,
     update: t => {
-      head.rotation.y = t * 0.6;
-      bands.forEach((b, i) => { (b.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.35 + 0.9 * Math.max(0, Math.sin(t * 2.2 - i * 0.9)); });
+      head.rotation.y = t * 0.5;
+      ridges.forEach((m, i) => { m.emissiveIntensity = 0.35 + 0.8 * Math.max(0, Math.sin(t * 2 + i * Math.PI)); });
     },
   };
 }
 
-// ------------------------------------------------------------------ C · command module
+// ------------------------------------------------------------------ C · stepped command
 
-function commandModule(): Hub {
+function steppedCommand(): Hub {
   const g = new THREE.Group();
-  // Stilts on steel pads at the corners of the 3×3 cells.
-  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
-    g.add(box(0.4, 0.08, 0.4, M.steel, sx * 1.1, 0, sz * 1.1));
-    g.add(box(0.14, 0.5, 0.14, M.dark, sx * 1.05, 0.08, sz * 1.05));
+  const edges = M.power.clone();
+  // A wide base block on the ground, a smaller deck on it, a command cab on top.
+  g.add(box(2.9, 0.55, 2.9, M.steel));
+  g.add(box(2.1, 0.45, 2.1, M.dark, 0, 0.55));
+  g.add(box(1.3, 0.5, 1.3, M.steel, 0, 1.0));
+  // Cyan lights along the step edges.
+  for (const [w, y] of [[2.92, 0.55], [2.12, 1.0]] as const) {
+    for (let i = 0; i < 4; i++) {
+      const e = mesh(new THREE.BoxGeometry(w, 0.04, 0.04), edges, 0, y, w / 2);
+      const holder = new THREE.Group();
+      holder.add(e);
+      holder.rotation.y = (i * Math.PI) / 2;
+      g.add(holder);
+    }
   }
-  // The habitat: a long white block with an orange stripe, a dark base plate.
-  g.add(box(2.6, 0.12, 2.3, M.steel, 0, 0.55));
-  g.add(box(2.5, 0.8, 2.1, M.white, 0, 0.67));
-  g.add(box(2.52, 0.12, 2.12, M.orange, 0, 1.0));
-  // Lit windows along the sides.
-  for (const s of [-1, 1]) for (let i = -1; i <= 1; i++) g.add(box(0.36, 0.2, 0.04, M.lit, i * 0.7, 0.75, s * 1.06));
-  // A cargo door toward the front, in an orange frame, and a ramp down to the snow.
-  g.add(box(0.12, 0.62, 0.8, M.orange, 1.26, 0.67, 0));
-  g.add(box(0.13, 0.54, 0.64, M.dark, 1.27, 0.67, 0));
-  const ramp = mesh(new THREE.BoxGeometry(0.8, 0.05, 0.64), M.deck, 1.62, 0.33, 0);
-  ramp.rotation.z = -0.55;
-  g.add(ramp);
-  // Solar wings on both ends.
-  for (const s of [-1, 1]) {
-    g.add(box(0.1, 0.1, 0.3, M.dark, 0, 1.2, s * 1.2));
-    const wing = mesh(new THREE.BoxGeometry(2.2, 0.04, 0.7), M.glass, 0, 1.3, s * 1.62);
-    wing.rotation.x = s * 0.25;
-    g.add(wing);
+  // The cab's windows: a cyan band all round.
+  g.add(box(1.32, 0.16, 1.32, M.lit, 0, 1.22));
+  g.add(box(1.36, 0.08, 1.36, M.orange, 0, 1.5));
+  // Orange bumpers on the base's corners, a door on the front.
+  for (const [sx, sz] of CORNERS) g.add(box(0.3, 0.6, 0.3, M.orange, sx * 1.36, 0, sz * 1.36));
+  g.add(box(0.7, 0.45, 0.06, M.orange, 0, 0, 1.46));
+  g.add(box(0.58, 0.4, 0.07, M.dark, 0, 0, 1.465));
+  // The antenna array on the cab.
+  const tips: THREE.MeshStandardMaterial[] = [];
+  for (const [x, h] of [[-0.35, 0.7], [0, 1.0], [0.35, 0.55]] as const) {
+    g.add(cyl(0.025, 0.035, h, M.dark, x, 1.58, -0.3, 6));
+    const tm = M.lit.clone();
+    tips.push(tm);
+    g.add(mesh(new THREE.SphereGeometry(0.05, 8, 6), tm, x, 1.58 + h, -0.3));
   }
-  // Roof: vents and a comms dish turning slowly.
-  g.add(box(0.5, 0.16, 0.4, M.steel, -0.7, 1.12, 0));
-  const head = new THREE.Group();
-  head.position.set(0.6, 1.12, 0);
-  head.add(cyl(0.06, 0.08, 0.28, M.dark, 0, 0, 0, 8));
-  head.add(mesh(new THREE.SphereGeometry(0.34, 12, 4, 0, Math.PI * 2, 0, Math.PI / 3).rotateX(-Math.PI / 2 - 0.6), M.white, 0, 0.36, 0));
-  g.add(head);
-  const beacon = mesh(new THREE.SphereGeometry(0.06, 8, 6), M.lit.clone(), -0.7, 1.36, 0);
-  g.add(beacon);
   return {
     object: g,
     update: t => {
-      head.rotation.y = -t * 0.45;
-      (beacon.material as THREE.MeshStandardMaterial).emissiveIntensity = (t * 1.2) % 1 < 0.15 ? 2 : 0.4;
+      edges.emissiveIntensity = 0.45 + 0.35 * (0.5 + 0.5 * Math.sin(t * 1.4));
+      tips.forEach((m, i) => { m.emissiveIntensity = ((t * 0.8 + i / 3) % 1) < 0.12 ? 2 : 0.35; });
     },
   };
 }
@@ -214,7 +208,7 @@ function commandModule(): Hub {
 // ------------------------------------------------------------------ layout
 
 const SPACING = 5;
-const hubs = [beaconDome(), powerSpire(), commandModule()];
+const hubs = [bunker(), twinHangar(), steppedCommand()];
 const turntable = new THREE.Group();
 scene.add(turntable);
 hubs.forEach((h, i) => {

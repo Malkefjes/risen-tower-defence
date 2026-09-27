@@ -202,7 +202,7 @@ The first world, Frostfall, is a snowy planet with a cozy mood: cold world, warm
 
 Locked: clean low-poly 3D, rendered with three.js through a fixed isometric-style camera. The base should read as a stronghold: a high-tech colony holding ground on a hostile planet.
 
-- **Palette:** colony orange, cyan power, dark steel, and white (snow and light accents). Violet belongs to the aliens.
+- **Palette:** the colony is colony orange, cyan power and dark steel, **no white** (Erik, 2026-09-27; white belongs to the snow). Violet belongs to the aliens.
 - **Walls: Armored deck** (from `mockups/stronghold/`): walls fuse with every neighbouring wall, whatever piece it came from, so a wall line is one continuous structure. One orange for all walls. Dark steel plinth, orange armor, steel gun deck on top, a thin cyan power line along the outside. The power line is dim until power exists, then lights on powered walls.
 - **Ship:** the Rocket (3×3), with the Reactor core mid-body. It has a weak built-in gun that fires from the core: a circular range of about 5.5 cells, slow and light, enough to help early on but never a replacement for towers. Towers mostly have circular ranges too; click a turret or the ship to see its range and stats.
 - **Turret:** Twin / Gatling (design B from `mockups/turrets/`).
@@ -238,7 +238,7 @@ Not locked yet: zoom range, final model shapes.
 | Wall removal | Full refund for ~5 s after placing, then recycle for 50% |
 | Power | Through walls, from generators and the ship |
 | Visual style | Clean low-poly 3D, fixed iso-style camera, evening light |
-| Palette | Colony orange, cyan power, dark steel, white; violet aliens |
+| Palette | Colony orange, cyan power, dark steel (no white on colony builds); violet aliens |
 | Walls look | Armored deck; neighbouring walls fuse seamlessly; one orange |
 | Map | No edge; enemies can always go around. Generated world: a clearing and pine forest at the centre, windswept rocky highlands all around beyond (no violet wastes, decided 2026-09-26), raised ground with cliffs growing more common the further out, lakes |
 | Spawners | Caves anywhere except raised ground, 24+ cells from the ship, rarer than ore; the nearest few send each wave |

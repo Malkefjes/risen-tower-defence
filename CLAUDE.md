@@ -79,7 +79,7 @@ Read this first in every session. Sessions do not share memory; this file, `docs
 
 - Art style: clean low-poly 3D with three.js, soft light and shadows. Evening lighting is THE look.
 - Camera: orthographic, fixed iso-style angle (about 30° elevation, 45° rotation). Pan and zoom OK.
-- First world is snowy and cozy: cold world, warm colony (colony orange, cyan power, dark steel, white; violet aliens).
+- First world is snowy and cozy: cold world, warm colony (colony orange, cyan power, dark steel; **no white on colony builds**, Erik 2026-09-27: white is the snow's; violet aliens).
 - Game logic never touches graphics; the renderer builds everything from named models so Erik's own models can replace placeholders.
 - 8-direction movement, no corner cutting. Enemies take the fastest path. No map edge.
 - Visual reference: `mockups/snow-test.html` (Clean 3D view, https://claude.ai/artifact/4Y1EHcKtCrum2szcH6Diqd); `mockups/look-test.html` is the older pixel exploration.
