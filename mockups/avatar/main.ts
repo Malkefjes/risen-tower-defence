@@ -1,6 +1,9 @@
 import * as THREE from "three";
 import { EVENING } from "../../src/render/models";
 import { Sentinel } from "../../src/render/sentinel";
+import { loadModels } from "../../src/render/assets";
+
+await loadModels();
 
 // The player's avatar, the Neon Star Sentinel (src/render/sentinel.ts, the same one as in
 // the game), running in place on the snow in the game's evening light: for fixing him up.

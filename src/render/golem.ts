@@ -1,9 +1,7 @@
 import * as THREE from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import type { EnemyKind } from "../sim/enemies";
-import { GLB as COLOSSUS } from "./golemData";
 import { loopable, parseGlb } from "./skinned";
-import { GLB as TITAN } from "./titanData";
 
 /**
  * Every enemy is Erik's Stonebound Colossus, a rigged golem (the same Meshy rig and clips as
@@ -23,7 +21,6 @@ const CYCLE: Record<GolemClip, number> = { stand: 1, walk: 0.62, walk2: 0.72, ru
 
 /** Erik's models on the golem rig: the Stonebound Colossus (Grunt, Runner, Brute) and the Frost Titan (Elite). */
 export type GolemModel = "colossus" | "titan";
-const MODEL_GLB: Record<GolemModel, string> = { colossus: COLOSSUS, titan: TITAN };
 
 export interface GolemLook {
   /** Which model. */
@@ -73,7 +70,7 @@ const templates = new Map<GolemModel, Promise<Template>>();
 /** Loaded once, on first use. */
 function golemTemplate(model: GolemModel): Promise<Template> {
   let t = templates.get(model);
-  if (!t) templates.set(model, t = parseGlb(MODEL_GLB[model]).then(gltf => {
+  if (!t) templates.set(model, t = parseGlb(model).then(gltf => {
     let mesh: THREE.SkinnedMesh | undefined;
     gltf.scene.traverse(o => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) mesh = o as THREE.SkinnedMesh; });
     separateArmsFromLegs(mesh!);

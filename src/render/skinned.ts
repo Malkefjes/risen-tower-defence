@@ -1,13 +1,13 @@
 import * as THREE from "three";
 import { GLTFLoader, type GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { modelBytes, type ModelName } from "./assets";
 
 /** Helpers for Erik's rigged Meshy models (the Sentinel, the enemy golem): same rig, same clips. */
 
-export const bytes = (b64: string) => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-
-/** A glb held as base64, parsed (async: three's loader works that way). */
-export function parseGlb(b64: string): Promise<GLTF> {
-  return new Promise((ok, fail) => new GLTFLoader().parse(bytes(b64).buffer, "", ok, fail));
+/** A loaded glb, parsed (async: three's loader works that way). */
+export function parseGlb(name: ModelName): Promise<GLTF> {
+  const b = modelBytes(name);
+  return new Promise((ok, fail) => new GLTFLoader().parse(b.buffer, "", ok, fail));
 }
 
 /**

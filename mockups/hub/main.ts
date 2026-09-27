@@ -3,6 +3,9 @@ import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeom
 import { EVENING } from "../../src/render/models";
 import { colonyOrange } from "../../src/render/palette";
 import { Sentinel } from "../../src/render/sentinel";
+import { loadModels } from "../../src/render/assets";
+
+await loadModels();
 
 // The hub, the base's core (it replaces the ship; the ship becomes a drop pad): the bunker, walls
 // angled down from a roof piece flush with them, tall enough to walk in at the front door, three

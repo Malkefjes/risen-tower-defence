@@ -4,6 +4,7 @@ A browser tower defense game about mazing. Enemies take the fastest path to your
 
 A personal project, built for fun.
 
+- **Play:** https://malkefjes.github.io/risen-tower-defence/
 - **Design:** [`docs/DESIGN.md`](docs/DESIGN.md)
 - **Stack:** TypeScript, Vite, three.js, Vitest
 

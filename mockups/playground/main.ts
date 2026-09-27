@@ -7,6 +7,9 @@ import type { Cell } from "../../src/sim/types";
 import type { MapDef } from "../../src/sim/world";
 import { WALL_DECK } from "../../src/sim/world";
 import "./style.css";
+import { loadModels } from "../../src/render/assets";
+
+await loadModels();
 
 // A playground on the real game: a cave, a small walled maze of plated walls, the ship
 // at the far end. Brutes, Runner packs and Grunt packs come out of the cave when sent from the panel. Guns are free.

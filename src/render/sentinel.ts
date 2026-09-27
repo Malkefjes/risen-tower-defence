@@ -1,9 +1,8 @@
 import * as THREE from "three";
 import type { GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { BLASTER } from "./blasterData";
+import { modelBytes } from "./assets";
 import { colonyOrange } from "./palette";
-import { GLB } from "./sentinelData";
-import { bytes, loopable, parseGlb } from "./skinned";
+import { loopable, parseGlb } from "./skinned";
 
 /**
  * The player's avatar: Erik's Neon Star Sentinel, a skinned model with stand, walk, run and
@@ -66,7 +65,7 @@ let blasterGeo: { geo: THREE.BufferGeometry; box: THREE.Box3 } | undefined;
  */
 function blasterGeometry(): { geo: THREE.BufferGeometry; box: THREE.Box3 } {
   if (blasterGeo) return blasterGeo;
-  const b = bytes(BLASTER), view = new DataView(b.buffer);
+  const b = modelBytes("blaster"), view = new DataView(b.buffer);
   const jsonLen = view.getUint32(12, true);
   const json = JSON.parse(new TextDecoder().decode(b.subarray(20, 20 + jsonLen))) as {
     nodes: { mesh?: number; rotation?: number[] }[];
@@ -153,7 +152,7 @@ export class Sentinel {
     // The muzzle sits in his hand until the model is in.
     this.muzzle.position.set(0, AVATAR_HEIGHT * 0.5, 0.3);
     this.object.add(this.muzzle);
-    parseGlb(GLB).then(gltf => this.build(gltf), e => console.error("avatar", e));
+    parseGlb("sentinel").then(gltf => this.build(gltf), e => console.error("avatar", e));
   }
 
   private build(gltf: GLTF): void {

@@ -5,6 +5,9 @@ import { Game, TICK } from "./sim/game";
 import { generateWorld } from "./sim/worldgen";
 import { Hud } from "./ui/hud";
 import { loadTuning, TuningPanel } from "./ui/tuning";
+import { loadModels } from "./render/assets";
+
+await loadModels();
 
 // The world is generated from a seed (stored in this browser; 1 unless changed).
 let seed = 1;

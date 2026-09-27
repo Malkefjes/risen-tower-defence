@@ -3,6 +3,9 @@ import { GOLEM_CLIPS, GOLEM_LOOKS, golemEnemy, type Enemy, type GolemClip, type 
 import { EVENING } from "../../src/render/models";
 import type { EnemyKind } from "../../src/sim/enemies";
 import { defaultTuning } from "../../src/sim/tuning";
+import { loadModels } from "../../src/render/assets";
+
+await loadModels();
 
 // The enemy golem (src/render/golem.ts, the same one as in the game), one type at a time in
 // its size, frost colour and speed, walking in place on the snow in the game's evening light.
