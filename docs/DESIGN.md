@@ -237,7 +237,7 @@ Not locked yet: zoom range, final model shapes.
 | Wall supply | Buy any shape with stone from the Q wheel (no supply drops) |
 | Wall removal | Full refund for ~5 s after placing, then recycle for 50% |
 | Power | Through walls, from generators and the ship |
-| Visual style | Clean low-poly 3D, fixed iso-style camera, evening light |
+| Visual style | Clean low-poly 3D, fixed iso-style camera, evening light; the soft old colour handling (no colour management or tone mapping) kept after trying the modern pipeline, 2026-09-27 |
 | Palette | Colony orange, cyan power, dark steel (no white on colony builds); violet aliens |
 | Walls look | Armored deck; neighbouring walls fuse seamlessly; one orange |
 | Map | No edge; enemies can always go around. Generated world: a clearing and pine forest at the centre, windswept rocky highlands all around beyond (no violet wastes, decided 2026-09-26), raised ground with cliffs growing more common the further out, lakes |

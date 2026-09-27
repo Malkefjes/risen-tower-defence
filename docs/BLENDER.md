@@ -52,7 +52,7 @@ Any other name keeps the colour you gave it in Blender (stone, ice, glass, rubbe
 
 Colour whole parts with materials (select the faces in Edit mode, pick the material, Assign) rather than painting a texture. One mesh can hold several materials. Textures load too, but keep them small (1024 px or less) until we do the performance step.
 
-*Until the renderer step (step 3) the game still colours the current models by face in code; the palette names above are what it will read from then on.*
+*The game doesn't read the palette names yet (the current models are still coloured by face in code); Claude wires them up when your first export comes in. Your colours show in the game as they look in Blender's Material Preview; only the light differs.*
 
 ## Shading: low-poly and flat
 
