@@ -1,7 +1,6 @@
 # Frostfall: Design
 
 Snapshot of the living design doc, kept in the repo so every session can read it.
-Live version (editable by Erik): https://claude.ai/code/artifact/8a4e11d2-eea6-4144-9f29-23a844c9d1ec
 If the two disagree, ask Erik which is current, then update both.
 The build order lives in `docs/PLAN.md` (milestones M0 to M5, idea bank).
 

@@ -28,7 +28,7 @@ Read this first in every session. Sessions do not share memory; this file, `docs
 - Take it slow on design: discuss fundamentals, reason through trade-offs, don't jump to building without agreement. Describe a step to Erik before building it unless he pre-approves.
 - Looks are picked from mockups with three options labelled A/B/C; Erik iterates on the pick.
 - Erik dislikes popups that interrupt play: prefer non-blocking notices. No instructional text in the UI (no control hints or how-to lines); show state, not instructions. No motion blur, ever.
-- Design: `docs/DESIGN.md` (snapshot in the repo). Erik's live, editable copy: https://claude.ai/code/artifact/8a4e11d2-eea6-4144-9f29-23a844c9d1ec. When a design decision changes, update `docs/DESIGN.md` in the same commit.
+- Design: `docs/DESIGN.md` is the one design doc (the live copy was deleted 2026-09-27 at Erik's call; publish it as a page if he wants to read it outside the repo). When a design decision changes, update `docs/DESIGN.md` in the same commit.
 - **Standing guardrail:** every shop/economy system must feed back into maze decisions. Flag it whenever a feature risks the economy becoming the main game.
 
 ## Picks and looks (for reference)

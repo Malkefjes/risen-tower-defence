@@ -4,7 +4,7 @@ A browser tower defense game about mazing. Enemies take the fastest path to your
 
 A personal project, built for fun.
 
-- **Design:** [`docs/DESIGN.md`](docs/DESIGN.md), synced from the [live design doc](https://claude.ai/code/artifact/8a4e11d2-eea6-4144-9f29-23a844c9d1ec)
+- **Design:** [`docs/DESIGN.md`](docs/DESIGN.md)
 - **Stack:** TypeScript, Vite, three.js, Vitest
 
 ## Running locally
