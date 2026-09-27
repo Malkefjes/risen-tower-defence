@@ -1,10 +1,11 @@
 import * as THREE from "three";
+import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { EVENING } from "../../src/render/models";
 import { colonyOrange } from "../../src/render/palette";
 import { Sentinel } from "../../src/render/sentinel";
 
-// The hub, the base's core (it replaces the ship; the ship becomes a drop pad): three command
-// modules on the ground, A bunker, B twin hangar, C stepped command, each on its 3×3 cells, in
+// The hub, the base's core (it replaces the ship; the ship becomes a drop pad): three bunkers,
+// square with rounded edges, on the ground, A low block, B banded block, C skirted block, each on its 3×3 cells, in
 // the colony's dark steel, orange and cyan (no white), in the game's evening light, with the
 // Sentinel for scale. Drag to turn, wheel to zoom.
 
@@ -84,131 +85,105 @@ type Hub = { object: THREE.Group; update: (t: number) => void };
 
 const CORNERS = [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const;
 
-// ------------------------------------------------------------------ A · bunker
+/** A box with rounded edges, standing on the ground at y. */
+const rbox = (w: number, h: number, d: number, r: number, m: THREE.Material, x = 0, y = 0, z = 0) => mesh(new RoundedBoxGeometry(w, h, d, 2, r), m, x, y + h / 2, z);
 
-function bunker(): Hub {
-  const g = new THREE.Group();
-  // A low armoured block on the ground, its sides sloping in: a frustum with four faces.
-  const body = mesh(new THREE.CylinderGeometry(1.1, 1.5 * Math.SQRT2 * 0.95, 0.9, 4, 1).rotateY(Math.PI / 4), M.steel, 0, 0.45, 0);
-  g.add(body);
-  // Where the slopes are: half the width at the foot and at the top, and their lean.
-  const FOOT = 1.425, TOP = 0.78, H = 0.9, LEAN = Math.atan((FOOT - TOP) / H);
-  const at = (y: number) => FOOT - (FOOT - TOP) * (y / H);
-  // Orange armour plates on the sides and back, lying on the slopes, a cyan light slit above each.
+/** The front of every bunker: an entrance porch with a blast door framed in cyan, facing +z from `z`. */
+function porch(g: THREE.Group, z: number, h = 0.7): void {
+  g.add(rbox(1.0, h, 0.5, 0.08, M.dark, 0, 0, z + 0.2));
+  g.add(rbox(1.06, 0.1, 0.56, 0.04, M.orange, 0, h, z + 0.2));
+  g.add(box(0.74, h - 0.12, 0.04, M.power, 0, 0, z + 0.46));
+  g.add(box(0.64, h - 0.18, 0.05, M.deck, 0, 0, z + 0.47));
+  g.add(box(0.04, h - 0.18, 0.06, M.dark, 0, 0, z + 0.475));
+}
+
+/** A comms mast with a cyan tip that blinks; returns the tip's material. */
+function mast(g: THREE.Group, x: number, y: number, z: number, h = 1.0): THREE.MeshStandardMaterial {
+  g.add(cyl(0.035, 0.05, h, M.dark, x, y, z, 6));
+  const m = M.lit.clone();
+  g.add(mesh(new THREE.SphereGeometry(0.07, 8, 6), m, x, y + h + 0.04, z));
+  return m;
+}
+const blink = (m: THREE.MeshStandardMaterial, t: number) => { m.emissiveIntensity = Math.sin(t * 3) > 0.6 ? 1.8 : 0.4; };
+
+/** Something on each of three walls (sides and back), turned to face out. */
+function onWalls(g: THREE.Group, make: () => THREE.Object3D): void {
   for (let i = 1; i < 4; i++) {
     const side = new THREE.Group();
-    const plate = mesh(new THREE.BoxGeometry(1.6, 0.42, 0.06), M.orange, 0, 0.34, at(0.34) + 0.03);
-    plate.rotation.x = -LEAN;
-    side.add(plate);
-    const slit = mesh(new THREE.BoxGeometry(1.0, 0.05, 0.04), M.power, 0, 0.72, at(0.72) + 0.02);
-    slit.rotation.x = -LEAN;
-    side.add(slit);
+    side.add(make());
     side.rotation.y = (i * Math.PI) / 2;
     g.add(side);
   }
-  // The front: an entrance porch out of the slope, its blast door framed in cyan.
-  g.add(box(0.95, 0.72, 0.6, M.dark, 0, 0, 1.2));
-  g.add(box(1.0, 0.08, 0.64, M.orange, 0, 0.72, 1.2));
-  g.add(box(0.72, 0.6, 0.04, M.power, 0, 0, 1.5));
-  g.add(box(0.62, 0.54, 0.05, M.deck, 0, 0, 1.51));
-  g.add(box(0.04, 0.54, 0.06, M.dark, 0, 0, 1.515));
-  // Roof: a flat deck, a hatch, a comms mast with a blinking tip.
-  g.add(box(1.5, 0.08, 1.5, M.deck, 0, 0.9, 0));
-  g.add(cyl(0.22, 0.25, 0.1, M.orange, -0.35, 0.98, -0.3, 8));
-  g.add(cyl(0.035, 0.05, 1.0, M.dark, 0.4, 0.98, -0.35, 6));
-  const tip = mesh(new THREE.SphereGeometry(0.07, 8, 6), M.lit.clone(), 0.4, 2.02, -0.35);
-  g.add(tip);
-  return {
-    object: g,
-    update: t => { (tip.material as THREE.MeshStandardMaterial).emissiveIntensity = Math.sin(t * 3) > 0.6 ? 1.8 : 0.4; },
-  };
 }
 
-// ------------------------------------------------------------------ B · twin hangar
+// ------------------------------------------------------------------ A · low block
 
-function twinHangar(): Hub {
+function lowBlock(): Hub {
   const g = new THREE.Group();
-  const ridges: THREE.MeshStandardMaterial[] = [];
-  // Two ribbed half-round halls on the ground, side by side, running front to back.
-  for (const sx of [-1, 1]) {
-    const hall = new THREE.Group();
-    hall.position.x = sx * 0.78;
-    hall.add(mesh(new THREE.CylinderGeometry(0.68, 0.68, 2.8, 8, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).rotateY(Math.PI / 2), M.steel, 0, 0, 0));
-    // Ribs across the roof.
-    for (let i = -2; i <= 2; i++) hall.add(mesh(new THREE.TorusGeometry(0.69, 0.035, 4, 8, Math.PI), M.dark, 0, 0, i * 0.6));
-    // Orange doors on both ends, a cyan strip along the ridge.
-    for (const sz of [-1, 1]) hall.add(mesh(new THREE.CircleGeometry(0.64, 8, 0, Math.PI).rotateY(sz > 0 ? 0 : Math.PI), M.orange, 0, 0.001, sz * 1.41));
-    const strip = M.power.clone();
-    ridges.push(strip);
-    hall.add(mesh(new THREE.BoxGeometry(0.08, 0.04, 2.5), strip, 0, 0.69, 0));
-    g.add(hall);
-  }
-  // The control tower joining them in the middle, a dish turning on top.
-  g.add(box(0.5, 1.15, 0.8, M.dark, 0, 0, 0));
-  g.add(box(0.54, 0.14, 0.84, M.orange, 0, 1.15, 0));
-  g.add(box(0.52, 0.1, 0.5, M.lit, 0, 0.85, 0.2));
-  const head = new THREE.Group();
-  head.position.y = 1.29;
-  head.add(cyl(0.05, 0.07, 0.25, M.steel, 0, 0, 0, 8));
-  head.add(mesh(new THREE.SphereGeometry(0.34, 12, 4, 0, Math.PI * 2, 0, Math.PI / 3).rotateX(-Math.PI / 2 - 0.6), M.steel, 0, 0.32, 0));
-  head.add(mesh(new THREE.SphereGeometry(0.045, 8, 6), M.lit, 0, 0.36, 0.16));
-  g.add(head);
-  return {
-    object: g,
-    update: t => {
-      head.rotation.y = t * 0.5;
-      ridges.forEach((m, i) => { m.emissiveIntensity = 0.35 + 0.8 * Math.max(0, Math.sin(t * 2 + i * Math.PI)); });
-    },
-  };
+  g.add(rbox(2.9, 0.85, 2.9, 0.2, M.steel));
+  // Orange plates flat on the walls, a cyan slit above each.
+  onWalls(g, () => {
+    const w = new THREE.Group();
+    w.add(rbox(1.7, 0.4, 0.08, 0.03, M.orange, 0, 0.12, 1.46));
+    w.add(box(1.2, 0.05, 0.04, M.power, 0, 0.64, 1.46));
+    return w;
+  });
+  porch(g, 1.3);
+  // Roof: a deck plate, a hatch, a mast.
+  g.add(rbox(1.9, 0.06, 1.9, 0.03, M.deck, 0, 0.85, 0));
+  g.add(cyl(0.24, 0.27, 0.1, M.orange, -0.45, 0.91, -0.35, 10));
+  const tip = mast(g, 0.5, 0.91, -0.45);
+  return { object: g, update: t => blink(tip, t) };
 }
 
-// ------------------------------------------------------------------ C · stepped command
+// ------------------------------------------------------------------ B · banded block
 
-function steppedCommand(): Hub {
+function bandedBlock(): Hub {
   const g = new THREE.Group();
-  const edges = M.power.clone();
-  // A wide base block on the ground, a smaller deck on it, a command cab on top.
-  g.add(box(2.9, 0.55, 2.9, M.steel));
-  g.add(box(2.1, 0.45, 2.1, M.dark, 0, 0.55));
-  g.add(box(1.3, 0.5, 1.3, M.steel, 0, 1.0));
-  // Cyan lights along the step edges.
-  for (const [w, y] of [[2.92, 0.55], [2.12, 1.0]] as const) {
-    for (let i = 0; i < 4; i++) {
-      const e = mesh(new THREE.BoxGeometry(w, 0.04, 0.04), edges, 0, y, w / 2);
-      const holder = new THREE.Group();
-      holder.add(e);
-      holder.rotation.y = (i * Math.PI) / 2;
-      g.add(holder);
-    }
+  // Lower and upper body, a dark recessed band between them with one cyan slit all round.
+  g.add(rbox(2.9, 0.5, 2.9, 0.18, M.steel));
+  g.add(rbox(2.7, 0.3, 2.7, 0.1, M.dark, 0, 0.5));
+  g.add(rbox(2.9, 0.45, 2.9, 0.18, M.steel, 0, 0.8));
+  const band = M.power.clone();
+  for (let i = 0; i < 4; i++) {
+    const side = new THREE.Group();
+    side.add(box(2.3, 0.06, 0.04, band, 0, 0.62, 1.36));
+    side.rotation.y = (i * Math.PI) / 2;
+    g.add(side);
   }
-  // The cab's windows: a cyan band all round.
-  g.add(box(1.32, 0.16, 1.32, M.lit, 0, 1.22));
-  g.add(box(1.36, 0.08, 1.36, M.orange, 0, 1.5));
-  // Orange bumpers on the base's corners, a door on the front.
-  for (const [sx, sz] of CORNERS) g.add(box(0.3, 0.6, 0.3, M.orange, sx * 1.36, 0, sz * 1.36));
-  g.add(box(0.7, 0.45, 0.06, M.orange, 0, 0, 1.46));
-  g.add(box(0.58, 0.4, 0.07, M.dark, 0, 0, 1.465));
-  // The antenna array on the cab.
-  const tips: THREE.MeshStandardMaterial[] = [];
-  for (const [x, h] of [[-0.35, 0.7], [0, 1.0], [0.35, 0.55]] as const) {
-    g.add(cyl(0.025, 0.035, h, M.dark, x, 1.58, -0.3, 6));
-    const tm = M.lit.clone();
-    tips.push(tm);
-    g.add(mesh(new THREE.SphereGeometry(0.05, 8, 6), tm, x, 1.58 + h, -0.3));
-  }
-  return {
-    object: g,
-    update: t => {
-      edges.emissiveIntensity = 0.45 + 0.35 * (0.5 + 0.5 * Math.sin(t * 1.4));
-      tips.forEach((m, i) => { m.emissiveIntensity = ((t * 0.8 + i / 3) % 1) < 0.12 ? 2 : 0.35; });
-    },
-  };
+  // Rounded orange guards on the four corners.
+  for (const [sx, sz] of CORNERS) g.add(rbox(0.42, 1.3, 0.42, 0.14, M.orange, sx * 1.3, 0, sz * 1.3));
+  porch(g, 1.3, 0.62);
+  g.add(cyl(0.26, 0.3, 0.1, M.dark, 0.3, 1.25, 0.3, 10));
+  const tip = mast(g, -0.5, 1.25, -0.4, 0.9);
+  return { object: g, update: t => { blink(tip, t); band.emissiveIntensity = 0.45 + 0.35 * (0.5 + 0.5 * Math.sin(t * 1.4)); } };
+}
+
+// ------------------------------------------------------------------ C · skirted block
+
+function skirtedBlock(): Hub {
+  const g = new THREE.Group();
+  // A heavy orange armour skirt round the foot, the steel block rising out of it.
+  g.add(rbox(3.0, 0.35, 3.0, 0.14, M.orange));
+  g.add(rbox(2.7, 0.75, 2.7, 0.2, M.steel, 0, 0.3));
+  // Cyan slits high on the walls.
+  onWalls(g, () => {
+    const w = new THREE.Group();
+    for (const x of [-0.6, 0, 0.6]) w.add(box(0.4, 0.06, 0.04, M.power, x, 0.82, 1.35));
+    return w;
+  });
+  porch(g, 1.2, 0.62);
+  // A smaller rounded roof module, its own mast.
+  g.add(rbox(1.2, 0.4, 1.0, 0.12, M.dark, -0.4, 1.05, -0.3));
+  g.add(box(0.8, 0.08, 0.04, M.lit, -0.4, 1.2, 0.21));
+  const tip = mast(g, -0.75, 1.45, -0.6, 0.8);
+  return { object: g, update: t => blink(tip, t) };
 }
 
 // ------------------------------------------------------------------ layout
 
 const SPACING = 5;
-const hubs = [bunker(), twinHangar(), steppedCommand()];
+const hubs = [lowBlock(), bandedBlock(), skirtedBlock()];
 const turntable = new THREE.Group();
 scene.add(turntable);
 hubs.forEach((h, i) => {
