@@ -5,7 +5,7 @@ import { colonyOrange } from "../../src/render/palette";
 import { Sentinel } from "../../src/render/sentinel";
 
 // The hub, the base's core (it replaces the ship; the ship becomes a drop pad): Erik's pick, the
-// bunker, a square block with rounded edges, tall enough to walk in at the front door, on its 3×3 cells, in
+// bunker, walls angled down from a roof piece, tall enough to walk in at the front door, on its 3×3 cells, in
 // the colony's dark steel, orange and cyan (no white), in the game's evening light, with the
 // Sentinel for scale. Drag to turn, wheel to zoom.
 
@@ -98,31 +98,45 @@ function mast(g: THREE.Group, x: number, y: number, z: number, h = 1.0): THREE.M
 
 /** Tall enough for the player to walk in at the front door (he is 1.33 cells). */
 const BLOCK_H = 2.2, DOOR_H = 1.55, DOOR_W = 0.9, PORCH_H = 1.8;
+/** The walls angle down from the roof piece: half the width at the foot and under the roof, and their lean. */
+const FOOT = 1.45, TOP = 1.05, LEAN = Math.atan((FOOT - TOP) / BLOCK_H);
+const wallAt = (y: number) => FOOT - (FOOT - TOP) * (y / BLOCK_H);
 
 function bunker(): Hub {
   const g = new THREE.Group();
-  g.add(rbox(2.9, BLOCK_H, 2.9, 0.22, M.steel));
-  // Orange armour plates flat on the sides and back, a cyan slit above each.
+  // The body: four walls leaning in from the ground to the roof piece (a square frustum).
+  const r = (x: number) => x * Math.SQRT2;
+  g.add(mesh(new THREE.CylinderGeometry(r(TOP), r(FOOT), BLOCK_H, 4, 1).rotateY(Math.PI / 4), M.steel, 0, BLOCK_H / 2, 0));
+  // The roof piece: a rounded slab a little wider than the top of the walls.
+  g.add(rbox(TOP * 2 + 0.3, 0.3, TOP * 2 + 0.3, 0.1, M.dark, 0, BLOCK_H - 0.02, 0));
+  // Orange armour plates lying on the side and back walls, a cyan slit above each.
   for (let i = 1; i < 4; i++) {
     const side = new THREE.Group();
-    side.add(rbox(1.8, 0.9, 0.08, 0.04, M.orange, 0, 0.25, 1.46));
-    side.add(box(1.4, 0.06, 0.04, M.power, 0, 1.45, 1.46));
+    const plate = mesh(new RoundedBoxGeometry(1.8, 0.9, 0.08, 2, 0.04), M.orange, 0, 0.7, wallAt(0.7) + 0.04);
+    plate.rotation.x = -LEAN;
+    side.add(plate);
+    const slit = mesh(new THREE.BoxGeometry(1.4, 0.06, 0.04), M.power, 0, 1.5, wallAt(1.5) + 0.02);
+    slit.rotation.x = -LEAN;
+    side.add(slit);
     side.rotation.y = (i * Math.PI) / 2;
     g.add(side);
   }
-  // The entrance porch, sticking out past the cells: a blast door framed in cyan, big enough to walk in.
-  const z = 1.45;
-  g.add(rbox(DOOR_W + 0.4, PORCH_H, 0.6, 0.1, M.dark, 0, 0, z + 0.2));
-  g.add(rbox(DOOR_W + 0.5, 0.12, 0.66, 0.05, M.orange, 0, PORCH_H, z + 0.2));
-  g.add(box(DOOR_W + 0.12, DOOR_H + 0.06, 0.04, M.power, 0, 0, z + 0.5));
-  g.add(box(DOOR_W, DOOR_H, 0.05, M.deck, 0, 0, z + 0.51));
-  g.add(box(0.04, DOOR_H, 0.06, M.dark, 0, 0, z + 0.515));
-  // A cyan slit across the front above the porch.
-  g.add(box(1.4, 0.06, 0.04, M.power, 0, 1.95, 1.46));
-  // Roof: a deck plate, a hatch, a mast.
-  g.add(rbox(2.1, 0.06, 2.1, 0.03, M.deck, 0, BLOCK_H, 0));
-  g.add(cyl(0.26, 0.29, 0.12, M.orange, -0.5, BLOCK_H + 0.06, -0.4, 10));
-  const tip = mast(g, 0.55, BLOCK_H + 0.06, -0.5, 1.1);
+  // The entrance porch, standing upright out of the front wall and past the cells: a blast door
+  // framed in cyan, big enough to walk in.
+  const front = FOOT + 0.35;
+  g.add(rbox(DOOR_W + 0.4, PORCH_H, 1.0, 0.1, M.dark, 0, 0, front - 0.5));
+  g.add(rbox(DOOR_W + 0.5, 0.12, 1.06, 0.05, M.orange, 0, PORCH_H, front - 0.5));
+  g.add(box(DOOR_W + 0.12, DOOR_H + 0.06, 0.04, M.power, 0, 0, front));
+  g.add(box(DOOR_W, DOOR_H, 0.05, M.deck, 0, 0, front + 0.01));
+  g.add(box(0.04, DOOR_H, 0.06, M.dark, 0, 0, front + 0.015));
+  // A cyan slit across the front wall above the porch.
+  const top = mesh(new THREE.BoxGeometry(1.2, 0.06, 0.04), M.power, 0, 2.0, wallAt(2.0) + 0.02);
+  top.rotation.x = -LEAN;
+  g.add(top);
+  // On the roof piece: a hatch and a mast.
+  const roof = BLOCK_H + 0.28;
+  g.add(cyl(0.26, 0.29, 0.12, M.orange, -0.45, roof, -0.35, 10));
+  const tip = mast(g, 0.5, roof, -0.45, 1.1);
   return { object: g, update: t => { tip.emissiveIntensity = Math.sin(t * 3) > 0.6 ? 1.8 : 0.4; } };
 }
 
