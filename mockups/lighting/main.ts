@@ -7,6 +7,16 @@ import type { Cell } from "../../src/sim/types";
 // anything is built (colour management changes how every colour is read), so a pick reloads.
 // A small base goes up by the ship, and mixed packs keep coming at it.
 
+// Any failure shows on the page, so a blank screen always says why.
+const fail = (m: string) => {
+  const d = document.createElement("pre");
+  d.style.cssText = "position:fixed;left:16px;bottom:120px;z-index:99;max-width:80vw;white-space:pre-wrap;color:#fff;background:rgba(20,10,30,.85);padding:10px;font:12px monospace";
+  d.textContent = m;
+  document.body.append(d);
+};
+addEventListener("error", e => fail(String(e.message)));
+addEventListener("unhandledrejection", e => fail(String((e.reason as Error)?.stack ?? e.reason)));
+
 const names = Object.keys(LOOKS) as LookName[];
 const fromHash = location.hash.slice(1) as LookName;
 const pick: LookName = names.includes(fromHash) ? fromHash : "A";

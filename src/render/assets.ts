@@ -12,10 +12,22 @@ export type ModelName = "sentinel" | "blaster" | "colossus" | "titan";
 export async function loadModels(): Promise<void> {
   await Promise.all(Object.entries(URLS).map(async ([path, url]) => {
     const name = path.slice(path.lastIndexOf("/") + 1, -".glb".length);
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`model ${name}: ${res.status}`);
-    loaded.set(name, await res.arrayBuffer());
+    loaded.set(name, url.startsWith("data:") ? fromDataUrl(url) : await fetchBytes(name, url));
   }));
+}
+
+async function fetchBytes(name: string, url: string): Promise<ArrayBuffer> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`model ${name}: ${res.status}`);
+  return res.arrayBuffer();
+}
+
+/** Inlined models (single-file builds) are decoded in place: artifact pages may not fetch data: URLs. */
+function fromDataUrl(url: string): ArrayBuffer {
+  const bin = atob(url.slice(url.indexOf(",") + 1));
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out.buffer;
 }
 
 /** A loaded model's bytes (`loadModels` must have finished). */
