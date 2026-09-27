@@ -6,6 +6,7 @@ A personal project, built for fun.
 
 - **Play:** https://malkefjes.github.io/risen-tower-defence/
 - **Design:** [`docs/DESIGN.md`](docs/DESIGN.md)
+- **Models:** exported from Blender to [`docs/BLENDER.md`](docs/BLENDER.md)
 - **Stack:** TypeScript, Vite, three.js, Vitest
 
 ## Running locally
